@@ -1,0 +1,51 @@
+PROGRAM_HEADER:
+    b"27FACTORIAL"
+    {
+        "type_name": type_index,
+        ...
+    },
+
+PROGRAM:
+    header: PROGRAM_HEADER,
+    strings: [
+        "constant",
+        "string",
+        "array",
+        ...
+    ],
+    types: [
+        TYPE1,
+        TYPE2,
+        TYPE3,
+        ...
+    ],
+
+TYPE:
+    TYPEMETA
+    [
+        value1,
+        value2,
+        value3,
+        ...
+    ],
+
+TYPEMETA:
+    name (index into PROGRAM strings pool),
+    OPERATORS,
+    [
+        function1,
+        function2,
+        function3,
+        ...
+    ]
+
+OPERATORS:
+    constructor: fn,
+    finalizer: fn,
+    index: fn,
+    add: fn,
+    sub: fn,
+    mul: fn,
+    div: fn,
+
+    
