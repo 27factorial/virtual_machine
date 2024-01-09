@@ -10,6 +10,8 @@ use std::{
     ptr::{self, NonNull},
 };
 
+use crate::object::{Object, TypeMeta};
+
 /// Constructs a new `GcBox<T>`, while also performing unsized coercions as necessary.
 ///
 /// Types like `Box<T>` can be converted to a type `Box<U>` under certain conditons. The main
@@ -439,5 +441,33 @@ impl<T: ?Sized> Drop for GcBox<T> {
         unsafe {
             dealloc(ptr, layout);
         }
+    }
+}
+
+pub struct GcObject {
+    pub(crate) meta: TypeMeta,
+    pub(crate) obj: GcBox<dyn Object>,
+}
+
+impl GcObject {
+    pub fn new<T: Object + 'static>(value: T) -> Self {
+        let meta = T::type_meta();
+
+        Self {
+            meta,
+            obj: gc_box!(value),
+        }
+    }
+
+    pub fn meta(&self) -> &TypeMeta {
+        &self.meta
+    }
+
+    pub fn mark(&mut self) {
+        self.obj.mark();
+    }
+
+    pub fn is_marked(&self) -> bool {
+        self.obj.is_marked()
     }
 }

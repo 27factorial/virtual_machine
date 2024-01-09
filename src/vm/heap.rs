@@ -1,9 +1,16 @@
-use crate::{gc::GcBox, gc_box, object::Object, value::Value};
+use strum::IntoEnumIterator;
 
-use super::{Registers, memory::ValueMemory, Register, RegisterIter};
+use crate::{
+    gc::{GcBox, GcObject},
+    gc_box,
+    object::Object,
+    value::Value,
+};
+
+use super::{memory::ValueMemory, Register, RegisterIter, Registers};
 
 pub struct Heap {
-    memory: Vec<GcBox<dyn Object>>,
+    memory: Vec<GcObject>,
     visited: Vec<usize>,
     byte_len: usize,
     byte_capacity: usize,
@@ -20,23 +27,21 @@ impl Heap {
     }
 
     pub fn alloc<T: Object + 'static>(&mut self, value: T) -> Result<HeapIndex, T> {
-        let value_heap_size = std::mem::size_of::<T>() + std::mem::size_of::<GcBox<dyn Object>>();
+        let value_heap_size = std::mem::size_of::<T>() + std::mem::size_of::<GcObject>();
 
         if self.byte_len + value_heap_size > self.byte_capacity {
             // The first time an error is returned, the VM should attempt to collect garbage.
             Err(value)
         } else {
             let heap_index = self.memory.len();
-            self.memory.push(gc_box!(value));
+            self.memory.push(GcObject::new(value));
             self.byte_len += value_heap_size;
             Ok(HeapIndex(heap_index))
         }
     }
 
     pub fn mark(&mut self, roots: RootsIter<'_>) {
-        for root in roots {
-            
-        }
+        for root in roots {}
     }
 }
 
@@ -47,6 +52,17 @@ pub struct RootsIter<'a> {
     memory: &'a ValueMemory,
     registers_iter: RegisterIter,
     idx: usize,
+}
+
+impl<'a> RootsIter<'a> {
+    pub fn new(registers: &'a Registers, memory: &'a ValueMemory) -> Self {
+        Self {
+            registers,
+            memory,
+            registers_iter: Register::iter(),
+            idx: 0,
+        }
+    }
 }
 
 impl Iterator for RootsIter<'_> {
