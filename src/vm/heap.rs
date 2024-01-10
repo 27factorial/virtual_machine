@@ -11,7 +11,8 @@ use super::{memory::ValueMemory, Register, RegisterIter, Registers};
 
 pub struct Heap {
     memory: Vec<GcObject>,
-    visited: Vec<usize>,
+    worklist: Vec<usize>,
+    current_children: Vec<HeapIndex>,
     byte_len: usize,
     byte_capacity: usize,
 }
@@ -20,7 +21,8 @@ impl Heap {
     pub fn new(byte_capacity: usize) -> Self {
         Self {
             memory: Vec::new(),
-            visited: Vec::new(),
+            worklist: Vec::new(),
+            current_children: Vec::new(),
             byte_len: 0,
             byte_capacity,
         }
@@ -40,8 +42,52 @@ impl Heap {
         }
     }
 
-    pub fn mark(&mut self, roots: RootsIter<'_>) {
-        for root in roots {}
+    pub fn mark_from_roots(&mut self, roots: RootsIter<'_>) {
+        for root in roots {
+            let Some(object) = self.memory.get_mut(root.0) else {
+                continue;
+            };
+
+            if !object.is_marked() {
+                object.mark();
+                self.worklist.push(root.0);
+                self.mark();
+            }
+        }
+
+        todo!()
+    }
+
+    pub fn mark(&mut self) {
+        while let Some(idx) = self.worklist.pop() {
+            let object = self.memory.get(idx).expect("object should exist");
+
+            let object_children = object.obj.fields().iter().filter_map(|&field| match field {
+                Value::Object(idx) => Some(HeapIndex(idx)),
+                _ => None,
+            });
+
+            self.current_children.extend(object_children);
+
+            for &HeapIndex(child_idx) in &self.current_children {
+                if let Some(child_object) = self.memory.get_mut(child_idx) {
+                    if !child_object.is_marked() {
+                        child_object.mark();
+                        self.worklist.push(child_idx);
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn sweep(&mut self) {
+        for object in &mut self.memory {
+            if object.is_marked() {
+                object.obj.unmark();
+            } else {
+                todo!("delete and deallocate the object")
+            }
+        }
     }
 }
 

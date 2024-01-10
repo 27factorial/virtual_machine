@@ -9,6 +9,7 @@ pub trait Object {
         Self: Sized;
     fn field(&self, name: &str) -> Option<&Value>;
     fn field_mut(&mut self, name: &str) -> Option<&mut Value>;
+    fn fields(&self) -> &[Value];
     fn call_method(&self, name: &str) -> Result<Value, ()>;
 }
 
