@@ -10,7 +10,8 @@ use crate::{
 use super::{memory::ValueMemory, Register, RegisterIter, Registers};
 
 pub struct Heap {
-    memory: Vec<GcObject>,
+    memory: Vec<Option<GcObject>>,
+    free_indices: Vec<usize>,
     worklist: Vec<usize>,
     current_children: Vec<HeapIndex>,
     byte_len: usize,
@@ -21,6 +22,7 @@ impl Heap {
     pub fn new(byte_capacity: usize) -> Self {
         Self {
             memory: Vec::new(),
+            free_indices: Vec::new(),
             worklist: Vec::new(),
             current_children: Vec::new(),
             byte_len: 0,
@@ -36,7 +38,7 @@ impl Heap {
             Err(value)
         } else {
             let heap_index = self.memory.len();
-            self.memory.push(GcObject::new(value));
+            self.memory.push(Some(GcObject::new(value)));
             self.byte_len += value_heap_size;
             Ok(HeapIndex(heap_index))
         }
@@ -44,7 +46,12 @@ impl Heap {
 
     pub fn mark_from_roots(&mut self, roots: RootsIter<'_>) {
         for root in roots {
-            let Some(object) = self.memory.get_mut(root.0) else {
+            let Some(object) = self
+                .memory
+                .get_mut(root.0)
+                .map(|opt| opt.as_mut())
+                .flatten()
+            else {
                 continue;
             };
 
@@ -60,7 +67,12 @@ impl Heap {
 
     pub fn mark(&mut self) {
         while let Some(idx) = self.worklist.pop() {
-            let object = self.memory.get(idx).expect("object should exist");
+            let object = self
+                .memory
+                .get(idx)
+                .map(|opt| opt.as_ref())
+                .flatten()
+                .expect("object should exist");
 
             let object_children = object.obj.fields().iter().filter_map(|&field| match field {
                 Value::Object(idx) => Some(HeapIndex(idx)),
