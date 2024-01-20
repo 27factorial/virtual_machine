@@ -44,13 +44,17 @@ impl Heap {
         }
     }
 
+    pub fn collect(&mut self, roots: RootsIter<'_>) {
+        self.mark_from_roots(roots);
+        self.sweep();
+    }
+
     pub fn mark_from_roots(&mut self, roots: RootsIter<'_>) {
         for root in roots {
             let Some(object) = self
                 .memory
                 .get_mut(root.0)
-                .map(|opt| opt.as_mut())
-                .flatten()
+                .and_then(|opt| opt.as_mut())
             else {
                 continue;
             };
@@ -58,31 +62,32 @@ impl Heap {
             if !object.is_marked() {
                 object.mark();
                 self.worklist.push(root.0);
-                self.mark();
+                self.mark_children();
             }
         }
 
         todo!()
     }
 
-    pub fn mark(&mut self) {
+    fn mark_children(&mut self) {
         while let Some(idx) = self.worklist.pop() {
             let object = self
                 .memory
                 .get(idx)
-                .map(|opt| opt.as_ref())
-                .flatten()
+                .and_then(|opt| opt.as_ref())
                 .expect("object should exist");
 
-            let object_children = object.obj.fields().iter().filter_map(|&field| match field {
+            let object_children = object.fields().iter().filter_map(|&field| match field {
                 Value::Object(idx) => Some(HeapIndex(idx)),
                 _ => None,
             });
 
             self.current_children.extend(object_children);
 
-            for &HeapIndex(child_idx) in &self.current_children {
-                if let Some(child_object) = self.memory.get_mut(child_idx) {
+            for HeapIndex(child_idx) in self.current_children.drain(..) {
+                let object_opt = self.memory.get_mut(child_idx).and_then(|opt| opt.as_mut());
+
+                if let Some(child_object) = object_opt {
                     if !child_object.is_marked() {
                         child_object.mark();
                         self.worklist.push(child_idx);
@@ -93,11 +98,10 @@ impl Heap {
     }
 
     pub fn sweep(&mut self) {
-        for object in &mut self.memory {
-            if object.is_marked() {
-                object.obj.unmark();
-            } else {
-                todo!("delete and deallocate the object")
+        for slot in &mut self.memory {
+            match slot {
+                Some(object) if object.is_marked() => object.unmark(),
+                opt => *opt = None,
             }
         }
     }

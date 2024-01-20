@@ -10,7 +10,10 @@ use std::{
     ptr::{self, NonNull},
 };
 
-use crate::object::{Object, TypeMeta};
+use crate::{
+    object::{Object, TypeMeta},
+    value::Value,
+};
 
 /// Constructs a new `GcBox<T>`, while also performing unsized coercions as necessary.
 ///
@@ -463,8 +466,28 @@ impl GcObject {
         &self.meta
     }
 
+    pub fn field(&self, name: &str) -> Option<&Value> {
+        self.obj.field(name)
+    }
+
+    pub fn field_mut(&mut self, name: &str) -> Option<&mut Value> {
+        self.obj.field_mut(name)
+    }
+
+    pub fn fields(&self) -> &[Value] {
+        self.obj.fields()
+    }
+
+    pub fn call_method(&self, name: &str) -> Result<Value, ()> {
+        self.obj.call_method(name)
+    }
+
     pub fn mark(&mut self) {
         self.obj.mark();
+    }
+
+    pub fn unmark(&mut self) {
+        self.obj.unmark();
     }
 
     pub fn is_marked(&self) -> bool {
