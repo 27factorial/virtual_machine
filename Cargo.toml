@@ -8,5 +8,6 @@ edition = "2021"
 [dependencies]
 hashbrown = "0.14.2"
 parking_lot = { version = "0.12.1", features = ["hardware-lock-elision"] }
+paste = "1.0.14"
 rustc-hash = "1.1.0"
 strum = { version = "0.25.0", features = ["derive"] }

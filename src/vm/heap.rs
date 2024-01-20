@@ -51,11 +51,7 @@ impl Heap {
 
     pub fn mark_from_roots(&mut self, roots: RootsIter<'_>) {
         for root in roots {
-            let Some(object) = self
-                .memory
-                .get_mut(root.0)
-                .and_then(|opt| opt.as_mut())
-            else {
+            let Some(object) = self.memory.get_mut(root.0).and_then(|opt| opt.as_mut()) else {
                 continue;
             };
 
@@ -78,7 +74,7 @@ impl Heap {
                 .expect("object should exist");
 
             let object_children = object.fields().iter().filter_map(|&field| match field {
-                Value::Object(idx) => Some(HeapIndex(idx)),
+                Value::Object(idx) => Some(idx),
                 _ => None,
             });
 
@@ -107,6 +103,7 @@ impl Heap {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct HeapIndex(usize);
 
 pub struct RootsIter<'a> {
@@ -144,11 +141,10 @@ impl Iterator for RootsIter<'_> {
             }
         };
 
-        // TODO(value_object): Change Value::Object's contained type from usize to HeapIndex
         let Value::Object(idx) = value else {
             return None;
         };
 
-        Some(HeapIndex(idx))
+        Some(idx)
     }
 }

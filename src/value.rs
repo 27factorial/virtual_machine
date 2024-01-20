@@ -1,3 +1,49 @@
+use crate::vm::heap::HeapIndex;
+use paste::paste;
+
+macro_rules! variant_methods {
+    ($($variant:ident($inner_ty:ty), $article:literal);+ $(;)?) => {
+        impl Value {
+            paste! {
+                $(
+                    #[doc = "Converts from `Value` to `Option<" $inner_ty ">`, discarding"]
+                    #[doc = "the value is `self` is not"]
+                    #[doc = " " $article " "]
+                    #[doc = "`" $variant "`."]
+                    pub fn [<$variant:lower>](self) -> Option<$inner_ty> {
+                        match self {
+                            Self::$variant(v) => Some(v),
+                            _ => None,
+                        }
+                    }
+
+                    #[doc = "Converts from `Value` to `" $inner_ty "`, returning the provided"]
+                    #[doc = " default value if `self` is not"]
+                    #[doc = " " $article " "]
+                    #[doc = "`" $variant "`."]
+                    pub fn [<$variant:lower _or>](self, default: $inner_ty) -> $inner_ty {
+                        match self {
+                            Self::$variant(v) => v,
+                            _ => default,
+                        }
+                    }
+
+                    #[doc = "Converts from `Value` to `Result<" $inner_ty ", E>`, returning the"]
+                    #[doc = " provided error if `self` is not"]
+                    #[doc = " " $article " "]
+                    #[doc = "`" $variant "`."]
+                    pub fn [<$variant:lower _or_err>]<E>(self, err: E) -> Result<$inner_ty, E> {
+                        match self {
+                            Self::$variant(v) => Ok(v),
+                            _ => Err(err),
+                        }
+                    }
+                )+
+            }
+        }
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Default)]
 pub enum Value {
     /// A value corresponding to "nothing". The default value when operating on memory.
@@ -16,56 +62,15 @@ pub enum Value {
     /// The index of an instruction, stack value, or object field.
     Index(usize),
     /// An object reference, referring to some data in the object heap.
-    Object(usize),
+    Object(HeapIndex),
 }
 
-impl Value {
-    pub fn uint_or<E>(self, err: E) -> Result<u64, E> {
-        match self {
-            Self::UInt(v) => Ok(v),
-            _ => Err(err),
-        }
-    }
-
-    pub fn sint_or<E>(self, err: E) -> Result<i64, E> {
-        match self {
-            Self::SInt(v) => Ok(v),
-            _ => Err(err),
-        }
-    }
-
-    pub fn float_or<E>(self, err: E) -> Result<f64, E> {
-        match self {
-            Self::Float(v) => Ok(v),
-            _ => Err(err),
-        }
-    }
-
-    pub fn bool_or<E>(self, err: E) -> Result<bool, E> {
-        match self {
-            Self::Bool(v) => Ok(v),
-            _ => Err(err),
-        }
-    }
-
-    pub fn char_or<E>(self, err: E) -> Result<char, E> {
-        match self {
-            Self::Char(v) => Ok(v),
-            _ => Err(err),
-        }
-    }
-
-    pub fn index_or<E>(self, err: E) -> Result<usize, E> {
-        match self {
-            Self::Index(v) => Ok(v),
-            _ => Err(err),
-        }
-    }
-
-    pub fn object_or<E>(self, err: E) -> Result<usize, E> {
-        match self {
-            Self::Object(v) => Ok(v),
-            _ => Err(err),
-        }
-    }
+variant_methods! {
+    UInt(u64), "a";
+    SInt(i64), "an";
+    Float(f64), "a";
+    Bool(bool), "a";
+    Char(char), "a";
+    Index(usize), "an";
+    Object(HeapIndex), "an";
 }

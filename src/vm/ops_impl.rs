@@ -201,7 +201,7 @@ impl Vm {
     // LoadMemory
     #[inline]
     pub(crate) fn load_mem(&mut self, index: Value, register: Register) -> OpResult {
-        let index = index.index_or(OpError::Type)?;
+        let index = index.index_or_err(OpError::Type)?;
 
         let value = self
             .memory
@@ -216,7 +216,7 @@ impl Vm {
     // StoreRegister
     #[inline]
     pub(crate) fn store_reg(&mut self, register: Register, index: Value) -> OpResult {
-        let index = index.index_or(OpError::Type)?;
+        let index = index.index_or_err(OpError::Type)?;
         let value = self.registers[register];
 
         let location = self.memory.get_mut(index).ok_or(OpError::InvalidAddress)?;
@@ -229,7 +229,7 @@ impl Vm {
     // StoreImmediate
     #[inline]
     pub(crate) fn store_imm(&mut self, value: Value, index: Value) -> OpResult {
-        let index = index.index_or(OpError::Type)?;
+        let index = index.index_or_err(OpError::Type)?;
 
         let location = self.memory.get_mut(index).ok_or(OpError::InvalidAddress)?;
 
@@ -241,8 +241,8 @@ impl Vm {
     // StoreMemory
     #[inline]
     pub(crate) fn store_mem(&mut self, index_src: Value, index_dst: Value) -> OpResult {
-        let index_src = index_src.index_or(OpError::Type)?;
-        let index_dst = index_dst.index_or(OpError::Type)?;
+        let index_src = index_src.index_or_err(OpError::Type)?;
+        let index_dst = index_dst.index_or_err(OpError::Type)?;
 
         let value = self
             .memory
@@ -625,7 +625,7 @@ impl Vm {
     // Jump
     #[inline]
     pub(crate) fn jump(&mut self, register: Register) -> OpResult {
-        let index = self.registers[register].index_or(OpError::Type)?;
+        let index = self.registers[register].index_or_err(OpError::Type)?;
 
         self.current_frame.ip = index;
         Ok(Transition::Jump)
@@ -634,7 +634,7 @@ impl Vm {
     // JumpImmediate
     #[inline]
     pub(crate) fn jump_imm(&mut self, index: Value) -> OpResult {
-        let index = index.index_or(OpError::Type)?;
+        let index = index.index_or_err(OpError::Type)?;
 
         self.current_frame.ip = index;
 
@@ -650,7 +650,7 @@ impl Vm {
     ) -> OpResult {
         match self.registers[condition_register] {
             Value::Bool(true) => {
-                let index = self.registers[index_register].index_or(OpError::Type)?;
+                let index = self.registers[index_register].index_or_err(OpError::Type)?;
 
                 self.current_frame.ip = index;
 
@@ -666,7 +666,7 @@ impl Vm {
     pub(crate) fn jump_cond_imm(&mut self, register: Register, index: Value) -> OpResult {
         match self.registers[register] {
             Value::Bool(true) => {
-                let index = index.index_or(OpError::Type)?;
+                let index = index.index_or_err(OpError::Type)?;
 
                 self.current_frame.ip = index;
 
@@ -680,7 +680,7 @@ impl Vm {
     // Call
     #[inline]
     pub(crate) fn call(&mut self, register: Register) -> OpResult {
-        let index = self.registers[register].index_or(OpError::Type)?;
+        let index = self.registers[register].index_or_err(OpError::Type)?;
 
         self.push_call_stack(self.current_frame);
 
@@ -692,7 +692,7 @@ impl Vm {
     #[inline]
     // CallNative
     pub(crate) fn call_native(&mut self, program: &Program, index: Value) -> OpResult {
-        let index = index.index_or(OpError::Type)?;
+        let index = index.index_or_err(OpError::Type)?;
 
         let func_name = program.strings.get(index).ok_or(OpError::InvalidAddress)?;
 
@@ -727,7 +727,7 @@ impl Vm {
     // DebugMemory
     #[inline]
     pub(crate) fn dbg_mem(&self, index: Value) -> OpResult {
-        let index = index.index_or(OpError::Type)?;
+        let index = index.index_or_err(OpError::Type)?;
 
         let value = self.memory.get(index);
 
