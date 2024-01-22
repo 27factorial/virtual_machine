@@ -1,3 +1,5 @@
+use std::{collections::VecDeque, mem};
+
 use strum::IntoEnumIterator;
 
 use crate::{
@@ -11,7 +13,7 @@ use super::{memory::ValueMemory, Register, RegisterIter, Registers};
 
 pub struct Heap {
     memory: Vec<Option<GcObject>>,
-    free_indices: Vec<usize>,
+    free_indices: VecDeque<usize>,
     worklist: Vec<usize>,
     current_children: Vec<HeapIndex>,
     byte_len: usize,
@@ -22,7 +24,7 @@ impl Heap {
     pub fn new(byte_capacity: usize) -> Self {
         Self {
             memory: Vec::new(),
-            free_indices: Vec::new(),
+            free_indices: VecDeque::new(),
             worklist: Vec::new(),
             current_children: Vec::new(),
             byte_len: 0,
@@ -31,16 +33,24 @@ impl Heap {
     }
 
     pub fn alloc<T: Object + 'static>(&mut self, value: T) -> Result<HeapIndex, T> {
-        let value_heap_size = std::mem::size_of::<T>() + std::mem::size_of::<GcObject>();
+        match self.free_indices.front().copied() {
+            Some(idx) => {
+                // A previous Option was in the slot at self.memory[idx], so the size of the
+                // Option<GcBox<..>> itself is already accounted for. The only other data being
+                // added is the heap data of size size_of::<T>().
+                let required_space = self.byte_len + mem::size_of::<T>();
 
-        if self.byte_len + value_heap_size > self.byte_capacity {
-            // The first time an error is returned, the VM should attempt to collect garbage.
-            Err(value)
-        } else {
-            let heap_index = self.memory.len();
-            self.memory.push(Some(GcObject::new(value)));
-            self.byte_len += value_heap_size;
-            Ok(HeapIndex(heap_index))
+                if required_space <= self.byte_capacity {
+                    self.byte_len = required_space;
+
+                    
+                } else {
+                    Err(value)
+                }
+            }
+            None => {
+                Err(value)
+            }
         }
     }
 
