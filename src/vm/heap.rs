@@ -42,7 +42,7 @@ impl Heap {
 
                 if required_space <= self.byte_capacity {
                     self.byte_len = required_space;
-
+                    
                     
                 } else {
                     Err(value)

@@ -11,7 +11,8 @@ pub type OpResult = Result<Transition, OpError>;
 /// Opcodes representing the virtual machine's instruction set.
 ///
 /// For operations which move values into and out of memory or registers, the operands are in the
-/// order (src, dst). For binary operations, the operands are ordered opcode.0 <operation> opcode.1.
+/// order (src, dst). For binary operations, the operands are ordered opcode.0 \<operation\> 
+/// opcode.1.
 #[repr(u16)]
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
 pub enum OpCode {
