@@ -32,7 +32,7 @@ impl Heap {
         }
     }
 
-    pub fn alloc<T: Object + 'static>(&mut self, value: T) -> Result<HeapIndex, T> {
+    pub fn alloc<T: Object>(&mut self, value: T) -> Result<HeapIndex, T> {
         match self.free_indices.front().copied() {
             Some(idx) => {
                 // A previous Option was in the slot at self.memory[idx], so the size of the
@@ -119,10 +119,15 @@ impl Heap {
     }
 
     pub fn sweep(&mut self) {
-        for slot in &mut self.memory {
+        let enumerated = self.memory.iter_mut().enumerate();
+
+        for (idx, slot) in enumerated {
             match slot {
                 Some(object) if object.is_marked() => object.unmark(),
-                opt => *opt = None,
+                opt => {
+                    *opt = None;
+                    self.free_indices.push_back(idx)
+                }
             }
         }
     }

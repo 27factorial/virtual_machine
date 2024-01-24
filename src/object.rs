@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use crate::{ops::Function, value::Value, vm::Vm};
 
-pub trait Object {
+pub trait Object: 'static {
     fn type_meta() -> TypeMeta
     where
         Self: Sized;
