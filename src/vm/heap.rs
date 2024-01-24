@@ -42,14 +42,29 @@ impl Heap {
 
                 if required_space <= self.byte_capacity {
                     self.byte_len = required_space;
-                    
-                    
+
+                    // Remove the index we used from free_indices.
+                    self.free_indices.pop_front();
+
+                    self.memory[idx] = Some(GcObject::new(value));
+
+                    Ok(HeapIndex(idx))
                 } else {
                     Err(value)
                 }
             }
             None => {
-                Err(value)
+                let required_space =
+                    self.byte_len + mem::size_of::<Option<GcObject>>() + mem::size_of::<T>();
+
+                if required_space <= self.byte_capacity {
+                    let idx = self.memory.len();
+                    self.memory.push(Some(GcObject::new(value)));
+                    self.byte_len = required_space;
+                    Ok(HeapIndex(idx))
+                } else {
+                    Err(value)
+                }
             }
         }
     }
