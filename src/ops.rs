@@ -1,5 +1,5 @@
 use crate::{
-    project::Program,
+    project::{Program, StringIndex},
     value::Value,
     vm::{Register, Vm},
 };
@@ -11,8 +11,8 @@ pub type OpResult = Result<Transition, OpError>;
 /// Opcodes representing the virtual machine's instruction set.
 ///
 /// For operations which move values into and out of memory or registers, the operands are in the
-/// order (src, dst). For binary operations, the operands are ordered opcode.0 \<operation\> 
-/// opcode.1.
+/// order (src, dst). For binary operations, the operands are ordered `opcode.0 <operation> 
+/// opcode.1`.
 #[repr(u16)]
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
 pub enum OpCode {
@@ -155,7 +155,7 @@ pub enum OpCode {
     Call(Register),
     /// Call a native function determined by the immediate index pointing to a Program's string
     /// pool.
-    CallNative(Value),
+    CallNative(StringIndex),
     /// Set the VM's current frame to the call frame popped from the call stack.
     Ret,
 

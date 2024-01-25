@@ -9,7 +9,7 @@ use crate::{
     vm::CallFrame,
 };
 
-const VALID_MAGIC: &[u8; 11] = b"27FACTORIAL";
+const VALID_MAGIC: &[u8; 7] = b"27FCTRL";
 
 pub struct Program {
     pub(crate) header: ProgramHeader,
@@ -17,6 +17,12 @@ pub struct Program {
     pub(crate) strings: ProgramStrings,
     pub(crate) functions: Vec<Function>,
     pub(crate) types: Vec<TypeMeta>,
+}
+
+impl Program {
+    pub fn get_string(&self, index: StringIndex) -> Option<&str> {
+        self.strings.get(index)
+    }
 }
 
 impl Index<CallFrame> for Program {
@@ -45,18 +51,19 @@ impl ProgramStrings {
         }
     }
 
-    pub fn insert(&mut self, s: impl AsRef<str>) -> StringIndex {
+    pub fn push(&mut self, s: impl AsRef<str>) -> StringIndex {
         fn inner(this: &mut ProgramStrings, s: &str) -> StringIndex {
             // Since substring searching is O(m * n), and self.data is expected to be somewhat
-            // large, we can search through the indices first and see if there's a string with
-            // the same length. If there's not, we know that the provided string is not already in
-            // the set.
+            // large, we can possibly speed this search up by first checking self.indices for any
+            // strings matching the length of the given string, then filtering self.data to only
+            // strings of the same length. Only those strings with the same length will be checked
+            // for equality in that case. If no strings match, then we just push the string to the
+            // end of self.data and push the index data to self.indices.
             let possible_idx = this
                 .indices
                 .iter()
-                .filter_map(|idx| {
-                    (idx.len == s.len()).then(|| (idx, &this.data[idx.start..idx.start + idx.len]))
-                })
+                .filter(|idx| idx.len == s.len())
+                .map(|idx| (idx, &this.data[idx.start..idx.start + idx.len]))
                 .find_map(|(idx, string)| (s == string).then_some(*idx));
 
             match possible_idx {
@@ -77,10 +84,14 @@ impl ProgramStrings {
 
         inner(self, s.as_ref())
     }
+
+    pub fn get(&self, index: StringIndex) -> Option<&str> {
+        self.data.get(index.start..index.start + index.len)
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
-struct StringIndex {
+pub struct StringIndex {
     start: usize,
     len: usize,
 }

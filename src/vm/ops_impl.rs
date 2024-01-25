@@ -1,3 +1,5 @@
+use crate::project::StringIndex;
+
 use super::*;
 
 macro_rules! bin_arithmetic {
@@ -691,9 +693,7 @@ impl Vm {
 
     #[inline]
     // CallNative
-    pub(crate) fn call_native(&mut self, program: &Program, index: Value) -> OpResult {
-        let index = index.index_or_err(OpError::Type)?;
-
+    pub(crate) fn call_native(&mut self, program: &Program, index: StringIndex) -> OpResult {
         let func_name = program.strings.get(index).ok_or(OpError::InvalidAddress)?;
 
         let native_fn = self.native_fns.get(func_name).ok_or(OpError::NoNativeFn)?;
