@@ -8,6 +8,7 @@ mod native;
 mod object;
 mod ops;
 mod project;
+mod serde;
 mod string;
 mod utils;
 mod value;
