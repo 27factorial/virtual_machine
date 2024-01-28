@@ -11,13 +11,12 @@ pub type OpResult = Result<Transition, OpError>;
 /// Opcodes representing the virtual machine's instruction set.
 ///
 /// For operations which move values into and out of memory or registers, the operands are in the
-/// order (src, dst). For binary operations, the operands are ordered `opcode.0 <operation> 
+/// order (src, dst). For binary operations, the operands are ordered `opcode.0 <operation>
 /// opcode.1`.
-#[repr(u16)]
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
 pub enum OpCode {
     /// No operation; do nothing.
-    NoOp = 0,
+    NoOp,
     /// Halt the virtual machine immediately.
     Halt,
 
@@ -166,12 +165,6 @@ pub enum OpCode {
 }
 
 impl OpCode {
-    pub fn discriminant(&self) -> u8 {
-        // SAFETY: This enum is repr(u8), so a *const OpCode points to the discriminant value,
-        // which is a u8.
-        unsafe { *(self as *const Self as *const u8) }
-    }
-
     pub fn execute(self, vm: &mut Vm, program: &Program) -> OpResult {
         match self {
             OpCode::NoOp => vm.noop(),
