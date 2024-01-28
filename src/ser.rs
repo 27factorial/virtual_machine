@@ -1,5 +1,5 @@
 use core::fmt;
-use serde::{ser, Serialize, Serializer};
+use serde::ser;
 use std::io;
 use thiserror::Error;
 
@@ -124,7 +124,7 @@ impl<'a, W: io::Write> ser::Serializer for &'a mut Serializer<W> {
 
     fn serialize_some<T: ?Sized>(self, value: &T) -> Result<Self::Ok, Self::Error>
     where
-        T: Serialize,
+        T: ser::Serialize,
     {
         self.serialize_bool(true)?;
         value.serialize(self)
@@ -153,9 +153,9 @@ impl<'a, W: io::Write> ser::Serializer for &'a mut Serializer<W> {
         value: &T,
     ) -> Result<Self::Ok, Self::Error>
     where
-        T: Serialize,
+        T: ser::Serialize,
     {
-        todo!()
+        value.serialize(self)
     }
 
     fn serialize_newtype_variant<T: ?Sized>(
@@ -166,17 +166,18 @@ impl<'a, W: io::Write> ser::Serializer for &'a mut Serializer<W> {
         value: &T,
     ) -> Result<Self::Ok, Self::Error>
     where
-        T: Serialize,
+        T: ser::Serialize,
     {
-        todo!()
+        self.serialize_u32(variant_index)?;
+        value.serialize(self)
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        todo!()
+        Ok(self)
     }
 
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple, Self::Error> {
-        todo!()
+        Ok(self)
     }
 
     fn serialize_tuple_struct(
@@ -184,7 +185,7 @@ impl<'a, W: io::Write> ser::Serializer for &'a mut Serializer<W> {
         name: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleStruct, Self::Error> {
-        todo!()
+        Ok(self)
     }
 
     fn serialize_tuple_variant(
@@ -194,11 +195,15 @@ impl<'a, W: io::Write> ser::Serializer for &'a mut Serializer<W> {
         variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
-        todo!()
+        self.serialize_u32(variant_index)?;
+        Ok(self)
     }
 
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
-        todo!()
+        if let Some(len) = len {
+            self.serialize_u64(len as u64)?;
+        }
+        Ok(self)
     }
 
     fn serialize_struct(
@@ -206,7 +211,7 @@ impl<'a, W: io::Write> ser::Serializer for &'a mut Serializer<W> {
         name: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-        todo!()
+        Ok(self)
     }
 
     fn serialize_struct_variant(
@@ -216,106 +221,107 @@ impl<'a, W: io::Write> ser::Serializer for &'a mut Serializer<W> {
         variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        todo!()
+        self.serialize_u32(variant_index)?;
+        Ok(self)
     }
 }
 
 impl<'a, W: io::Write> ser::SerializeSeq for &'a mut Serializer<W> {
-    type Ok;
+    type Ok = ();
 
-    type Error;
+    type Error = Error;
 
     fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
     where
-        T: Serialize,
+        T: ser::Serialize,
     {
-        todo!()
+        value.serialize(&mut **self)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Ok(())
     }
 }
 
 impl<'a, W: io::Write> ser::SerializeTuple for &'a mut Serializer<W> {
-    type Ok;
+    type Ok = ();
 
-    type Error;
+    type Error = Error;
 
     fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
     where
-        T: Serialize,
+        T: ser::Serialize,
     {
-        todo!()
+        value.serialize(&mut **self)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Ok(())
     }
 }
 
 impl<'a, W: io::Write> ser::SerializeTupleStruct for &'a mut Serializer<W> {
-    type Ok;
+    type Ok = ();
 
-    type Error;
+    type Error = Error;
 
     fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
     where
-        T: Serialize,
+        T: ser::Serialize,
     {
-        todo!()
+        value.serialize(&mut **self)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Ok(())
     }
 }
 
 impl<'a, W: io::Write> ser::SerializeTupleVariant for &'a mut Serializer<W> {
-    type Ok;
+    type Ok = ();
 
-    type Error;
+    type Error = Error;
 
     fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
     where
-        T: Serialize,
+        T: ser::Serialize,
     {
-        todo!()
+        value.serialize(&mut **self)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Ok(())
     }
 }
 
 impl<'a, W: io::Write> ser::SerializeMap for &'a mut Serializer<W> {
-    type Ok;
+    type Ok = ();
 
-    type Error;
+    type Error = Error;
 
     fn serialize_key<T: ?Sized>(&mut self, key: &T) -> Result<(), Self::Error>
     where
-        T: Serialize,
+        T: ser::Serialize,
     {
-        todo!()
+        key.serialize(&mut **self)
     }
 
     fn serialize_value<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
     where
-        T: Serialize,
+        T: ser::Serialize,
     {
-        todo!()
+        value.serialize(&mut **self)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Ok(())
     }
 }
 
 impl<'a, W: io::Write> ser::SerializeStruct for &'a mut Serializer<W> {
-    type Ok;
+    type Ok = ();
 
-    type Error;
+    type Error = Error;
 
     fn serialize_field<T: ?Sized>(
         &mut self,
@@ -323,20 +329,20 @@ impl<'a, W: io::Write> ser::SerializeStruct for &'a mut Serializer<W> {
         value: &T,
     ) -> Result<(), Self::Error>
     where
-        T: Serialize,
+        T: ser::Serialize,
     {
-        todo!()
+        value.serialize(&mut **self)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Ok(())
     }
 }
 
 impl<'a, W: io::Write> ser::SerializeStructVariant for &'a mut Serializer<W> {
-    type Ok;
+    type Ok = ();
 
-    type Error;
+    type Error = Error;
 
     fn serialize_field<T: ?Sized>(
         &mut self,
@@ -344,13 +350,13 @@ impl<'a, W: io::Write> ser::SerializeStructVariant for &'a mut Serializer<W> {
         value: &T,
     ) -> Result<(), Self::Error>
     where
-        T: Serialize,
+        T: ser::Serialize,
     {
-        todo!()
+        value.serialize(&mut **self)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Ok(())
     }
 }
 
@@ -367,6 +373,12 @@ pub enum Error {
 impl From<io::Error> for Error {
     fn from(error: io::Error) -> Self {
         Self::Io(error)
+    }
+}
+
+impl From<String> for Error {
+    fn from(value: String) -> Self {
+        Self::Message(value)
     }
 }
 
