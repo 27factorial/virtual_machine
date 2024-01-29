@@ -3,13 +3,12 @@
 #![allow(unused)]
 #![warn(fuzzy_provenance_casts)]
 
-mod de;
 mod gc;
 mod native;
 mod object;
 mod ops;
 mod project;
-mod ser;
+mod serde_vm;
 mod string;
 mod utils;
 mod value;
