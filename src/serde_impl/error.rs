@@ -17,11 +17,18 @@ pub enum Error {
     ExpectedBool,
     #[error("expected char")]
     ExpectedChar,
+    #[error("expected usize")]
+    ExpectedUsize,
+    #[error("expected String")]
+    ExpectedString,
 }
 
 impl From<io::Error> for Error {
     fn from(error: io::Error) -> Self {
-        Self::Io(error)
+        match error.kind() {
+            io::ErrorKind::UnexpectedEof => Self::Eof,
+            _ => Self::Io(error),
+        }
     }
 }
 

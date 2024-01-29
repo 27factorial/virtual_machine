@@ -1,3 +1,4 @@
+use super::error::Error;
 use core::fmt;
 use serde::ser;
 use std::io;
@@ -359,5 +360,3 @@ impl<'a, W: io::Write> ser::SerializeStructVariant for &'a mut Serializer<W> {
         Ok(())
     }
 }
-
-

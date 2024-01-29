@@ -8,7 +8,7 @@ mod native;
 mod object;
 mod ops;
 mod project;
-mod serde_vm;
+mod serde_impl;
 mod string;
 mod utils;
 mod value;

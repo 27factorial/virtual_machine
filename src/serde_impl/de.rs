@@ -1,9 +1,9 @@
 use std::{fmt, io};
 
+use super::error::Error;
 use paste::paste;
 use serde::de;
 use thiserror::Error;
-use super::error::Error;
 
 /// Attempt to read some bytes (in little-endian order) from a deserializer's reader and parse them
 /// as a given type. This only works for the primitive integer types.
@@ -13,16 +13,9 @@ macro_rules! read {
 
         let mut buf = [0; SIZE];
 
-        match $self.reader.read(&mut buf) {
-            Ok(count) => {
-                if count == SIZE {
-                    Ok(<$t>::from_le_bytes(buf))
-                } else {
-                    Err(Error::Eof)
-                }
-            }
-            Err(e) => Err(Error::Io(e)),
-        }
+        $self.reader.read_exact(&mut buf)?;
+
+        Ok::<_, Error>(<$t>::from_le_bytes(buf))
     }};
 }
 
@@ -178,14 +171,19 @@ impl<'de, R: io::Read> de::Deserializer<'de> for Deserializer<R> {
     where
         V: de::Visitor<'de>,
     {
-        todo!()
+        self.deserialize_string(visitor)
     }
 
     fn deserialize_string<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        todo!()
+        let len: usize = read!(self; u64)?
+            .try_into()
+            .map_err(|_| Error::ExpectedUsize)?;
+        let mut buf = vec![0u8; len];
+
+        self.reader.read_exact(&mut buf)?;
     }
 
     fn deserialize_bytes<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
@@ -299,13 +297,12 @@ impl<'de, R: io::Read> de::Deserializer<'de> for Deserializer<R> {
     where
         V: de::Visitor<'de>,
     {
-        todo!()
+        self.deserialize_u32(visitor)
     }
 
     fn deserialize_ignored_any<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        todo!()
     }
 }
