@@ -324,6 +324,7 @@ impl<'de, R: io::Read> de::Deserializer<'de> for Deserializer<R> {
     where
         V: de::Visitor<'de>,
     {
+        visitor.visit_unit()
     }
 }
 
@@ -342,7 +343,7 @@ impl<'de, R> Seq<'de, R> {
 }
 
 impl<'de, R: io::Read> SeqAccess<'de> for Deserializer<R> {
-    type Error;
+    type Error = Error;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
     where
