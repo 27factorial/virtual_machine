@@ -1,8 +1,8 @@
 use std::{fmt, io};
 
-use super::error::Error;
+use super::error::{self, Error};
 use paste::paste;
-use serde::de;
+use serde::de::{self, SeqAccess};
 use thiserror::Error;
 
 /// Attempt to read some bytes (in little-endian order) from a deserializer's reader and parse them
@@ -35,6 +35,22 @@ pub struct Deserializer<R> {
 impl<R: io::Read> Deserializer<R> {
     pub fn new(reader: R) -> Self {
         Self { reader }
+    }
+
+    fn read_bytes(&mut self) -> error::Result<Vec<u8>> {
+        let len: usize = read!(self; u64)?
+            .try_into()
+            .map_err(|_| Error::ExpectedUsize)?;
+        let mut buf = vec![0u8; len];
+
+        self.reader.read_exact(&mut buf)?;
+
+        Ok(buf)
+    }
+
+    fn read_string(&mut self) -> error::Result<String> {
+        let buf = self.read_bytes()?;
+        String::from_utf8(buf).map_err(|_| Error::ExpectedString)
     }
 }
 
@@ -171,40 +187,44 @@ impl<'de, R: io::Read> de::Deserializer<'de> for Deserializer<R> {
     where
         V: de::Visitor<'de>,
     {
-        self.deserialize_string(visitor)
+        let string = self.read_string()?;
+        visitor.visit_str(&string)
     }
 
     fn deserialize_string<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        let len: usize = read!(self; u64)?
-            .try_into()
-            .map_err(|_| Error::ExpectedUsize)?;
-        let mut buf = vec![0u8; len];
-
-        self.reader.read_exact(&mut buf)?;
+        let string = self.read_string()?;
+        visitor.visit_string(string)
     }
 
     fn deserialize_bytes<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        todo!()
+        let bytes = self.read_bytes()?;
+        visitor.visit_bytes(&bytes)
     }
 
     fn deserialize_byte_buf<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        todo!()
+        let bytes = self.read_bytes()?;
+        visitor.visit_byte_buf(bytes)
     }
 
     fn deserialize_option<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        todo!()
+        let discriminant = read!(self; u8)?;
+        match discriminant {
+            0 => visitor.visit_none(),
+            1 => visitor.visit_some(self),
+            _ => Err(Error::ExpectedBool)
+        }
     }
 
     fn deserialize_unit<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
@@ -304,5 +324,29 @@ impl<'de, R: io::Read> de::Deserializer<'de> for Deserializer<R> {
     where
         V: de::Visitor<'de>,
     {
+    }
+}
+
+pub struct Seq<'de, R> {
+    de: &'de mut Deserializer<R>,
+    remaining: usize,
+}
+
+impl<'de, R> Seq<'de, R> {
+    pub fn new(de: &'de mut Deserializer<R>, len: usize) -> Self {
+        Self {
+            de,
+            remaining: len,
+        }
+    }
+}
+
+impl<'de, R: io::Read> SeqAccess<'de> for Deserializer<R> {
+    type Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: de::DeserializeSeed<'de> {
+        todo!()
     }
 }
