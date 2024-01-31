@@ -23,6 +23,8 @@ pub enum Error {
     ExpectedUsize,
     #[error("expected String")]
     ExpectedString,
+    #[error("expected map to have value")]
+    ExpectedMapValue,
 }
 
 impl From<io::Error> for Error {
