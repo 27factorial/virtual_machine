@@ -1,6 +1,5 @@
 #![feature(ptr_metadata)]
 #![feature(strict_provenance)]
-#![allow(unused)]
 #![warn(fuzzy_provenance_casts)]
 
 mod gc;
