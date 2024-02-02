@@ -1,6 +1,6 @@
 use std::io;
 
-use super::error::{Result, Error};
+use super::error::{Error, Result};
 use paste::paste;
 use serde::de::{self, Deserializer as _};
 
@@ -53,8 +53,7 @@ impl<R: io::Read> Deserializer<R> {
     }
 }
 
-impl<'de, 'a, R: io::Read> de::Deserializer<'de> for &'a mut Deserializer<R>
-{
+impl<'de, 'a, R: io::Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
     type Error = Error;
 
     fn deserialize_any<V>(self, _: V) -> Result<V::Value>
@@ -241,11 +240,7 @@ impl<'de, 'a, R: io::Read> de::Deserializer<'de> for &'a mut Deserializer<R>
         visitor.visit_unit()
     }
 
-    fn deserialize_newtype_struct<V>(
-        self,
-        _: &'static str,
-        visitor: V,
-    ) -> Result<V::Value>
+    fn deserialize_newtype_struct<V>(self, _: &'static str, visitor: V) -> Result<V::Value>
     where
         V: de::Visitor<'de>,
     {
@@ -341,7 +336,8 @@ impl<'de, 'a, R: io::Read> de::EnumAccess<'de> for &'a mut Deserializer<R> {
 
     fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant)>
     where
-        V: de::DeserializeSeed<'de> {
+        V: de::DeserializeSeed<'de>,
+    {
         let val = seed.deserialize(&mut *self)?;
 
         Ok((val, self))
@@ -357,23 +353,22 @@ impl<'de, 'a, R: io::Read> de::VariantAccess<'de> for &'a mut Deserializer<R> {
 
     fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value>
     where
-        T: de::DeserializeSeed<'de> {
+        T: de::DeserializeSeed<'de>,
+    {
         seed.deserialize(&mut *self)
     }
 
     fn tuple_variant<V>(self, len: usize, visitor: V) -> Result<V::Value>
     where
-        V: de::Visitor<'de> {
+        V: de::Visitor<'de>,
+    {
         self.deserialize_tuple(len, visitor)
     }
 
-    fn struct_variant<V>(
-        self,
-        fields: &'static [&'static str],
-        visitor: V,
-    ) -> Result<V::Value>
+    fn struct_variant<V>(self, fields: &'static [&'static str], visitor: V) -> Result<V::Value>
     where
-        V: de::Visitor<'de> {
+        V: de::Visitor<'de>,
+    {
         self.deserialize_struct("", fields, visitor)
     }
 }
@@ -385,10 +380,7 @@ pub struct SeqAccessor<'a, R> {
 
 impl<'a, R> SeqAccessor<'a, R> {
     pub fn new(de: &'a mut Deserializer<R>, len: usize) -> Self {
-        Self {
-            de,
-            remaining: len,
-        }
+        Self { de, remaining: len }
     }
 }
 
@@ -424,8 +416,7 @@ impl<'a, R> MapAccessor<'a, R> {
     }
 }
 
-impl<'de, 'a, R: io::Read> de::MapAccess<'de> for MapAccessor<'a, R>
-{
+impl<'de, 'a, R: io::Read> de::MapAccess<'de> for MapAccessor<'a, R> {
     type Error = Error;
 
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>>
