@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+clap = { version = "4.4.18", features = ["derive"] }
 hashbrown = "0.14.2"
 parking_lot = { version = "0.12.1", features = ["hardware-lock-elision"] }
 paste = "1.0.14"
