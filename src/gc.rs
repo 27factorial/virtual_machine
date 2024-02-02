@@ -142,8 +142,6 @@ impl<T> GcBox<T> {
     pub fn new(value: T) -> Self {
         // Aligned<T> makes sure that the pointer returned by `alloc` will have its last bit set
         // to zero, allowing GcBox to use it for storing the "marked" tag.
-        let layout = gc_layout::<T>();
-
         let data = unsafe { alloc_aligned(value) };
 
         Self { data }
@@ -173,7 +171,7 @@ impl<T: ?Sized> GcBox<T> {
         let (data, _) = self.data.as_ptr().to_raw_parts();
         let data = data.addr();
 
-        let marked = (data & TAG);
+        let marked = data & TAG;
 
         marked == TAG
     }
@@ -222,8 +220,6 @@ impl<T: ?Sized> DerefMut for GcBox<T> {
 
 impl<T: Clone> Clone for GcBox<T> {
     fn clone(&self) -> Self {
-        let layout = gc_layout::<T>();
-
         let cloned = unsafe { mask_ptr(self.data).as_ref().clone() };
 
         let data = alloc_aligned(cloned);
@@ -294,7 +290,7 @@ impl<T: ?Sized> Pointer for GcBox<T> {
         // just the last bit set.
         let ptr = unsafe { mask_ptr(self.data) };
 
-        Pointer::fmt(&self.data, f)
+        Pointer::fmt(&ptr, f)
     }
 }
 
@@ -403,7 +399,7 @@ impl<W: Write + ?Sized> Write for GcBox<W> {
     }
 
     #[inline]
-    fn write_all(&mut self, mut buf: &[u8]) -> io::Result<()> {
+    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
         (**self).write_all(buf)
     }
 

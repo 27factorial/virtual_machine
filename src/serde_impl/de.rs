@@ -60,7 +60,7 @@ impl<'de, 'a, R: io::Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
     where
         V: de::Visitor<'de>,
     {
-        Err(de::Error::custom("deserialize_any is not supported"))
+        Err(de::Error::custom("pfvm does not support deserialize_any"))
     }
 
     fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value>
@@ -321,11 +321,11 @@ impl<'de, 'a, R: io::Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
         self.deserialize_u32(visitor)
     }
 
-    fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_ignored_any<V>(self, _: V) -> Result<V::Value>
     where
         V: de::Visitor<'de>,
     {
-        visitor.visit_unit()
+        Err(de::Error::custom("pfvm does not support deserialize_ignored_any"))
     }
 }
 
