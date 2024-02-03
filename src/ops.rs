@@ -33,14 +33,14 @@ pub enum OpCode {
     /// Move an immediate value into a register.
     LoadImm(Value, Register),
     /// Move the value at a memory address into a register.
-    LoadMem(Value, Register),
+    LoadMem(usize, Register),
 
     /// Store the value in a register in a memory location.
-    StoreReg(Register, Value),
+    StoreReg(Register, usize),
     /// Store an immediate value in a memory location.
-    StoreImm(Value, Value),
+    StoreImm(Value, usize),
     /// Store the value at a memory address in another memory address.
-    StoreMem(Value, Value),
+    StoreMem(usize, usize),
 
     /// Add the value in the first register to the value in the second register, putting the result
     /// into the accumulator register.
@@ -142,26 +142,26 @@ pub enum OpCode {
     /// Jump to the index in the register within the current function.
     Jump(Register),
     /// Jump to the immediate index within the current function.
-    JumpImm(Value),
+    JumpImm(usize),
     /// If the value in the first register is a boolean value of `true`, jump to the index in the
     /// second register within the current function.
     JumpCond(Register, Register),
     /// If the value in the register is a boolean value of `true`, jump to the immediate index
     /// within the current function.
-    JumpCondImm(Register, Value),
+    JumpCondImm(Register, usize),
 
     /// Jump to the first instruction of a function determined by the index in the register.
     Call(Register),
     /// Call a native function determined by the immediate index pointing to a Program's string
     /// pool.
-    CallNative(StringIndex),
+    CallNative(usize),
     /// Set the VM's current frame to the call frame popped from the call stack.
     Ret,
 
     /// Print out the value in the register to stderr.
     DbgReg(Register),
     /// Print out the value at a memory location to stderr.
-    DbgMem(Value),
+    DbgMem(usize),
 }
 
 impl OpCode {
