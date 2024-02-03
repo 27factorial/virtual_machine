@@ -142,7 +142,7 @@ impl<T> GcBox<T> {
     pub fn new(value: T) -> Self {
         // Aligned<T> makes sure that the pointer returned by `alloc` will have its last bit set
         // to zero, allowing GcBox to use it for storing the "marked" tag.
-        let data = unsafe { alloc_aligned(value) };
+        let data = alloc_aligned(value);
 
         Self { data }
     }
