@@ -2,9 +2,9 @@ use std::rc::Rc;
 
 use hashbrown::{hash_map::RawEntryMut, HashMap};
 
-use crate::{project::Program, value::Value, vm::Vm};
+use crate::{project::ProgramFile, value::Value, vm::Vm};
 
-pub type NativeFn = dyn Fn(&mut Vm, &Program) -> Option<Value> + 'static;
+pub type NativeFn = dyn Fn(&mut Vm, &ProgramFile) -> Option<Value> + 'static;
 
 pub struct NativeRegistry(HashMap<String, Rc<NativeFn>>);
 
@@ -15,7 +15,7 @@ impl NativeRegistry {
 
     pub fn register<F>(&mut self, name: impl ToString + AsRef<str>, f: F) -> Result<(), F>
     where
-        F: Fn(&mut Vm, &Program) -> Option<Value> + 'static,
+        F: Fn(&mut Vm, &ProgramFile) -> Option<Value> + 'static,
     {
         let name_ref = name.as_ref();
 

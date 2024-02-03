@@ -1,47 +1,46 @@
-pub mod heap;
-pub mod memory;
-pub(crate) mod ops_impl;
-
-use crate::{
-    gc::GcBox,
-    native::NativeRegistry,
-    object::Object,
-    ops::{OpCode, OpError, OpResult, Transition},
-    project::Program,
-    value::Value,
-};
-
-use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Index, IndexMut, Mul, Not, Rem, Shl, Shr, Sub};
-
-use strum::{EnumCount, EnumIter};
-
 use self::{
     heap::Heap,
     memory::{CallStack, ValueMemory},
 };
+use crate::{
+    native::{NativeFn, NativeRegistry},
+    ops::{Function, OpError, Transition},
+    project::ProgramFile,
+    value::Value,
+};
+use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Index, IndexMut, Mul, Rem, Sub};
+use strum::{EnumCount, EnumIter};
+
+pub mod heap;
+pub mod memory;
+pub(crate) mod ops_impl;
 
 pub struct Vm {
     registers: Registers,
     current_frame: CallFrame,
     call_stack: CallStack,
     memory: ValueMemory,
-    object_heap: Heap,
-    native_fns: NativeRegistry,
+    heap: Heap,
+    functions: Vec<Function>,
+    native_fns: Vec<Box<NativeFn>>,
+    constants: Box<[Value]>,
 }
 
 impl Vm {
-    pub fn new() -> Self {
+    pub fn new(program: ProgramFile) -> Self {
         Self {
             registers: Registers::new(),
             current_frame: CallFrame::default(),
             call_stack: CallStack::new(64),
             memory: ValueMemory::new(128),
-            object_heap: Heap::new(1024),
-            native_fns: NativeRegistry::new(),
+            heap: Heap::new(1024),
+            functions: program.functions,
+            native_fns: Vec::new(),
+            constants: program.constants.into_boxed_slice(),
         }
     }
 
-    pub fn run(&mut self, program: Program) -> Result<(), OpError> {
+    pub fn run(&mut self, program: ProgramFile) -> Result<(), OpError> {
         let mut current_func = &program.functions[self.current_frame.func];
         let mut func_len = current_func.0.len();
 

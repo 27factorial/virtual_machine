@@ -1,5 +1,5 @@
 use crate::{
-    project::{Program, StringIndex},
+    project::{ProgramFile, StringIndex},
     value::Value,
     vm::{Register, Vm},
 };
@@ -165,7 +165,7 @@ pub enum OpCode {
 }
 
 impl OpCode {
-    pub fn execute(self, vm: &mut Vm, program: &Program) -> OpResult {
+    pub fn execute(self, vm: &mut Vm, program: &ProgramFile) -> OpResult {
         match self {
             OpCode::NoOp => vm.noop(),
             OpCode::Halt => vm.halt(),

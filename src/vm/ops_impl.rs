@@ -602,7 +602,7 @@ impl Vm {
         }
     }
 
-    // LessThanOrEqual
+    // LessThanEqual
     #[inline]
     pub(crate) fn le(&mut self, register_a: Register, register_b: Register) -> OpResult {
         bin_compare! {
@@ -613,7 +613,7 @@ impl Vm {
         }
     }
 
-    // LessThanOrEqualImmediate
+    // LessThanEqualImmediate
     #[inline]
     pub(crate) fn le_imm(&mut self, register: Register, value: Value) -> OpResult {
         bin_compare! {
@@ -693,8 +693,8 @@ impl Vm {
 
     #[inline]
     // CallNative
-    pub(crate) fn call_native(&mut self, program: &Program, index: StringIndex) -> OpResult {
-        let func_name = program.strings.get(index).ok_or(OpError::InvalidAddress)?;
+    pub(crate) fn call_native(&mut self, index: Value) -> OpResult {
+        let func_name = self.strings.get(index).ok_or(OpError::InvalidAddress)?;
 
         let native_fn = self.native_fns.get(func_name).ok_or(OpError::NoNativeFn)?;
 
