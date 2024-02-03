@@ -22,7 +22,7 @@ pub struct Vm {
     memory: ValueMemory,
     heap: Heap,
     functions: Vec<Function>,
-    native_fns: Vec<Box<NativeFn>>,
+    native_fns: NativeRegistry,
     constants: Box<[Value]>,
 }
 
@@ -35,33 +35,33 @@ impl Vm {
             memory: ValueMemory::new(128),
             heap: Heap::new(1024),
             functions: program.functions,
-            native_fns: Vec::new(),
+            native_fns: NativeRegistry::new(),
             constants: program.constants.into_boxed_slice(),
         }
     }
 
-    pub fn run(&mut self, program: ProgramFile) -> Result<(), OpError> {
-        let mut current_func = &program.functions[self.current_frame.func];
-        let mut func_len = current_func.0.len();
+    pub fn run(&mut self) -> Result<(), OpError> {
+        // let mut current_func = &program.functions[self.current_frame.func];
+        // let mut func_len = current_func.0.len();
 
-        while self.current_frame.ip < func_len {
-            let Some(opcode) = current_func.0.get(self.current_frame.ip).cloned() else {
-                break;
-            };
+        // while self.current_frame.ip < func_len {
+        //     let Some(opcode) = current_func.0.get(self.current_frame.ip).cloned() else {
+        //         break;
+        //     };
 
-            let result = opcode.execute(self, &program)?;
+        //     let result = opcode.execute(self, &program)?;
 
-            match result {
-                Transition::Continue => self.current_frame.ip += 1,
-                Transition::Jump => {
-                    // If the transition was a jump, we may have called a function, and need to
-                    // update the function length.
-                    current_func = &program.functions[self.current_frame.func];
-                    func_len = current_func.0.len();
-                }
-                Transition::Halt => break,
-            }
-        }
+        //     match result {
+        //         Transition::Continue => self.current_frame.ip += 1,
+        //         Transition::Jump => {
+        //             // If the transition was a jump, we may have called a function, and need to
+        //             // update the function length.
+        //             current_func = &program.functions[self.current_frame.func];
+        //             func_len = current_func.0.len();
+        //         }
+        //         Transition::Halt => break,
+        //     }
+        // }
 
         Ok(())
     }
