@@ -15,7 +15,7 @@ pub struct Heap {
     memory: Vec<Option<GcObject>>,
     free_indices: VecDeque<usize>,
     worklist: Vec<usize>,
-    current_children: Vec<HeapIndex>,
+    current_children: Vec<ObjectRef>,
     byte_len: usize,
     byte_capacity: usize,
 }
@@ -32,7 +32,7 @@ impl Heap {
         }
     }
 
-    pub fn alloc<T: Object>(&mut self, value: T) -> Result<HeapIndex, T> {
+    pub fn alloc<T: Object>(&mut self, value: T) -> Result<ObjectRef, T> {
         match self.free_indices.front().copied() {
             Some(idx) => {
                 // A previous Option was in the slot at self.memory[idx], so the size of the
@@ -48,7 +48,7 @@ impl Heap {
 
                     self.memory[idx] = Some(GcObject::new(value));
 
-                    Ok(HeapIndex(idx))
+                    Ok(ObjectRef(idx))
                 } else {
                     Err(value)
                 }
@@ -61,7 +61,7 @@ impl Heap {
                     let idx = self.memory.len();
                     self.memory.push(Some(GcObject::new(value)));
                     self.byte_len = required_space;
-                    Ok(HeapIndex(idx))
+                    Ok(ObjectRef(idx))
                 } else {
                     Err(value)
                 }
@@ -105,7 +105,7 @@ impl Heap {
 
             self.current_children.extend(object_children);
 
-            for HeapIndex(child_idx) in self.current_children.drain(..) {
+            for ObjectRef(child_idx) in self.current_children.drain(..) {
                 let object_opt = self.memory.get_mut(child_idx).and_then(|opt| opt.as_mut());
 
                 if let Some(child_object) = object_opt {
@@ -134,7 +134,7 @@ impl Heap {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
-pub struct HeapIndex(usize);
+pub struct ObjectRef(usize);
 
 pub struct RootsIter<'a> {
     registers: &'a Registers,
@@ -155,7 +155,7 @@ impl<'a> RootsIter<'a> {
 }
 
 impl Iterator for RootsIter<'_> {
-    type Item = HeapIndex;
+    type Item = ObjectRef;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.idx == self.memory.len() {

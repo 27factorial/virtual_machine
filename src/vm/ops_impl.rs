@@ -1,6 +1,6 @@
-use crate::project::StringIndex;
-use crate::ops::OpResult;
 use super::*;
+use crate::ops::OpResult;
+use crate::project::StringIndex;
 
 macro_rules! bin_arithmetic {
     (
@@ -453,8 +453,8 @@ impl Vm {
             Value::Bool(val) => {
                 self.registers[Register::R0] = Value::Bool(!val);
             }
-            Value::Index(val) => {
-                self.registers[Register::R0] = Value::Index(!val);
+            Value::Address(val) => {
+                self.registers[Register::R0] = Value::Address(!val);
             }
             _ => return Err(OpError::Type),
         }

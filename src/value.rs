@@ -1,4 +1,4 @@
-use crate::vm::heap::HeapIndex;
+use crate::vm::heap::ObjectRef;
 use paste::paste;
 
 macro_rules! variant_methods {
@@ -59,10 +59,12 @@ pub enum Value {
     Bool(bool),
     /// A single Unicode scalar value, corresponding to Rust's `char` type.
     Char(char),
-    /// The index of an instruction, stack value, or object field.
-    Index(usize),
+    /// The address of an instruction, stack value, or object field.
+    Address(usize),
+    /// The index of a symbol.
+    Symbol(usize),
     /// An object reference, referring to some data in the object heap.
-    Object(HeapIndex),
+    Object(ObjectRef),
 }
 
 variant_methods! {
@@ -71,6 +73,7 @@ variant_methods! {
     Float(f64), "a";
     Bool(bool), "a";
     Char(char), "a";
-    Index(usize), "an";
-    Object(HeapIndex), "an";
+    Address(usize), "an";
+    Symbol(usize), "a";
+    Object(ObjectRef), "an";
 }
