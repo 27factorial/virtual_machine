@@ -1,4 +1,4 @@
-use crate::vm::heap::ObjectRef;
+use crate::{string::SymbolIndex, vm::heap::ObjectRef};
 use paste::paste;
 
 macro_rules! variant_methods {
@@ -62,7 +62,7 @@ pub enum Value {
     /// The address of an instruction, stack value, or object field.
     Address(usize),
     /// The index of a symbol.
-    Symbol(usize),
+    Symbol(SymbolIndex),
     /// An object reference, referring to some data in the object heap.
     Object(ObjectRef),
 }
@@ -74,6 +74,6 @@ variant_methods! {
     Bool(bool), "a";
     Char(char), "a";
     Address(usize), "an";
-    Symbol(usize), "a";
+    Symbol(SymbolIndex), "a";
     Object(ObjectRef), "an";
 }

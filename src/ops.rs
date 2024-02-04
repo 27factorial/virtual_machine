@@ -1,19 +1,19 @@
 use crate::{
-    project::{ProgramFile, StringIndex},
+    project::ProgramFile,
     value::Value,
     vm::{Register, Vm},
 };
 
 use std::{ops::Index, slice::SliceIndex};
 
-pub type OpResult = Result<Transition, OpError>;
+pub type OpResult<'a> = Result<Transition<'a>, OpError>;
 
 /// Opcodes representing the virtual machine's instruction set.
 ///
 /// For operations which move values into and out of memory or registers, the operands are in the
 /// order (src, dst). For binary operations, the operands are ordered `opcode.0 <operation>
 /// opcode.1`.
-#[derive(Clone, PartialEq, PartialOrd, Debug)]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
 pub enum OpCode {
     /// No operation; do nothing.
     NoOp,
@@ -165,7 +165,7 @@ pub enum OpCode {
 }
 
 impl OpCode {
-    pub fn execute(self, vm: &mut Vm, program: &ProgramFile) -> OpResult {
+    pub fn execute<'a>(self, vm: &'a mut Vm) -> OpResult<'a> {
         match self {
             OpCode::NoOp => vm.noop(),
             OpCode::Halt => vm.halt(),
@@ -216,7 +216,7 @@ impl OpCode {
             }
             OpCode::JumpCondImm(register, address) => vm.jump_cond_imm(register, address),
             OpCode::Call(register) => vm.call(register),
-            OpCode::CallNative(index) => vm.call_native(program, index),
+            OpCode::CallNative(index) => vm.call_native(index),
             OpCode::Ret => vm.ret(),
             OpCode::DbgReg(register) => vm.dbg_reg(register),
             OpCode::DbgMem(address) => vm.dbg_mem(address),
@@ -225,9 +225,11 @@ impl OpCode {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum Transition {
+pub enum Transition<'a> {
     Continue,
-    Jump,
+    Jump(usize),
+    Call(&'a str),
+    Ret,
     Halt,
 }
 
@@ -238,7 +240,8 @@ pub enum OpError {
     StackUnderflow,
     OutOfMemory,
     InvalidAddress,
-    NoNativeFn,
+    FunctionNotFound,
+    SymbolNotFound,
 }
 
 #[derive(Clone, PartialEq, PartialOrd, Debug, Default)]

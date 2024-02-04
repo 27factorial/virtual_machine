@@ -6,9 +6,13 @@ use crate::{
     native::{NativeFn, NativeRegistry},
     ops::{Function, OpError, Transition},
     project::ProgramFile,
+    string::Symbols,
     value::Value,
 };
-use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Index, IndexMut, Mul, Rem, Sub};
+use hashbrown::HashMap;
+use std::{
+    mem, ops::{Add, BitAnd, BitOr, BitXor, Div, Index, IndexMut, Mul, Rem, Sub}, sync::Arc
+};
 use strum::{EnumCount, EnumIter};
 
 pub mod heap;
@@ -17,51 +21,48 @@ pub(crate) mod ops_impl;
 
 pub struct Vm {
     registers: Registers,
-    current_frame: CallFrame,
     call_stack: CallStack,
     memory: ValueMemory,
     heap: Heap,
-    functions: Vec<Function>,
+    functions: HashMap<Arc<str>, Function>,
     native_fns: NativeRegistry,
     constants: Box<[Value]>,
+    symbols: Symbols,
 }
 
 impl Vm {
     pub fn new(program: ProgramFile) -> Self {
         Self {
             registers: Registers::new(),
-            current_frame: CallFrame::default(),
             call_stack: CallStack::new(64),
             memory: ValueMemory::new(128),
             heap: Heap::new(1024),
             functions: program.functions,
             native_fns: NativeRegistry::new(),
             constants: program.constants.into_boxed_slice(),
+            symbols: program.symbols,
         }
     }
 
     pub fn run(&mut self) -> Result<(), OpError> {
-        // let mut current_func = &program.functions[self.current_frame.func];
-        // let mut func_len = current_func.0.len();
+        let functions = mem::take(&mut self.functions);
 
-        // while self.current_frame.ip < func_len {
-        //     let Some(opcode) = current_func.0.get(self.current_frame.ip).cloned() else {
-        //         break;
-        //     };
+        let mut current_func = functions.get("main").ok_or(OpError::FunctionNotFound)?;
+        let mut instruction = 0;
 
-        //     let result = opcode.execute(self, &program)?;
-
-        //     match result {
-        //         Transition::Continue => self.current_frame.ip += 1,
-        //         Transition::Jump => {
-        //             // If the transition was a jump, we may have called a function, and need to
-        //             // update the function length.
-        //             current_func = &program.functions[self.current_frame.func];
-        //             func_len = current_func.0.len();
-        //         }
-        //         Transition::Halt => break,
-        //     }
-        // }
+        loop {
+            let opcode = *current_func.get(instruction).ok_or(OpError::InvalidAddress)?;
+            
+            match opcode.execute(self)? {
+                Transition::Continue => instruction += 1,
+                Transition::Jump(address) => instruction = address,
+                Transition::Call(func) => {
+                    current_func = functions.get(func).ok_or(OpError::FunctionNotFound)?;
+                },
+                Transition::Ret => todo!(),
+                Transition::Halt => todo!(),
+            }
+        }
 
         Ok(())
     }
@@ -84,7 +85,6 @@ impl Vm {
 
     #[cfg(test)]
     pub fn reset(&mut self) {
-        self.current_frame = CallFrame::default();
         self.registers = Registers::new();
         self.call_stack.clear();
         self.memory.clear();
@@ -144,14 +144,15 @@ pub enum Register {
     R7,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct CallFrame {
-    pub(crate) func: usize,
+    pub(crate) func: Arc<str>,
     pub(crate) ip: usize,
 }
 
 impl CallFrame {
-    pub fn new(func: usize, ip: usize) -> Self {
+    pub fn new(func: impl Into<Arc<str>>, ip: usize) -> Self {
+        let func = func.into();
         Self { func, ip }
     }
 }
