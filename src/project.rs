@@ -1,6 +1,6 @@
 use hashbrown::HashMap;
 
-use std::ops::Index;
+use std::{ops::Index, rc::Rc, sync::Arc};
 
 use crate::{
     object::TypeMeta,
@@ -12,8 +12,7 @@ use crate::{
 const VALID_MAGIC: &[u8; 7] = b"27FCTRL";
 
 pub struct ProgramFile {
-    pub(crate) types: HashMap<StringIndex, TypeMeta>,
-    pub(crate) constants: Vec<Value>,
-    pub(crate) functions: Vec<Function>,
-    
+    pub(crate) types: HashMap<Box<str>, TypeMeta>,
+    pub(crate) constants: HashMap<Box<str>, Value>,
+    pub(crate) functions: HashMap<Box<str>, Function>
 }

@@ -1,3 +1,5 @@
+use std::ops::Index;
+
 pub struct Strings {
     data: String,
     indices: Vec<StringSpan>,
@@ -11,33 +13,36 @@ impl Strings {
         }
     }
 
-    pub fn get_or_push(&mut self, s: impl AsRef<str>) -> StringSpan {
-        fn inner(this: &mut Strings, s: &str) -> StringSpan {
+    pub fn get_or_push(&mut self, s: impl AsRef<str>) -> Symbol {
+        fn inner(this: &mut Strings, s: &str) -> Symbol {
             // Since substring searching is O(m * n), and self.data is expected to be somewhat
             // large, we can possibly speed this search up by first checking self.indices for any
             // strings matching the length of the given string, then filtering self.data to only
             // strings of the same length. Only those strings with the same length will be checked
             // for equality in that case. If no strings match, then we just push the string to the
             // end of self.data and push the index data to self.indices.
-            let possible_idx = this
+            let possible_symbol = this
                 .indices
                 .iter()
-                .filter(|idx| idx.len == s.len())
-                .map(|idx| (idx, &this.data[idx.start..idx.start + idx.len]))
-                .find_map(|(idx, string)| (s == string).then_some(*idx));
+                .enumerate()
+                .filter(|(idx, span)| span.len == s.len())
+                .map(|(idx, span)| (idx, &this.data[span.start..span.start + span.len]))
+                .find_map(|(idx, string)| (s == string).then_some(idx))
+                .map(Symbol);
 
-            match possible_idx {
-                Some(idx) => idx,
+            match possible_symbol {
+                Some(symbol) => symbol,
                 None => {
-                    let idx = StringSpan {
+                    let span = StringSpan {
                         start: this.data.len(),
                         len: s.len(),
                     };
+                    let idx = this.indices.len();
 
                     this.data.push_str(s);
-                    this.indices.push(idx);
+                    this.indices.push(span);
 
-                    idx
+                    Symbol(idx)
                 }
             }
         }
@@ -45,7 +50,7 @@ impl Strings {
         inner(self, s.as_ref())
     }
 
-    pub fn get(&self, symbol: StringRef) -> Option<&str> {
+    pub fn get(&self, symbol: Symbol) -> Option<&str> {
         self.indices
             .get(symbol.0)
             .and_then(|idx| self.data.get(idx.start..idx.start + idx.len))
@@ -56,10 +61,26 @@ impl Strings {
     }
 }
 
+impl Index<Symbol> for Strings {
+    type Output = str;
+
+    fn index(&self, index: Symbol) -> &Self::Output {
+        self.get(index).expect("index out of bounds")
+    }
+}
+
+impl Index<StringSpan> for Strings {
+    type Output = str;
+
+    fn index(&self, index: StringSpan) -> &Self::Output {
+        self.data.get(index.start..index.start + index.len).expect("index out of bounds")
+    }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct StringSpan {
     start: usize,
     len: usize,
 }
 
-pub struct StringRef(pub usize);
+pub struct Symbol(pub usize);
