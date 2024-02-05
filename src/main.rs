@@ -6,7 +6,7 @@ mod gc;
 mod native;
 mod object;
 mod ops;
-mod project;
+mod program;
 mod serde_impl;
 mod string;
 mod utils;

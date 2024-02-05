@@ -1,5 +1,5 @@
 use crate::{
-    project::ProgramFile,
+    program::Program,
     value::Value,
     vm::{Register, Vm},
 };

@@ -5,7 +5,7 @@ use self::{
 use crate::{
     native::{NativeFn, NativeRegistry},
     ops::{Function, OpError, Transition},
-    project::ProgramFile,
+    program::Program,
     string::Symbols,
     utils::HashMap,
     value::Value,
@@ -33,7 +33,7 @@ pub struct Vm {
 }
 
 impl Vm {
-    pub fn new(program: ProgramFile) -> Self {
+    pub fn new(program: Program) -> Self {
         Self {
             registers: Registers::new(),
             call_stack: CallStack::new(64),
@@ -172,5 +172,37 @@ impl CallFrame {
     pub fn new(func: impl Into<Arc<str>>, ip: usize) -> Self {
         let func = func.into();
         Self { func, ip }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Instant;
+
+    use super::*;
+
+    #[test]
+    fn basic_program() {
+        use crate::ops::OpCode::*;
+
+        let mut program = Program::new();
+
+        let crunch = program.define_function("crunch", [
+            LoadImm(Value::Float(42.0), Register::R1),
+            LoadImm(Value::Float(2.0), Register::R2),
+            Div(Register::R1, Register::R2),
+            Ret,
+        ]).unwrap();
+
+        program.define_function("main", [
+            LoadImm(Value::Bool(false), Register::R0),
+            Not(Register::R0),
+            LoadImm(Value::Symbol(crunch), Register::R0),
+            Call(Register::R0),
+        ]).unwrap();
+
+        let mut vm = Vm::new(program);
+
+        vm.run().unwrap();
     }
 }

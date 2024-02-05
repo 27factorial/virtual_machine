@@ -1,5 +1,6 @@
 use std::ops::Index;
 
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct Symbols {
     data: String,
     indices: Vec<SymbolSpan>,
@@ -25,7 +26,7 @@ impl Symbols {
                 .indices
                 .iter()
                 .enumerate()
-                .filter(|(idx, span)| span.len == s.len())
+                .filter(|(_, span)| span.len == s.len())
                 .map(|(idx, span)| (idx, &this.data[span.start..span.start + span.len]))
                 .find_map(|(idx, string)| (s == string).then_some(idx))
                 .map(SymbolIndex);
