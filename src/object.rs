@@ -1,4 +1,4 @@
-use hashbrown::{hash_map::RawEntryMut, HashMap};
+use hashbrown::{hash_map::RawEntryMut};
 use std::rc::Rc;
 
 use crate::{ops::Function, value::Value, vm::Vm};

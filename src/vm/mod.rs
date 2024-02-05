@@ -7,11 +7,13 @@ use crate::{
     ops::{Function, OpError, Transition},
     project::ProgramFile,
     string::Symbols,
+    utils::HashMap,
     value::Value,
 };
-use hashbrown::HashMap;
 use std::{
-    mem, ops::{Add, BitAnd, BitOr, BitXor, Div, Index, IndexMut, Mul, Rem, Sub}, sync::Arc
+    mem,
+    ops::{Add, BitAnd, BitOr, BitXor, Div, Index, IndexMut, Mul, Rem, Sub},
+    sync::Arc,
 };
 use strum::{EnumCount, EnumIter};
 
@@ -45,23 +47,39 @@ impl Vm {
     }
 
     pub fn run(&mut self) -> Result<(), OpError> {
+        // Avoids borrowing problems.
         let functions = mem::take(&mut self.functions);
 
+        let mut ip = 0;
         let mut current_func = functions.get("main").ok_or(OpError::FunctionNotFound)?;
-        let mut instruction = 0;
+        let mut next_opcode = current_func.get(ip).copied();
 
-        loop {
-            let opcode = *current_func.get(instruction).ok_or(OpError::InvalidAddress)?;
-            
+        while let Some(opcode) = next_opcode {
             match opcode.execute(self)? {
-                Transition::Continue => instruction += 1,
-                Transition::Jump(address) => instruction = address,
+                Transition::Continue => ip += 1,
+                Transition::Jump(address) => ip = address,
                 Transition::Call(func) => {
-                    current_func = functions.get(func).ok_or(OpError::FunctionNotFound)?;
-                },
-                Transition::Ret => todo!(),
-                Transition::Halt => todo!(),
+                    let (name, called_func) = functions
+                        .get_key_value(func)
+                        .ok_or(OpError::FunctionNotFound)?;
+
+                    self.push_call_stack(CallFrame::new(Arc::clone(name), ip));
+
+                    current_func = called_func;
+                    ip = 0;
+                }
+                Transition::Ret => {
+                    let frame = self.pop_call_stack()?;
+
+                    current_func = functions
+                        .get(&frame.func)
+                        .ok_or(OpError::FunctionNotFound)?;
+                    ip = frame.ip
+                }
+                Transition::Halt => return Ok(()),
             }
+
+            next_opcode = current_func.get(ip).copied();
         }
 
         Ok(())

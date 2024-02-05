@@ -1,9 +1,12 @@
-use hashbrown::HashMap;
-
 use std::{ops::Index, rc::Rc, sync::Arc};
 
 use crate::{
-    object::TypeMeta, ops::{Function, OpCode}, string::Symbols, value::Value, vm::CallFrame
+    object::TypeMeta,
+    ops::{Function, OpCode},
+    string::Symbols,
+    utils::HashMap,
+    value::Value,
+    vm::CallFrame,
 };
 
 const VALID_MAGIC: &[u8; 7] = b"27FCTRL";

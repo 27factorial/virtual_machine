@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
-use hashbrown::{hash_map::RawEntryMut, HashMap};
+use hashbrown::{hash_map::RawEntryMut};
 
-use crate::{project::ProgramFile, value::Value, vm::Vm};
+use crate::{project::ProgramFile, utils::HashMap, value::Value, vm::Vm};
 
 pub type NativeFn = dyn Fn(&mut Vm, &ProgramFile) -> Option<Value> + 'static;
 
@@ -10,7 +10,7 @@ pub struct NativeRegistry(HashMap<String, Rc<NativeFn>>);
 
 impl NativeRegistry {
     pub fn new() -> Self {
-        Self(HashMap::new())
+        Self(HashMap::with_hasher(Default::default()))
     }
 
     pub fn register<F>(&mut self, name: impl ToString + AsRef<str>, f: F) -> Result<(), F>
