@@ -1,3 +1,4 @@
+use serde::{Serialize, Deserialize};
 use std::{ops::Index, rc::Rc, sync::Arc};
 
 use hashbrown::hash_map::RawEntryMut;
@@ -13,7 +14,7 @@ use crate::{
 
 const VALID_MAGIC: &[u8; 7] = b"27FCTRL";
 
-#[derive(Clone, PartialEq, Debug, Default)]
+#[derive(Clone, PartialEq, Debug, Default, Serialize, Deserialize)]
 pub struct Program {
     pub(crate) constants: Vec<Value>,
     pub(crate) functions: HashMap<Arc<str>, Function>,
@@ -28,23 +29,32 @@ impl Program {
             symbols: Symbols::new(),
         }
     }
-    
+
+    pub fn define_symbol(&mut self, symbol: impl AsRef<str>) -> SymbolIndex {
+        self.symbols.get_or_push(symbol.as_ref())
+    }
+
     pub fn define_constant(&mut self, v: Value) -> usize {
         let index = self.constants.len();
         self.constants.push(v);
         index
     }
 
-    pub fn define_function<F: IntoIterator<Item = OpCode>>(&mut self, name: impl AsRef<str>, func: F) -> Result<SymbolIndex, F> {
-        let name = name.as_ref();
-
-        match self.functions.raw_entry_mut().from_key(name) {
-            RawEntryMut::Occupied(_) => Err(func),
-            RawEntryMut::Vacant(entry) => {
-                let index = self.symbols.get_or_push(name);
-                entry.insert(Arc::from(name), func.into_iter().collect());
-                Ok(index)
-            },
+    pub fn define_function<F: IntoIterator<Item = OpCode>>(
+        &mut self,
+        symbol: SymbolIndex,
+        func: F,
+    ) -> Result<(), F> {
+        if let Some(name) = self.symbols.get(symbol) {
+            match self.functions.raw_entry_mut().from_key(name) {
+                RawEntryMut::Vacant(entry) => {
+                    entry.insert(Arc::from(name), func.into_iter().collect());
+                    Ok(())
+                }
+                RawEntryMut::Occupied(_) => Err(func),
+            }
+        } else {
+            Err(func)
         }
     }
 }

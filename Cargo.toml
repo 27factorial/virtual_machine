@@ -6,11 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = { version = "4.4.18", features = ["derive"] }
-hashbrown = "0.14.2"
-parking_lot = { version = "0.12.1", features = ["hardware-lock-elision"] }
-paste = "1.0.14"
-rustc-hash = "1.1.0"
-serde = "1.0.196"
-strum = { version = "0.25.0", features = ["derive"] }
-thiserror = "1.0.56"
+clap = { version = "4", features = ["derive"] }
+hashbrown = { version = "0.14", features = ["serde"] }
+parking_lot = { version = "0.12", features = ["hardware-lock-elision"] }
+paste = "1"
+rustc-hash = "1"
+serde = { version = "1", features = ["derive", "rc"] }
+serde_repr = "0.1.18"
+strum = { version = "0.25", features = ["derive"] }
+thiserror = "1"

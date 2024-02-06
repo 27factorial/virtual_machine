@@ -1,5 +1,6 @@
 use std::{collections::VecDeque, mem};
 
+use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 
 use crate::{
@@ -133,7 +134,7 @@ impl Heap {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize, Deserialize)]
 pub struct ObjectRef(usize);
 
 pub struct RootsIter<'a> {

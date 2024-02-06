@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{
     program::Program,
     value::Value,
@@ -13,7 +15,7 @@ pub type OpResult<'a> = Result<Transition<'a>, OpError>;
 /// For operations which move values into and out of memory or registers, the operands are in the
 /// order (src, dst). For binary operations, the operands are ordered `opcode.0 <operation>
 /// opcode.1`.
-#[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
 pub enum OpCode {
     /// No operation; do nothing.
     NoOp,
@@ -237,6 +239,7 @@ pub enum Transition<'a> {
 pub enum OpError {
     Type,
     Arithmetic,
+    StackOverflow,
     StackUnderflow,
     OutOfMemory,
     InvalidAddress,
@@ -244,7 +247,7 @@ pub enum OpError {
     SymbolNotFound,
 }
 
-#[derive(Clone, PartialEq, PartialOrd, Debug, Default)]
+#[derive(Clone, PartialEq, PartialOrd, Debug, Default, Serialize, Deserialize)]
 pub struct Function(pub(crate) Box<[OpCode]>);
 
 impl Function {

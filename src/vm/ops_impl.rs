@@ -165,14 +165,14 @@ impl Vm {
     // PushImmediate
     #[inline]
     pub(crate) fn push_imm(&mut self, value: Value) -> OpResult<'_> {
-        self.push_data_stack(value);
+        self.push_data_stack(value)?;
         Ok(Transition::Continue)
     }
 
     // Push
     #[inline]
     pub(crate) fn push(&mut self, register: Register) -> OpResult<'_> {
-        self.push_data_stack(self.registers[register]);
+        self.push_data_stack(self.registers[register])?;
         Ok(Transition::Continue)
     }
 
@@ -674,6 +674,7 @@ impl Vm {
     }
 
     // CallImmediate
+    #[inline]
     pub(crate) fn call_imm(&mut self, symbol: SymbolIndex) -> OpResult<'_> {
         todo!()
     }

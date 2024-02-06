@@ -1,6 +1,10 @@
+#![deny(fuzzy_provenance_casts)]
+#![deny(unused_must_use)]
+
+// Used for a safer implementation of GcBox.
 #![feature(ptr_metadata)]
+// Used to ensure GcBox follows the upcoming pointer provenance rules.
 #![feature(strict_provenance)]
-#![warn(fuzzy_provenance_casts)]
 
 mod gc;
 mod native;

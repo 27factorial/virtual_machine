@@ -1,5 +1,6 @@
 use crate::{string::SymbolIndex, vm::heap::ObjectRef};
 use paste::paste;
+use serde::{Deserialize, Serialize};
 
 macro_rules! variant_methods {
     ($($variant:ident($inner_ty:ty), $article:literal);+ $(;)?) => {
@@ -44,7 +45,7 @@ macro_rules! variant_methods {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Default)]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Default, Serialize, Deserialize)]
 pub enum Value {
     /// A value corresponding to "nothing". The default value when operating on memory.
     #[default]

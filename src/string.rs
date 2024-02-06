@@ -1,6 +1,8 @@
 use std::ops::Index;
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize, Deserialize)]
 pub struct Symbols {
     data: String,
     indices: Vec<SymbolSpan>,
@@ -80,11 +82,15 @@ impl Index<SymbolSpan> for Symbols {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[derive(
+    Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize, Deserialize,
+)]
 pub struct SymbolSpan {
     start: usize,
     len: usize,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[derive(
+    Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize, Deserialize,
+)]
 pub struct SymbolIndex(pub usize);
