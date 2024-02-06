@@ -11,7 +11,7 @@ use std::{
 };
 
 use crate::{
-    object::{Object, TypeMeta},
+    object::{VmObject, VmType},
     value::Value,
 };
 
@@ -444,12 +444,12 @@ impl<T: ?Sized> Drop for GcBox<T> {
 }
 
 pub struct GcObject {
-    pub(crate) meta: TypeMeta,
-    pub(crate) obj: GcBox<dyn Object>,
+    pub(crate) meta: VmType,
+    pub(crate) obj: GcBox<dyn VmObject>,
 }
 
 impl GcObject {
-    pub fn new<T: Object + 'static>(value: T) -> Self {
+    pub fn new<T: VmObject + 'static>(value: T) -> Self {
         let meta = T::type_meta();
 
         Self {
@@ -458,7 +458,7 @@ impl GcObject {
         }
     }
 
-    pub fn meta(&self) -> &TypeMeta {
+    pub fn meta(&self) -> &VmType {
         &self.meta
     }
 

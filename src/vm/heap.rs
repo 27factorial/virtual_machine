@@ -6,7 +6,7 @@ use strum::IntoEnumIterator;
 use crate::{
     gc::{GcBox, GcObject},
     gc_box,
-    object::Object,
+    object::VmObject,
     value::Value,
 };
 
@@ -33,7 +33,7 @@ impl Heap {
         }
     }
 
-    pub fn alloc<T: Object>(&mut self, value: T) -> Result<ObjectRef, T> {
+    pub fn alloc<T: VmObject>(&mut self, value: T) -> Result<ObjectRef, T> {
         match self.free_indices.front().copied() {
             Some(idx) => {
                 // A previous Option was in the slot at self.memory[idx], so the size of the

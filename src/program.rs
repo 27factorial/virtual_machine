@@ -1,10 +1,10 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::{ops::Index, rc::Rc, sync::Arc};
 
 use hashbrown::hash_map::RawEntryMut;
 
 use crate::{
-    object::TypeMeta,
+    object::VmType,
     ops::{Function, OpCode},
     string::{SymbolIndex, Symbols},
     utils::HashMap,

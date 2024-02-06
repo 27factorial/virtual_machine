@@ -1,10 +1,15 @@
-use hashbrown::{hash_map::RawEntryMut};
-use std::rc::Rc;
+use hashbrown::hash_map::RawEntryMut;
+use std::{rc::Rc, sync::Arc};
 
-use crate::{ops::Function, value::Value, vm::Vm};
+use crate::{
+    ops::{Function, OpCode},
+    utils::HashMap,
+    value::Value,
+    vm::Vm,
+};
 
-pub trait Object: 'static {
-    fn type_meta() -> TypeMeta
+pub trait VmObject: 'static {
+    fn type_meta() -> VmType
     where
         Self: Sized;
     fn field(&self, name: &str) -> Option<&Value>;
@@ -13,11 +18,11 @@ pub trait Object: 'static {
     fn call_method(&self, name: &str) -> Result<Value, ()>;
 }
 
-pub struct TypeMeta {
+pub struct VmType {
     // index into the strings section of a program
-    name: usize,
+    name: Arc<str>,
     operators: TypeOperators,
-    methods: Vec<Function>,
+    methods: HashMap<Arc<str>, Function>,
 }
 
 pub struct TypeOperators {
@@ -43,33 +48,33 @@ impl TypeOperators {
         }
     }
 
-    pub fn with_finalize(mut self, finalize: impl Into<Function>) -> Self {
-        self.finalize = Some(finalize.into());
+    pub fn register_finalize(mut self, finalize: impl IntoIterator<Item = OpCode>) -> Self {
+        self.finalize = Some(Function::new(finalize));
         self
     }
 
-    pub fn with_index(mut self, index: impl Into<Function>) -> Self {
-        self.index = Some(index.into());
+    pub fn register_index(mut self, index: impl IntoIterator<Item = OpCode>) -> Self {
+        self.index = Some(Function::new(index));
         self
     }
 
-    pub fn with_add(mut self, add: impl Into<Function>) -> Self {
-        self.add = Some(add.into());
+    pub fn register_add(mut self, add: impl IntoIterator<Item = OpCode>) -> Self {
+        self.add = Some(Function::new(add));
         self
     }
 
-    pub fn with_sub(mut self, sub: impl Into<Function>) -> Self {
-        self.sub = Some(sub.into());
+    pub fn register_sub(mut self, sub: impl IntoIterator<Item = OpCode>) -> Self {
+        self.sub = Some(Function::new(sub));
         self
     }
 
-    pub fn with_mul(mut self, mul: impl Into<Function>) -> Self {
-        self.mul = Some(mul.into());
+    pub fn register_mul(mut self, mul: impl IntoIterator<Item = OpCode>) -> Self {
+        self.mul = Some(Function::new(mul));
         self
     }
 
-    pub fn with_div(mut self, div: impl Into<Function>) -> Self {
-        self.div = Some(div.into());
+    pub fn register_div(mut self, div: impl IntoIterator<Item = OpCode>) -> Self {
+        self.div = Some(Function::new(div));
         self
     }
 }
