@@ -227,11 +227,10 @@ impl OpCode {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum Transition<'a> {
+pub enum Transition {
     Continue,
-    Jump(usize),
-    Call(&'a str),
-    Ret,
+    Jump,
+    Call,
     Halt,
 }
 

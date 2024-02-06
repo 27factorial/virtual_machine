@@ -187,7 +187,11 @@ impl Vm {
 
     // LoadRegister
     #[inline]
-    pub(crate) fn load_reg(&mut self, register_src: Register, register_dst: Register) -> OpResult<'_> {
+    pub(crate) fn load_reg(
+        &mut self,
+        register_src: Register,
+        register_dst: Register,
+    ) -> OpResult<'_> {
         let value = self.registers[register_src];
         self.registers[register_dst] = value;
         Ok(Transition::Continue)
@@ -621,13 +625,15 @@ impl Vm {
     pub(crate) fn jump(&mut self, register: Register) -> OpResult<'_> {
         let address = self.registers[register].address_or_err(OpError::Type)?;
 
-        Ok(Transition::Jump(address))
+        self.jump_imm(address)
     }
 
     // JumpImmediate
     #[inline]
     pub(crate) fn jump_imm(&mut self, address: usize) -> OpResult<'_> {
-        Ok(Transition::Jump(address))
+        self.current_frame.ip = address;
+
+        Ok(Transition::Jump)
     }
 
     // JumpConditional
@@ -638,11 +644,7 @@ impl Vm {
         address_register: Register,
     ) -> OpResult<'_> {
         match self.registers[condition_register] {
-            Value::Bool(true) => {
-                let address = self.registers[address_register].address_or_err(OpError::Type)?;
-
-                Ok(Transition::Jump(address))
-            }
+            Value::Bool(true) => self.jump(address_register),
             Value::Bool(false) => Ok(Transition::Continue),
             _ => Err(OpError::Type),
         }
@@ -652,9 +654,7 @@ impl Vm {
     #[inline]
     pub(crate) fn jump_cond_imm(&mut self, register: Register, address: usize) -> OpResult<'_> {
         match self.registers[register] {
-            Value::Bool(true) => {
-                Ok(Transition::Jump(address))
-            }
+            Value::Bool(true) => Ok(Transition::Jump(address)),
             Value::Bool(false) => Ok(Transition::Continue),
             _ => Err(OpError::Type),
         }
@@ -665,10 +665,7 @@ impl Vm {
     pub(crate) fn call(&mut self, register: Register) -> OpResult<'_> {
         let index = self.registers[register].symbol_or_err(OpError::Type)?;
 
-        let func = self
-            .symbols
-            .get(index)
-            .ok_or(OpError::SymbolNotFound)?;
+        let func = self.symbols.get(index).ok_or(OpError::SymbolNotFound)?;
 
         Ok(Transition::Call(func))
     }
