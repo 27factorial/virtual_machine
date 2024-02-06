@@ -55,16 +55,18 @@ impl Vm {
     }
 
     pub fn run(&mut self) -> Result<(), OpError> {
-        // Avoids borrowing problems.
         let functions = mem::take(&mut self.functions);
 
-        let mut current_func = functions.get("main").ok_or(OpError::FunctionNotFound)?;
+        let mut current_func = functions
+            .get("main")
+            .ok_or(OpError::FunctionNotFound)?;
+        
         let mut next_opcode = current_func.get(self.current_frame.ip).copied();
 
         while let Some(opcode) = next_opcode {
             match opcode.execute(self)? {
                 Transition::Continue => self.current_frame.ip += 1,
-                Transition::Jump(address) => self.current_frame.ip = address,
+                Transition::Jump => {}
                 Transition::Call(func) => {
                     let (name, called_func) = functions
                         .get_key_value(func)
@@ -76,7 +78,6 @@ impl Vm {
                     self.push_call_stack(caller)?;
 
                     current_func = called_func;
-                    self.current_frame.ip = 0;
                 }
                 Transition::Ret => {
                     let frame = self.pop_call_stack()?;
@@ -84,6 +85,7 @@ impl Vm {
                     current_func = functions
                         .get(&frame.func)
                         .ok_or(OpError::FunctionNotFound)?;
+
                     self.current_frame.ip = frame.ip + 1;
                 }
                 Transition::Halt => return Ok(()),

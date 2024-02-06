@@ -227,10 +227,11 @@ impl OpCode {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum Transition {
+pub enum Transition<'a> {
     Continue,
     Jump,
-    Call,
+    Call(&'a str),
+    Ret,
     Halt,
 }
 
@@ -251,7 +252,7 @@ pub struct Function(pub(crate) Box<[OpCode]>);
 
 impl Function {
     pub fn new(ops: impl IntoIterator<Item = OpCode>) -> Self {
-        let ops = ops.into_iter().collect::<Vec<_>>().into_boxed_slice();
+        let ops = ops.into_iter().collect();
 
         Self(ops)
     }

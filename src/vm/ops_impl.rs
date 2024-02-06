@@ -187,11 +187,7 @@ impl Vm {
 
     // LoadRegister
     #[inline]
-    pub(crate) fn load_reg(
-        &mut self,
-        register_src: Register,
-        register_dst: Register,
-    ) -> OpResult<'_> {
+    pub(crate) fn load_reg(&mut self, register_src: Register, register_dst: Register) -> OpResult<'_> {
         let value = self.registers[register_src];
         self.registers[register_dst] = value;
         Ok(Transition::Continue)
@@ -654,7 +650,7 @@ impl Vm {
     #[inline]
     pub(crate) fn jump_cond_imm(&mut self, register: Register, address: usize) -> OpResult<'_> {
         match self.registers[register] {
-            Value::Bool(true) => Ok(Transition::Jump(address)),
+            Value::Bool(true) => self.jump_imm(address),
             Value::Bool(false) => Ok(Transition::Continue),
             _ => Err(OpError::Type),
         }
@@ -663,17 +659,17 @@ impl Vm {
     // Call
     #[inline]
     pub(crate) fn call(&mut self, register: Register) -> OpResult<'_> {
-        let index = self.registers[register].symbol_or_err(OpError::Type)?;
+        let symbol = self.registers[register].symbol_or_err(OpError::Type)?;
 
-        let func = self.symbols.get(index).ok_or(OpError::SymbolNotFound)?;
-
-        Ok(Transition::Call(func))
+        self.call_imm(symbol)
     }
 
     // CallImmediate
     #[inline]
     pub(crate) fn call_imm(&mut self, symbol: SymbolIndex) -> OpResult<'_> {
-        todo!()
+        let func = self.symbols.get(symbol).ok_or(OpError::SymbolNotFound)?;
+
+        Ok(Transition::Call(func))
     }
 
     #[inline]
