@@ -474,10 +474,6 @@ impl GcObject {
         self.obj.fields()
     }
 
-    pub fn call_method(&self, name: &str) -> Result<Value, ()> {
-        self.obj.call_method(name)
-    }
-
     pub fn mark(&mut self) {
         self.obj.mark();
     }

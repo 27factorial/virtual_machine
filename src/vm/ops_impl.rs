@@ -152,33 +152,33 @@ macro_rules! bin_compare {
 impl Vm {
     // NoOp
     #[inline]
-    pub(crate) fn noop(&self) -> OpResult<'_> {
+    pub(crate) fn noop(&self) -> OpResult {
         Ok(Transition::Continue)
     }
 
     // Halt
     #[inline]
-    pub(crate) fn halt(&self) -> OpResult<'_> {
+    pub(crate) fn halt(&self) -> OpResult {
         Ok(Transition::Halt)
     }
 
     // PushImmediate
     #[inline]
-    pub(crate) fn push_imm(&mut self, value: Value) -> OpResult<'_> {
+    pub(crate) fn push_imm(&mut self, value: Value) -> OpResult {
         self.push_data_stack(value)?;
         Ok(Transition::Continue)
     }
 
     // Push
     #[inline]
-    pub(crate) fn push(&mut self, register: Register) -> OpResult<'_> {
+    pub(crate) fn push(&mut self, register: Register) -> OpResult {
         self.push_data_stack(self.registers[register])?;
         Ok(Transition::Continue)
     }
 
     // Pop
     #[inline]
-    pub(crate) fn pop(&mut self, register: Register) -> OpResult<'_> {
+    pub(crate) fn pop(&mut self, register: Register) -> OpResult {
         let value = self.pop_data_stack()?;
 
         self.registers[register] = value;
@@ -187,7 +187,11 @@ impl Vm {
 
     // LoadRegister
     #[inline]
-    pub(crate) fn load_reg(&mut self, register_src: Register, register_dst: Register) -> OpResult<'_> {
+    pub(crate) fn load_reg(
+        &mut self,
+        register_src: Register,
+        register_dst: Register,
+    ) -> OpResult {
         let value = self.registers[register_src];
         self.registers[register_dst] = value;
         Ok(Transition::Continue)
@@ -195,14 +199,14 @@ impl Vm {
 
     // LoadImmediate
     #[inline]
-    pub(crate) fn load_imm(&mut self, value: Value, register: Register) -> OpResult<'_> {
+    pub(crate) fn load_imm(&mut self, value: Value, register: Register) -> OpResult {
         self.registers[register] = value;
         Ok(Transition::Continue)
     }
 
     // LoadMemory
     #[inline]
-    pub(crate) fn load_mem(&mut self, index: usize, register: Register) -> OpResult<'_> {
+    pub(crate) fn load_mem(&mut self, index: usize, register: Register) -> OpResult {
         let value = self
             .memory
             .get(index)
@@ -215,7 +219,7 @@ impl Vm {
 
     // StoreRegister
     #[inline]
-    pub(crate) fn store_reg(&mut self, register: Register, index: usize) -> OpResult<'_> {
+    pub(crate) fn store_reg(&mut self, register: Register, index: usize) -> OpResult {
         let value = self.registers[register];
 
         let location = self.memory.get_mut(index).ok_or(OpError::InvalidAddress)?;
@@ -227,7 +231,7 @@ impl Vm {
 
     // StoreImmediate
     #[inline]
-    pub(crate) fn store_imm(&mut self, value: Value, index: usize) -> OpResult<'_> {
+    pub(crate) fn store_imm(&mut self, value: Value, index: usize) -> OpResult {
         let location = self.memory.get_mut(index).ok_or(OpError::InvalidAddress)?;
 
         *location = value;
@@ -237,7 +241,7 @@ impl Vm {
 
     // StoreMemory
     #[inline]
-    pub(crate) fn store_mem(&mut self, index_src: usize, index_dst: usize) -> OpResult<'_> {
+    pub(crate) fn store_mem(&mut self, index_src: usize, index_dst: usize) -> OpResult {
         let value = self
             .memory
             .get(index_src)
@@ -254,7 +258,7 @@ impl Vm {
 
     // Add
     #[inline]
-    pub(crate) fn add(&mut self, register_a: Register, register_b: Register) -> OpResult<'_> {
+    pub(crate) fn add(&mut self, register_a: Register, register_b: Register) -> OpResult {
         bin_arithmetic! {
             vm = self,
             a = self.registers[register_a],
@@ -266,7 +270,7 @@ impl Vm {
 
     // AddImmediate
     #[inline]
-    pub(crate) fn add_imm(&mut self, register: Register, value: Value) -> OpResult<'_> {
+    pub(crate) fn add_imm(&mut self, register: Register, value: Value) -> OpResult {
         bin_arithmetic! {
             vm = self,
             a = self.registers[register],
@@ -278,7 +282,7 @@ impl Vm {
 
     // Sub
     #[inline]
-    pub(crate) fn sub(&mut self, register_a: Register, register_b: Register) -> OpResult<'_> {
+    pub(crate) fn sub(&mut self, register_a: Register, register_b: Register) -> OpResult {
         bin_arithmetic! {
             vm = self,
             a = self.registers[register_a],
@@ -290,7 +294,7 @@ impl Vm {
 
     // SubImmediate
     #[inline]
-    pub(crate) fn sub_imm(&mut self, register: Register, value: Value) -> OpResult<'_> {
+    pub(crate) fn sub_imm(&mut self, register: Register, value: Value) -> OpResult {
         bin_arithmetic! {
             vm = self,
             a = self.registers[register],
@@ -302,7 +306,7 @@ impl Vm {
 
     // Mul
     #[inline]
-    pub(crate) fn mul(&mut self, register_a: Register, register_b: Register) -> OpResult<'_> {
+    pub(crate) fn mul(&mut self, register_a: Register, register_b: Register) -> OpResult {
         bin_arithmetic! {
             vm = self,
             a = self.registers[register_a],
@@ -314,7 +318,7 @@ impl Vm {
 
     // MulImmediate
     #[inline]
-    pub(crate) fn mul_imm(&mut self, register: Register, value: Value) -> OpResult<'_> {
+    pub(crate) fn mul_imm(&mut self, register: Register, value: Value) -> OpResult {
         bin_arithmetic! {
             vm = self,
             a = self.registers[register],
@@ -326,7 +330,7 @@ impl Vm {
 
     // Div
     #[inline]
-    pub(crate) fn div(&mut self, register_a: Register, register_b: Register) -> OpResult<'_> {
+    pub(crate) fn div(&mut self, register_a: Register, register_b: Register) -> OpResult {
         bin_arithmetic! {
             vm = self,
             a = self.registers[register_a],
@@ -338,7 +342,7 @@ impl Vm {
 
     // DivImmediate
     #[inline]
-    pub(crate) fn div_imm(&mut self, register: Register, value: Value) -> OpResult<'_> {
+    pub(crate) fn div_imm(&mut self, register: Register, value: Value) -> OpResult {
         bin_arithmetic! {
             vm = self,
             a = self.registers[register],
@@ -350,7 +354,7 @@ impl Vm {
 
     // Rem
     #[inline]
-    pub(crate) fn rem(&mut self, register_a: Register, register_b: Register) -> OpResult<'_> {
+    pub(crate) fn rem(&mut self, register_a: Register, register_b: Register) -> OpResult {
         bin_arithmetic! {
             vm = self,
             a = self.registers[register_a],
@@ -362,7 +366,7 @@ impl Vm {
 
     // RemImmediate
     #[inline]
-    pub(crate) fn rem_imm(&mut self, register: Register, value: Value) -> OpResult<'_> {
+    pub(crate) fn rem_imm(&mut self, register: Register, value: Value) -> OpResult {
         bin_arithmetic! {
             vm = self,
             a = self.registers[register],
@@ -374,7 +378,7 @@ impl Vm {
 
     // And
     #[inline]
-    pub(crate) fn and(&mut self, register_a: Register, register_b: Register) -> OpResult<'_> {
+    pub(crate) fn and(&mut self, register_a: Register, register_b: Register) -> OpResult {
         bin_bitwise! {
             vm = self,
             a = self.registers[register_a],
@@ -385,7 +389,7 @@ impl Vm {
 
     // AndImmediate
     #[inline]
-    pub(crate) fn and_imm(&mut self, register: Register, value: Value) -> OpResult<'_> {
+    pub(crate) fn and_imm(&mut self, register: Register, value: Value) -> OpResult {
         bin_bitwise! {
             vm = self,
             a = self.registers[register],
@@ -396,7 +400,7 @@ impl Vm {
 
     // Or
     #[inline]
-    pub(crate) fn or(&mut self, register_a: Register, register_b: Register) -> OpResult<'_> {
+    pub(crate) fn or(&mut self, register_a: Register, register_b: Register) -> OpResult {
         bin_bitwise! {
             vm = self,
             a = self.registers[register_a],
@@ -407,7 +411,7 @@ impl Vm {
 
     // OrImmediate
     #[inline]
-    pub(crate) fn or_imm(&mut self, register: Register, value: Value) -> OpResult<'_> {
+    pub(crate) fn or_imm(&mut self, register: Register, value: Value) -> OpResult {
         bin_bitwise! {
             vm = self,
             a = self.registers[register],
@@ -418,7 +422,7 @@ impl Vm {
 
     // Xor
     #[inline]
-    pub(crate) fn xor(&mut self, register_a: Register, register_b: Register) -> OpResult<'_> {
+    pub(crate) fn xor(&mut self, register_a: Register, register_b: Register) -> OpResult {
         bin_bitwise! {
             vm = self,
             a = self.registers[register_a],
@@ -429,7 +433,7 @@ impl Vm {
 
     // XorImmediate
     #[inline]
-    pub(crate) fn xor_imm(&mut self, register: Register, value: Value) -> OpResult<'_> {
+    pub(crate) fn xor_imm(&mut self, register: Register, value: Value) -> OpResult {
         bin_bitwise! {
             vm = self,
             a = self.registers[register],
@@ -440,7 +444,7 @@ impl Vm {
 
     // Not
     #[inline]
-    pub(crate) fn not(&mut self, register: Register) -> OpResult<'_> {
+    pub(crate) fn not(&mut self, register: Register) -> OpResult {
         let value = self.registers[register];
 
         match value {
@@ -464,7 +468,7 @@ impl Vm {
 
     // ShiftRight
     #[inline]
-    pub(crate) fn shr(&mut self, register_a: Register, register_b: Register) -> OpResult<'_> {
+    pub(crate) fn shr(&mut self, register_a: Register, register_b: Register) -> OpResult {
         bin_shift! {
             vm = self,
             a = self.registers[register_a],
@@ -475,7 +479,7 @@ impl Vm {
 
     // ShiftRightImmediate
     #[inline]
-    pub(crate) fn shr_imm(&mut self, register: Register, value: Value) -> OpResult<'_> {
+    pub(crate) fn shr_imm(&mut self, register: Register, value: Value) -> OpResult {
         bin_shift! {
             vm = self,
             a = self.registers[register],
@@ -486,7 +490,7 @@ impl Vm {
 
     // ShiftLeft
     #[inline]
-    pub(crate) fn shl(&mut self, register_a: Register, register_b: Register) -> OpResult<'_> {
+    pub(crate) fn shl(&mut self, register_a: Register, register_b: Register) -> OpResult {
         bin_shift! {
             vm = self,
             a = self.registers[register_a],
@@ -497,7 +501,7 @@ impl Vm {
 
     // ShiftLeftImmediate
     #[inline]
-    pub(crate) fn shl_imm(&mut self, register: Register, value: Value) -> OpResult<'_> {
+    pub(crate) fn shl_imm(&mut self, register: Register, value: Value) -> OpResult {
         bin_shift! {
             vm = self,
             a = self.registers[register],
@@ -508,7 +512,7 @@ impl Vm {
 
     // Equals
     #[inline]
-    pub(crate) fn eq(&mut self, register_a: Register, register_b: Register) -> OpResult<'_> {
+    pub(crate) fn eq(&mut self, register_a: Register, register_b: Register) -> OpResult {
         bin_compare! {
             vm = self,
             a = self.registers[register_a],
@@ -519,7 +523,7 @@ impl Vm {
 
     // EqualsImmediate
     #[inline]
-    pub(crate) fn eq_imm(&mut self, register: Register, value: Value) -> OpResult<'_> {
+    pub(crate) fn eq_imm(&mut self, register: Register, value: Value) -> OpResult {
         bin_compare! {
             vm = self,
             a = self.registers[register],
@@ -530,7 +534,7 @@ impl Vm {
 
     // GreaterThan
     #[inline]
-    pub(crate) fn gt(&mut self, register_a: Register, register_b: Register) -> OpResult<'_> {
+    pub(crate) fn gt(&mut self, register_a: Register, register_b: Register) -> OpResult {
         bin_compare! {
             vm = self,
             a = self.registers[register_a],
@@ -541,7 +545,7 @@ impl Vm {
 
     // GreaterThanImmediate
     #[inline]
-    pub(crate) fn gt_imm(&mut self, register: Register, value: Value) -> OpResult<'_> {
+    pub(crate) fn gt_imm(&mut self, register: Register, value: Value) -> OpResult {
         bin_compare! {
             vm = self,
             a = self.registers[register],
@@ -552,7 +556,7 @@ impl Vm {
 
     // GreaterThanOrEqual
     #[inline]
-    pub(crate) fn ge(&mut self, register_a: Register, register_b: Register) -> OpResult<'_> {
+    pub(crate) fn ge(&mut self, register_a: Register, register_b: Register) -> OpResult {
         bin_compare! {
             vm = self,
             a = self.registers[register_a],
@@ -563,7 +567,7 @@ impl Vm {
 
     // GreaterThanOrEqualImmediate
     #[inline]
-    pub(crate) fn ge_imm(&mut self, register: Register, value: Value) -> OpResult<'_> {
+    pub(crate) fn ge_imm(&mut self, register: Register, value: Value) -> OpResult {
         bin_compare! {
             vm = self,
             a = self.registers[register],
@@ -574,7 +578,7 @@ impl Vm {
 
     // LessThan
     #[inline]
-    pub(crate) fn lt(&mut self, register_a: Register, register_b: Register) -> OpResult<'_> {
+    pub(crate) fn lt(&mut self, register_a: Register, register_b: Register) -> OpResult {
         bin_compare! {
             vm = self,
             a = self.registers[register_a],
@@ -585,7 +589,7 @@ impl Vm {
 
     // LessThanImmediate
     #[inline]
-    pub(crate) fn lt_imm(&mut self, register: Register, value: Value) -> OpResult<'_> {
+    pub(crate) fn lt_imm(&mut self, register: Register, value: Value) -> OpResult {
         bin_compare! {
             vm = self,
             a = self.registers[register],
@@ -596,7 +600,7 @@ impl Vm {
 
     // LessThanEqual
     #[inline]
-    pub(crate) fn le(&mut self, register_a: Register, register_b: Register) -> OpResult<'_> {
+    pub(crate) fn le(&mut self, register_a: Register, register_b: Register) -> OpResult {
         bin_compare! {
             vm = self,
             a = self.registers[register_a],
@@ -607,7 +611,7 @@ impl Vm {
 
     // LessThanEqualImmediate
     #[inline]
-    pub(crate) fn le_imm(&mut self, register: Register, value: Value) -> OpResult<'_> {
+    pub(crate) fn le_imm(&mut self, register: Register, value: Value) -> OpResult {
         bin_compare! {
             vm = self,
             a = self.registers[register],
@@ -618,7 +622,7 @@ impl Vm {
 
     // Jump
     #[inline]
-    pub(crate) fn jump(&mut self, register: Register) -> OpResult<'_> {
+    pub(crate) fn jump(&mut self, register: Register) -> OpResult {
         let address = self.registers[register].address_or_err(OpError::Type)?;
 
         self.jump_imm(address)
@@ -626,7 +630,7 @@ impl Vm {
 
     // JumpImmediate
     #[inline]
-    pub(crate) fn jump_imm(&mut self, address: usize) -> OpResult<'_> {
+    pub(crate) fn jump_imm(&mut self, address: usize) -> OpResult {
         self.current_frame.ip = address;
 
         Ok(Transition::Jump)
@@ -638,7 +642,7 @@ impl Vm {
         &mut self,
         condition_register: Register,
         address_register: Register,
-    ) -> OpResult<'_> {
+    ) -> OpResult {
         match self.registers[condition_register] {
             Value::Bool(true) => self.jump(address_register),
             Value::Bool(false) => Ok(Transition::Continue),
@@ -648,7 +652,7 @@ impl Vm {
 
     // JumpConditionalImmediate
     #[inline]
-    pub(crate) fn jump_cond_imm(&mut self, register: Register, address: usize) -> OpResult<'_> {
+    pub(crate) fn jump_cond_imm(&mut self, register: Register, address: usize) -> OpResult {
         match self.registers[register] {
             Value::Bool(true) => self.jump_imm(address),
             Value::Bool(false) => Ok(Transition::Continue),
@@ -658,7 +662,7 @@ impl Vm {
 
     // Call
     #[inline]
-    pub(crate) fn call(&mut self, register: Register) -> OpResult<'_> {
+    pub(crate) fn call(&mut self, register: Register) -> OpResult {
         let symbol = self.registers[register].symbol_or_err(OpError::Type)?;
 
         self.call_imm(symbol)
@@ -666,15 +670,21 @@ impl Vm {
 
     // CallImmediate
     #[inline]
-    pub(crate) fn call_imm(&mut self, symbol: SymbolIndex) -> OpResult<'_> {
+    pub(crate) fn call_imm(&mut self, symbol: SymbolIndex) -> OpResult {
         let func = self.symbols.get(symbol).ok_or(OpError::SymbolNotFound)?;
 
-        Ok(Transition::Call(func))
+        let called_func = self.get_func(func).ok_or(OpError::FunctionNotFound)?;
+
+        let caller = mem::replace(&mut self.current_frame, CallFrame::new(called_func, 0));
+
+        self.push_call_stack(caller)?;
+
+        Ok(Transition::Jump)
     }
 
     #[inline]
     // CallNative
-    pub(crate) fn call_native(&mut self, index: usize) -> OpResult<'_> {
+    pub(crate) fn call_native(&mut self, index: usize) -> OpResult {
         // let func_name = self.strings.get(index).ok_or(OpError::InvalidAddress)?;
 
         // let native_fn = self.native_fns.get(func_name).ok_or(OpError::NoNativeFn)?;
@@ -688,13 +698,15 @@ impl Vm {
 
     // Return
     #[inline]
-    pub(crate) fn ret(&mut self) -> OpResult<'_> {
-        Ok(Transition::Ret)
+    pub(crate) fn ret(&mut self) -> OpResult {
+        self.current_frame = self.pop_call_stack()?;
+
+        Ok(Transition::Continue)
     }
 
     // DebugRegister
     #[inline]
-    pub(crate) fn dbg_reg(&self, register: Register) -> OpResult<'_> {
+    pub(crate) fn dbg_reg(&self, register: Register) -> OpResult {
         let value = self.registers[register];
 
         eprintln!("Register {register:?}: {value:?}");
@@ -703,7 +715,7 @@ impl Vm {
 
     // DebugMemory
     #[inline]
-    pub(crate) fn dbg_mem(&self, index: usize) -> OpResult<'_> {
+    pub(crate) fn dbg_mem(&self, index: usize) -> OpResult {
         let value = self.memory.get(index);
 
         eprintln!("Address {index:#x}: {value:?}");

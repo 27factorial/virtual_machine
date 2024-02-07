@@ -6,9 +6,9 @@ use crate::{
     vm::{Register, Vm},
 };
 
-use std::{ops::Index, slice::SliceIndex};
+use std::{ops::Index, slice::SliceIndex, sync::Arc};
 
-pub type OpResult<'a> = Result<Transition<'a>, OpError>;
+pub type OpResult = Result<Transition, OpError>;
 
 /// Opcodes representing the virtual machine's instruction set.
 ///
@@ -167,7 +167,7 @@ pub enum OpCode {
 }
 
 impl OpCode {
-    pub fn execute<'a>(self, vm: &'a mut Vm) -> OpResult<'a> {
+    pub fn execute(self, vm: &mut Vm) -> OpResult {
         match self {
             OpCode::NoOp => vm.noop(),
             OpCode::Halt => vm.halt(),
@@ -227,11 +227,9 @@ impl OpCode {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum Transition<'a> {
+pub enum Transition {
     Continue,
     Jump,
-    Call(&'a str),
-    Ret,
     Halt,
 }
 
@@ -247,8 +245,8 @@ pub enum OpError {
     SymbolNotFound,
 }
 
-#[derive(Clone, PartialEq, PartialOrd, Debug, Default, Serialize, Deserialize)]
-pub struct Function(pub(crate) Box<[OpCode]>);
+#[derive(Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
+pub struct Function(pub(crate) Arc<[OpCode]>);
 
 impl Function {
     pub fn new(ops: impl IntoIterator<Item = OpCode>) -> Self {

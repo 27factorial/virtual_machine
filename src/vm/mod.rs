@@ -4,7 +4,7 @@ use self::{
 };
 use crate::{
     native::{NativeFn, NativeRegistry},
-    ops::{Function, OpError, Transition},
+    ops::{Function, OpCode, OpError, Transition},
     program::Program,
     string::Symbols,
     utils::HashMap,
@@ -36,14 +36,15 @@ pub struct Vm {
 
 impl Vm {
     pub fn new(program: Program) -> Result<Self, OpError> {
-        let (main, _) = program
+        let main = program
             .functions
-            .get_key_value("main")
+            .get("main")
+            .cloned()
             .ok_or(OpError::FunctionNotFound)?;
 
         Ok(Self {
             registers: Registers::new(),
-            current_frame: CallFrame::new(Arc::clone(main), 0),
+            current_frame: CallFrame::new(main, 0),
             call_stack: CallStack::new(64),
             memory: ValueMemory::new(128),
             heap: Heap::new(1024),
@@ -55,43 +56,12 @@ impl Vm {
     }
 
     pub fn run(&mut self) -> Result<(), OpError> {
-        let functions = mem::take(&mut self.functions);
-
-        let mut current_func = functions
-            .get("main")
-            .ok_or(OpError::FunctionNotFound)?;
-        
-        let mut next_opcode = current_func.get(self.current_frame.ip).copied();
-
-        while let Some(opcode) = next_opcode {
+        while let Some(opcode) = self.current_op() {
             match opcode.execute(self)? {
                 Transition::Continue => self.current_frame.ip += 1,
                 Transition::Jump => {}
-                Transition::Call(func) => {
-                    let (name, called_func) = functions
-                        .get_key_value(func)
-                        .ok_or(OpError::FunctionNotFound)?;
-
-                    let caller =
-                        mem::replace(&mut self.current_frame, CallFrame::new(Arc::clone(name), 0));
-
-                    self.push_call_stack(caller)?;
-
-                    current_func = called_func;
-                }
-                Transition::Ret => {
-                    let frame = self.pop_call_stack()?;
-
-                    current_func = functions
-                        .get(&frame.func)
-                        .ok_or(OpError::FunctionNotFound)?;
-
-                    self.current_frame.ip = frame.ip + 1;
-                }
                 Transition::Halt => return Ok(()),
             }
-
-            next_opcode = current_func.get(self.current_frame.ip).copied();
         }
 
         Ok(())
@@ -113,6 +83,22 @@ impl Vm {
 
     pub fn pop_data_stack(&mut self) -> Result<Value, OpError> {
         self.memory.pop().ok_or(OpError::StackUnderflow)
+    }
+
+    pub fn get_func(&self, name: &str) -> Option<Function> {
+        self.functions.get(name).cloned()
+    }
+
+    pub fn current_op(&self) -> Option<OpCode> {
+        self.current_frame.func.get(self.ip()).copied()
+    }
+
+    pub fn ip(&self) -> usize {
+        self.current_frame.ip
+    }
+
+    pub fn ip_mut(&mut self) -> &mut usize {
+        &mut self.current_frame.ip
     }
 
     #[cfg(test)]
@@ -190,14 +176,14 @@ pub enum Register {
     R7,
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Clone, PartialEq, PartialOrd, Debug)]
 pub struct CallFrame {
-    pub(crate) func: Arc<str>,
+    pub(crate) func: Function,
     pub(crate) ip: usize,
 }
 
 impl CallFrame {
-    pub fn new(func: impl Into<Arc<str>>, ip: usize) -> Self {
+    pub fn new(func: Function, ip: usize) -> Self {
         let func = func.into();
         Self { func, ip }
     }
