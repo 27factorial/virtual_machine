@@ -5,8 +5,8 @@ use self::{
 use crate::{
     native::{NativeFn, NativeRegistry},
     ops::{Function, OpCode, OpError, Transition},
-    program::Program,
-    string::Symbols,
+    program::{Path, Program},
+    string::{SymbolIndex, Symbols},
     utils::HashMap,
     value::Value,
 };
@@ -99,6 +99,14 @@ impl Vm {
 
     pub fn ip_mut(&mut self) -> &mut usize {
         &mut self.current_frame.ip
+    }
+
+    pub fn resolve_function(&mut self, symbol: SymbolIndex) -> Result<Function, OpError> {
+        let name = self.symbols.get(symbol).ok_or(OpError::SymbolNotFound)?;
+
+        let path = Path::new(name).ok_or(OpError::FunctionNotFound);
+
+        todo!("resolve_function")
     }
 
     #[cfg(test)]

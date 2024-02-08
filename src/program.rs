@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{ops::Index, rc::Rc, sync::Arc};
+use std::{ops::Index, rc::Rc, str::FromStr, sync::Arc};
 
 use hashbrown::hash_map::RawEntryMut;
 
@@ -56,5 +56,31 @@ impl Program {
         } else {
             Err(func)
         }
+    }
+}
+
+pub struct Path<'a> {
+    object: Option<&'a str>,
+    field: &'a str,
+}
+
+impl<'a> Path<'a> {
+    pub fn new(path: &'a str) -> Option<Self> {
+        if path.is_empty() {
+            return None;
+        }
+
+        let (object_path, field) = path.rsplit_once("::")?;
+
+        let object = if !object_path.is_empty() {
+            Some(object_path)
+        } else {
+            None
+        };
+
+        Some(Self {
+            object,
+            field,
+        })
     }
 }
