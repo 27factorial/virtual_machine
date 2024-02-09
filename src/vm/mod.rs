@@ -257,37 +257,47 @@ mod tests {
         vm.run().unwrap();
     }
 
-    // fn object_fn() {
-    //     use crate::ops::OpCode::*;
+    fn object_fn() {
+        use crate::ops::OpCode::*;
 
-    //     struct Test;
+        struct Test;
 
-    //     impl VmObject for Test {
-    //         fn type_meta() -> VmType
-    //         where
-    //             Self: Sized {
-    //             VmType {
-    //                 name: Arc::from("Test"),
-    //                 fields: Default::default(),
-    //                 methods: Default::default(),
-    //             }
-    //         }
+        impl VmObject for Test {
+            fn type_meta() -> VmType
+            where
+                Self: Sized {
+                let mut methods = HashMap::default();
 
-    //         fn field(&self, name: &str) -> Option<&Value> {
-    //             todo!()
-    //         }
+                methods.insert("test".into(), Function::new([
+                    LoadImm(Value::UInt(1), Register::R1),
+                    AddImm(Register::R1, Value::UInt(1)),
+                    Ret,
+                ]));
 
-    //         fn field_mut(&mut self, name: &str) -> Option<&mut Value> {
-    //             todo!()
-    //         }
+                VmType {
+                    name: Arc::from("Test"),
+                    fields: Default::default(),
+                    methods,
+                }
+            }
 
-    //         fn fields(&self) -> &[Value] {
-    //             todo!()
-    //         }
-    //     }
+            fn field(&self, name: &str) -> Option<&Value> {
+                None
+            }
 
-    //     let mut program = Program::new();
+            fn field_mut(&mut self, name: &str) -> Option<&mut Value> {
+                None
+            }
 
-    //     let object_name = program.define_symbol()
-    // }
+            fn fields(&self) -> &[Value] {
+                &[]
+            }
+        }
+
+        let mut program = Program::new();
+
+        let object_name = program.define_symbol("Test");
+
+        let ty = program.register_type::<Test>(object_name).unwrap();
+    }
 }
