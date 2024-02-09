@@ -4,7 +4,7 @@ use std::{ops::Index, rc::Rc, str::FromStr, sync::Arc};
 use hashbrown::hash_map::RawEntryMut;
 
 use crate::{
-    object::VmType,
+    object::{VmObject, VmType},
     ops::{Function, OpCode},
     string::{SymbolIndex, Symbols},
     utils::HashMap,
@@ -18,6 +18,7 @@ const VALID_MAGIC: &[u8; 7] = b"27FCTRL";
 pub struct Program {
     pub(crate) constants: Vec<Value>,
     pub(crate) functions: HashMap<Arc<str>, Function>,
+    pub(crate) types: HashMap<Arc<str>, VmType>,
     pub(crate) symbols: Symbols,
 }
 
@@ -26,6 +27,7 @@ impl Program {
         Self {
             constants: Vec::new(),
             functions: HashMap::with_hasher(Default::default()),
+            types: HashMap::with_hasher(Default::default()),
             symbols: Symbols::new(),
         }
     }
@@ -57,11 +59,21 @@ impl Program {
             Err(func)
         }
     }
+
+    pub fn register_type<T: VmObject>(&mut self, symbol: SymbolIndex) {
+        if let Some(name) = self.symbols.get(symbol) {
+            let raw_entry = self.types.raw_entry_mut().from_key(name);
+
+            if let RawEntryMut::Vacant(entry) = raw_entry {
+                entry.insert(Arc::from(name), T::type_meta());
+            }
+        }
+    }
 }
 
 pub struct Path<'a> {
-    object: Option<&'a str>,
-    field: &'a str,
+    pub object: Option<&'a str>,
+    pub member: &'a str,
 }
 
 impl<'a> Path<'a> {
@@ -70,7 +82,7 @@ impl<'a> Path<'a> {
             return None;
         }
 
-        let (object_path, field) = path.rsplit_once("::")?;
+        let (object_path, member) = path.rsplit_once("::")?;
 
         let object = if !object_path.is_empty() {
             Some(object_path)
@@ -78,9 +90,6 @@ impl<'a> Path<'a> {
             None
         };
 
-        Some(Self {
-            object,
-            field,
-        })
+        Some(Self { object, member })
     }
 }

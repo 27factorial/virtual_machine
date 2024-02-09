@@ -4,6 +4,7 @@ use self::{
 };
 use crate::{
     native::{NativeFn, NativeRegistry},
+    object::VmType,
     ops::{Function, OpCode, OpError, Transition},
     program::{Path, Program},
     string::{SymbolIndex, Symbols},
@@ -28,6 +29,7 @@ pub struct Vm {
     call_stack: CallStack,
     memory: ValueMemory,
     heap: Heap,
+    types: HashMap<Arc<str>, VmType>,
     functions: HashMap<Arc<str>, Function>,
     native_fns: NativeRegistry,
     constants: Box<[Value]>,
@@ -48,6 +50,7 @@ impl Vm {
             call_stack: CallStack::new(64),
             memory: ValueMemory::new(128),
             heap: Heap::new(1024),
+            types: program.types,
             functions: program.functions,
             native_fns: NativeRegistry::new(),
             constants: program.constants.into_boxed_slice(),
@@ -101,12 +104,25 @@ impl Vm {
         &mut self.current_frame.ip
     }
 
-    pub fn resolve_function(&mut self, symbol: SymbolIndex) -> Result<Function, OpError> {
+    pub fn resolve_function(&self, symbol: SymbolIndex) -> Result<Function, OpError> {
         let name = self.symbols.get(symbol).ok_or(OpError::SymbolNotFound)?;
 
-        let path = Path::new(name).ok_or(OpError::FunctionNotFound);
+        let path = Path::new(name).ok_or(OpError::FunctionNotFound)?;
 
-        todo!("resolve_function")
+        let functions = match path.object {
+            Some(name) => {
+                let vm_type = self.types.get(name).ok_or(OpError::TypeNotFound)?;
+                &vm_type.methods
+            }
+            None => &self.functions,
+        };
+
+        let function = functions
+            .get(name)
+            .cloned()
+            .ok_or(OpError::FunctionNotFound)?;
+
+        Ok(function)
     }
 
     #[cfg(test)]

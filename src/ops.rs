@@ -243,6 +243,7 @@ pub enum OpError {
     InvalidAddress,
     FunctionNotFound,
     SymbolNotFound,
+    TypeNotFound,
 }
 
 #[derive(Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
