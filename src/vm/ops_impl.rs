@@ -187,11 +187,7 @@ impl Vm {
 
     // LoadRegister
     #[inline]
-    pub(crate) fn load_reg(
-        &mut self,
-        register_src: Register,
-        register_dst: Register,
-    ) -> OpResult {
+    pub(crate) fn load_reg(&mut self, register_src: Register, register_dst: Register) -> OpResult {
         let value = self.registers[register_src];
         self.registers[register_dst] = value;
         Ok(Transition::Continue)

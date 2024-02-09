@@ -215,6 +215,8 @@ impl CallFrame {
 
 #[cfg(test)]
 mod tests {
+    use crate::object::VmObject;
+
     use super::*;
 
     #[test]
@@ -254,4 +256,38 @@ mod tests {
 
         vm.run().unwrap();
     }
+
+    // fn object_fn() {
+    //     use crate::ops::OpCode::*;
+
+    //     struct Test;
+
+    //     impl VmObject for Test {
+    //         fn type_meta() -> VmType
+    //         where
+    //             Self: Sized {
+    //             VmType {
+    //                 name: Arc::from("Test"),
+    //                 fields: Default::default(),
+    //                 methods: Default::default(),
+    //             }
+    //         }
+
+    //         fn field(&self, name: &str) -> Option<&Value> {
+    //             todo!()
+    //         }
+
+    //         fn field_mut(&mut self, name: &str) -> Option<&mut Value> {
+    //             todo!()
+    //         }
+
+    //         fn fields(&self) -> &[Value] {
+    //             todo!()
+    //         }
+    //     }
+
+    //     let mut program = Program::new();
+
+    //     let object_name = program.define_symbol()
+    // }
 }

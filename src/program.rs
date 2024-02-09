@@ -60,13 +60,17 @@ impl Program {
         }
     }
 
-    pub fn register_type<T: VmObject>(&mut self, symbol: SymbolIndex) {
+    pub fn register_type<T: VmObject>(&mut self, symbol: SymbolIndex) -> Option<&VmType> {
         if let Some(name) = self.symbols.get(symbol) {
-            let raw_entry = self.types.raw_entry_mut().from_key(name);
-
-            if let RawEntryMut::Vacant(entry) = raw_entry {
-                entry.insert(Arc::from(name), T::type_meta());
-            }
+            let (_, vm_type) = self
+                .types
+                .raw_entry_mut()
+                .from_key(name)
+                .or_insert_with(|| (Arc::from(name), T::type_meta()));
+            
+            Some(vm_type)
+        } else {
+            None
         }
     }
 }
