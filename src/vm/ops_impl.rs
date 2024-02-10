@@ -667,9 +667,7 @@ impl Vm {
     // CallImmediate
     #[inline]
     pub(crate) fn call_imm(&mut self, symbol: SymbolIndex) -> OpResult {
-        let func = self.symbols.get(symbol).ok_or(OpError::SymbolNotFound)?;
-
-        let called_func = self.get_func(func).ok_or(OpError::FunctionNotFound)?;
+        let called_func = self.resolve_function(symbol)?;
 
         let caller = mem::replace(&mut self.current_frame, CallFrame::new(called_func, 0));
 

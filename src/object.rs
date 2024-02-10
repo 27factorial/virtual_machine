@@ -4,13 +4,14 @@ use std::{rc::Rc, sync::Arc};
 
 use crate::{
     ops::{Function, OpCode},
+    program::Program,
     utils::HashMap,
     value::Value,
     vm::Vm,
 };
 
 pub trait VmObject: 'static {
-    fn type_meta() -> VmType
+    fn register_type(program: &mut Program) -> Option<&VmType>
     where
         Self: Sized;
     fn field(&self, name: &str) -> Option<&Value>;

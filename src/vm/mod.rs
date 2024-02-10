@@ -29,11 +29,8 @@ pub struct Vm {
     call_stack: CallStack,
     memory: ValueMemory,
     heap: Heap,
-    types: HashMap<Arc<str>, VmType>,
-    functions: HashMap<Arc<str>, Function>,
     native_fns: NativeRegistry,
-    constants: Box<[Value]>,
-    symbols: Symbols,
+    program: Program,
 }
 
 impl Vm {
@@ -50,11 +47,8 @@ impl Vm {
             call_stack: CallStack::new(64),
             memory: ValueMemory::new(128),
             heap: Heap::new(1024),
-            types: program.types,
-            functions: program.functions,
             native_fns: NativeRegistry::new(),
-            constants: program.constants.into_boxed_slice(),
-            symbols: program.symbols,
+            program,
         })
     }
 
@@ -88,10 +82,6 @@ impl Vm {
         self.memory.pop().ok_or(OpError::StackUnderflow)
     }
 
-    pub fn get_func(&self, name: &str) -> Option<Function> {
-        self.functions.get(name).cloned()
-    }
-
     pub fn current_op(&self) -> Option<OpCode> {
         self.current_frame.func.get(self.ip()).copied()
     }
@@ -105,20 +95,24 @@ impl Vm {
     }
 
     pub fn resolve_function(&self, symbol: SymbolIndex) -> Result<Function, OpError> {
-        let name = self.symbols.get(symbol).ok_or(OpError::SymbolNotFound)?;
+        let name = self
+            .program
+            .symbols
+            .get(symbol)
+            .ok_or(OpError::SymbolNotFound)?;
 
         let path = Path::new(name).ok_or(OpError::FunctionNotFound)?;
 
         let functions = match path.object {
             Some(name) => {
-                let vm_type = self.types.get(name).ok_or(OpError::TypeNotFound)?;
+                let vm_type = self.program.types.get(name).ok_or(OpError::TypeNotFound)?;
                 &vm_type.methods
             }
-            None => &self.functions,
+            None => &self.program.functions,
         };
 
         let function = functions
-            .get(name)
+            .get(path.member)
             .cloned()
             .ok_or(OpError::FunctionNotFound)?;
 
@@ -126,10 +120,21 @@ impl Vm {
     }
 
     #[cfg(test)]
-    pub fn reset(&mut self) {
+    pub fn reset(&mut self) -> Result<(), OpError> {
+        let main = self
+            .program
+            .functions
+            .get("main")
+            .cloned()
+            .ok_or(OpError::FunctionNotFound)?;
+
         self.registers = Registers::new();
+        self.current_frame = CallFrame::new(main, 0);
         self.call_stack.clear();
         self.memory.clear();
+        self.heap = Heap::new(1024);
+
+        Ok(())
     }
 }
 
@@ -208,13 +213,14 @@ pub struct CallFrame {
 
 impl CallFrame {
     pub fn new(func: Function, ip: usize) -> Self {
-        let func = func.into();
         Self { func, ip }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::time::Instant;
+
     use crate::object::VmObject;
 
     use super::*;
@@ -257,28 +263,39 @@ mod tests {
         vm.run().unwrap();
     }
 
+    #[test]
     fn object_fn() {
         use crate::ops::OpCode::*;
 
         struct Test;
 
         impl VmObject for Test {
-            fn type_meta() -> VmType
+            fn register_type(program: &mut Program) -> Option<&VmType>
             where
-                Self: Sized {
-                let mut methods = HashMap::default();
+                Self: Sized,
+            {
+                let methods = [(
+                    Arc::from("test"),
+                    Function::new([
+                        LoadImm(Value::UInt(1), Register::R0),
+                        AddImm(Register::R0, Value::UInt(1)),
+                        Ret,
+                    ]),
+                )]
+                .into_iter()
+                .collect();
 
-                methods.insert("test".into(), Function::new([
-                    LoadImm(Value::UInt(1), Register::R1),
-                    AddImm(Register::R1, Value::UInt(1)),
-                    Ret,
-                ]));
+                let ty_name = program.define_symbol("Test");
+                program.define_symbol("Test::test");
 
-                VmType {
-                    name: Arc::from("Test"),
-                    fields: Default::default(),
-                    methods,
-                }
+                program.register_type(
+                    ty_name,
+                    VmType {
+                        name: Arc::from("Test"),
+                        fields: Default::default(),
+                        methods,
+                    },
+                )
             }
 
             fn field(&self, name: &str) -> Option<&Value> {
@@ -298,6 +315,13 @@ mod tests {
 
         let object_name = program.define_symbol("Test");
 
-        let ty = program.register_type::<Test>(object_name).unwrap();
+        let test = program.define_symbol("Test::test");
+        let main = program.define_symbol("main");
+
+        program.define_function(main, [CallImm(test)]).unwrap();
+
+        let mut vm = Vm::new(program).unwrap();
+
+        vm.run().unwrap();
     }
 }

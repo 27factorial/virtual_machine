@@ -444,22 +444,14 @@ impl<T: ?Sized> Drop for GcBox<T> {
 }
 
 pub struct GcObject {
-    pub(crate) meta: VmType,
     pub(crate) obj: GcBox<dyn VmObject>,
 }
 
 impl GcObject {
     pub fn new<T: VmObject + 'static>(value: T) -> Self {
-        let meta = T::type_meta();
-
         Self {
-            meta,
             obj: gc_box!(value),
         }
-    }
-
-    pub fn meta(&self) -> &VmType {
-        &self.meta
     }
 
     pub fn field(&self, name: &str) -> Option<&Value> {

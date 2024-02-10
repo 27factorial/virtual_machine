@@ -60,14 +60,14 @@ impl Program {
         }
     }
 
-    pub fn register_type<T: VmObject>(&mut self, symbol: SymbolIndex) -> Option<&VmType> {
+    pub fn register_type(&mut self, symbol: SymbolIndex, ty: VmType) -> Option<&VmType> {
         if let Some(name) = self.symbols.get(symbol) {
             let (_, vm_type) = self
                 .types
                 .raw_entry_mut()
                 .from_key(name)
-                .or_insert_with(|| (Arc::from(name), T::type_meta()));
-            
+                .or_insert_with(|| (Arc::from(name), ty));
+
             Some(vm_type)
         } else {
             None
@@ -75,6 +75,7 @@ impl Program {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct Path<'a> {
     pub object: Option<&'a str>,
     pub member: &'a str,
@@ -86,13 +87,17 @@ impl<'a> Path<'a> {
             return None;
         }
 
-        let (object_path, member) = path.rsplit_once("::")?;
-
-        let object = if !object_path.is_empty() {
-            Some(object_path)
-        } else {
-            None
-        };
+        // Attempts to split a string of the form "object::member" or just "member". If there is no
+        // "::" separator, then rsplit_once will return None, and the unwrap_or will cause the 
+        // result to be  (object = None, member = path). If a is separator is found, rsplit_once 
+        // will return Some(("object", "member")). Map turns this into 
+        // (object = Some("object"), member = "member"). This means that, if path isn't empty,
+        // We end up with the components of a Path, where there is at least a member and possibly
+        // an object.
+        let (object, member) = path
+            .rsplit_once("::")
+            .map(|(obj, member)| (Some(obj), member))
+            .unwrap_or((None, path));
 
         Some(Self { object, member })
     }

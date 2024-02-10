@@ -1,9 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    program::Program,
-    value::Value,
-    vm::{Register, Vm},
+    program::Program, string::SymbolIndex, value::Value, vm::{Register, Vm}
 };
 
 use std::{ops::Index, slice::SliceIndex, sync::Arc};
@@ -154,6 +152,8 @@ pub enum OpCode {
 
     /// Jump to the first instruction of a function determined by the index in the register.
     Call(Register),
+
+    CallImm(SymbolIndex),
     /// Call a native function determined by the immediate index pointing to a Program's string
     /// pool.
     CallNative(usize),
@@ -218,6 +218,7 @@ impl OpCode {
             }
             OpCode::JumpCondImm(register, address) => vm.jump_cond_imm(register, address),
             OpCode::Call(register) => vm.call(register),
+            OpCode::CallImm(symbol) => vm.call_imm(symbol),
             OpCode::CallNative(index) => vm.call_native(index),
             OpCode::Ret => vm.ret(),
             OpCode::DbgReg(register) => vm.dbg_reg(register),
