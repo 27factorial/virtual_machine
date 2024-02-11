@@ -1,0 +1,15 @@
+CALLING CONVENTION:
+    When a function is called, arguments 1-8 are put in registers 0-7 respectively. All other
+    argumenst are pushed onto the stack in reverse order. For example, if a function takes 10
+    arguments, the virtual machine's memory will look like:
+    Vm {
+        ...
+        registers: [arg0, arg1, ..., arg7],
+        memory: [..., arg9, arg8],
+        ...
+    }
+    Functions which require heap allocated objects should push the referring ObjectRef into the
+    respective parameter.
+    Function return values should be follow the same pattern as arguments.
+    Functions which take `self`, an ObjectRef which refers to the "current" object, should pass
+    `self` as the first argument.

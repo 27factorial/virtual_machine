@@ -24,6 +24,20 @@ pub trait VmObject: 'static {
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct VmType {
     pub(crate) name: Arc<str>,
+    pub(crate) operators: Operators,
     pub(crate) fields: HashMap<Arc<str>, usize>,
     pub(crate) methods: HashMap<Arc<str>, Function>,
+}
+
+#[derive(Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
+pub struct Operators {
+    pub(crate) init: Function,
+    pub(crate) deinit: Option<Function>,
+    pub(crate) index: Option<Function>,
+}
+
+pub enum Operator {
+    Init,
+    Deinit,
+    Index,
 }

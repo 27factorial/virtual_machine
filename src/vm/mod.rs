@@ -221,7 +221,7 @@ impl CallFrame {
 mod tests {
     use std::time::Instant;
 
-    use crate::object::VmObject;
+    use crate::object::{Operators, VmObject};
 
     use super::*;
 
@@ -288,10 +288,17 @@ mod tests {
                 let ty_name = program.define_symbol("Test");
                 program.define_symbol("Test::test");
 
+                let operators = Operators {
+                    init: Function::new([Ret]),
+                    deinit: None,
+                    index: None,
+                };
+
                 program.register_type(
                     ty_name,
                     VmType {
                         name: Arc::from("Test"),
+                        operators,
                         fields: Default::default(),
                         methods,
                     },
