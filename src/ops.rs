@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    program::Program, string::SymbolIndex, value::Value, vm::{Register, Vm}
+    program::Program,
+    string::SymbolIndex,
+    value::Value,
+    vm::{Register, Vm},
 };
 
 use std::{ops::Index, slice::SliceIndex, sync::Arc};
@@ -160,6 +163,10 @@ pub enum OpCode {
     /// Set the VM's current frame to the call frame popped from the call stack.
     Ret,
 
+    Init(Register),
+
+    Index(Register, Register),
+
     /// Print out the value in the register to stderr.
     DbgReg(Register),
     /// Print out the value at a memory location to stderr.
@@ -168,61 +175,67 @@ pub enum OpCode {
 
 impl OpCode {
     pub fn execute(self, vm: &mut Vm) -> OpResult {
+        use OpCode as Op;
+
         match self {
-            OpCode::NoOp => vm.noop(),
-            OpCode::Halt => vm.halt(),
-            OpCode::PushImm(value) => vm.push_imm(value),
-            OpCode::Push(register) => vm.push(register),
-            OpCode::Pop(register) => vm.pop(register),
-            OpCode::LoadReg(register_src, register_dst) => vm.load_reg(register_src, register_dst),
-            OpCode::LoadImm(value, register) => vm.load_imm(value, register),
-            OpCode::LoadMem(address, register) => vm.load_mem(address, register),
-            OpCode::StoreReg(register, address) => vm.store_reg(register, address),
-            OpCode::StoreImm(value, address) => vm.store_imm(value, address),
-            OpCode::StoreMem(address_src, address_dst) => vm.store_mem(address_src, address_dst),
-            OpCode::Add(register_a, register_b) => vm.add(register_a, register_b),
-            OpCode::AddImm(register, value) => vm.add_imm(register, value),
-            OpCode::Sub(register_a, register_b) => vm.sub(register_a, register_b),
-            OpCode::SubImm(register, value) => vm.sub_imm(register, value),
-            OpCode::Mul(register_a, register_b) => vm.mul(register_a, register_b),
-            OpCode::MulImm(register, value) => vm.mul_imm(register, value),
-            OpCode::Div(register_a, register_b) => vm.div(register_a, register_b),
-            OpCode::DivImm(register, value) => vm.div_imm(register, value),
-            OpCode::Rem(register_a, register_b) => vm.rem(register_a, register_b),
-            OpCode::RemImm(register, value) => vm.rem_imm(register, value),
-            OpCode::And(register_a, register_b) => vm.and(register_a, register_b),
-            OpCode::AndImm(register, value) => vm.and_imm(register, value),
-            OpCode::Or(register_a, register_b) => vm.or(register_a, register_b),
-            OpCode::OrImm(register, value) => vm.or_imm(register, value),
-            OpCode::Xor(register_a, register_b) => vm.xor(register_a, register_b),
-            OpCode::XorImm(register, value) => vm.xor_imm(register, value),
-            OpCode::Not(register) => vm.not(register),
-            OpCode::Shr(register_a, register_b) => vm.shr(register_a, register_b),
-            OpCode::ShrImm(register, value) => vm.shr_imm(register, value),
-            OpCode::Shl(register_a, register_b) => vm.shl(register_a, register_b),
-            OpCode::ShlImm(register, value) => vm.shl_imm(register, value),
-            OpCode::Eq(register_a, register_b) => vm.eq(register_a, register_b),
-            OpCode::EqImm(register, value) => vm.eq_imm(register, value),
-            OpCode::Gt(register_a, register_b) => vm.gt(register_a, register_b),
-            OpCode::GtImm(register, value) => vm.gt_imm(register, value),
-            OpCode::Ge(register_a, register_b) => vm.ge(register_a, register_b),
-            OpCode::GeImm(register, value) => vm.ge_imm(register, value),
-            OpCode::Lt(register_a, register_b) => vm.lt(register_a, register_b),
-            OpCode::LtImm(register, value) => vm.lt_imm(register, value),
-            OpCode::Le(register_a, register_b) => vm.le(register_a, register_b),
-            OpCode::LeImm(register, value) => vm.le_imm(register, value),
-            OpCode::Jump(register) => vm.jump(register),
-            OpCode::JumpImm(address) => vm.jump_imm(address),
-            OpCode::JumpCond(condition_register, address_register) => {
+            Op::NoOp => vm.noop(),
+            Op::Halt => vm.halt(),
+            Op::PushImm(value) => vm.push_imm(value),
+            Op::Push(register) => vm.push(register),
+            Op::Pop(register) => vm.pop(register),
+            Op::LoadReg(register_src, register_dst) => vm.load_reg(register_src, register_dst),
+            Op::LoadImm(value, register) => vm.load_imm(value, register),
+            Op::LoadMem(address, register) => vm.load_mem(address, register),
+            Op::StoreReg(register, address) => vm.store_reg(register, address),
+            Op::StoreImm(value, address) => vm.store_imm(value, address),
+            Op::StoreMem(address_src, address_dst) => vm.store_mem(address_src, address_dst),
+            Op::Add(register_a, register_b) => vm.add(register_a, register_b),
+            Op::AddImm(register, value) => vm.add_imm(register, value),
+            Op::Sub(register_a, register_b) => vm.sub(register_a, register_b),
+            Op::SubImm(register, value) => vm.sub_imm(register, value),
+            Op::Mul(register_a, register_b) => vm.mul(register_a, register_b),
+            Op::MulImm(register, value) => vm.mul_imm(register, value),
+            Op::Div(register_a, register_b) => vm.div(register_a, register_b),
+            Op::DivImm(register, value) => vm.div_imm(register, value),
+            Op::Rem(register_a, register_b) => vm.rem(register_a, register_b),
+            Op::RemImm(register, value) => vm.rem_imm(register, value),
+            Op::And(register_a, register_b) => vm.and(register_a, register_b),
+            Op::AndImm(register, value) => vm.and_imm(register, value),
+            Op::Or(register_a, register_b) => vm.or(register_a, register_b),
+            Op::OrImm(register, value) => vm.or_imm(register, value),
+            Op::Xor(register_a, register_b) => vm.xor(register_a, register_b),
+            Op::XorImm(register, value) => vm.xor_imm(register, value),
+            Op::Not(register) => vm.not(register),
+            Op::Shr(register_a, register_b) => vm.shr(register_a, register_b),
+            Op::ShrImm(register, value) => vm.shr_imm(register, value),
+            Op::Shl(register_a, register_b) => vm.shl(register_a, register_b),
+            Op::ShlImm(register, value) => vm.shl_imm(register, value),
+            Op::Eq(register_a, register_b) => vm.eq(register_a, register_b),
+            Op::EqImm(register, value) => vm.eq_imm(register, value),
+            Op::Gt(register_a, register_b) => vm.gt(register_a, register_b),
+            Op::GtImm(register, value) => vm.gt_imm(register, value),
+            Op::Ge(register_a, register_b) => vm.ge(register_a, register_b),
+            Op::GeImm(register, value) => vm.ge_imm(register, value),
+            Op::Lt(register_a, register_b) => vm.lt(register_a, register_b),
+            Op::LtImm(register, value) => vm.lt_imm(register, value),
+            Op::Le(register_a, register_b) => vm.le(register_a, register_b),
+            Op::LeImm(register, value) => vm.le_imm(register, value),
+            Op::Jump(register) => vm.jump(register),
+            Op::JumpImm(address) => vm.jump_imm(address),
+            Op::JumpCond(condition_register, address_register) => {
                 vm.jump_cond(condition_register, address_register)
             }
-            OpCode::JumpCondImm(register, address) => vm.jump_cond_imm(register, address),
-            OpCode::Call(register) => vm.call(register),
-            OpCode::CallImm(symbol) => vm.call_imm(symbol),
-            OpCode::CallNative(index) => vm.call_native(index),
-            OpCode::Ret => vm.ret(),
-            OpCode::DbgReg(register) => vm.dbg_reg(register),
-            OpCode::DbgMem(address) => vm.dbg_mem(address),
+            Op::JumpCondImm(register, address) => vm.jump_cond_imm(register, address),
+            Op::Call(register) => vm.call(register),
+            Op::CallImm(symbol) => vm.call_imm(symbol),
+            Op::CallNative(index) => vm.call_native(index),
+            Op::Ret => vm.ret(),
+            Op::Init(register) => vm.init_object(register),
+            Op::Index(symbol_register, object_register) => {
+                vm.index_object(symbol_register, object_register)
+            }
+            Op::DbgReg(register) => vm.dbg_reg(register),
+            Op::DbgMem(address) => vm.dbg_mem(address),
         }
     }
 }

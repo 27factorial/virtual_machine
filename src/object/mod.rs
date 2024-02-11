@@ -35,9 +35,3 @@ pub struct Operators {
     pub(crate) deinit: Option<Function>,
     pub(crate) index: Option<Function>,
 }
-
-pub enum Operator {
-    Init,
-    Deinit,
-    Index,
-}
