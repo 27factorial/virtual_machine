@@ -10,6 +10,8 @@ use crate::{
     vm::Vm,
 };
 
+mod std_impls;
+
 pub trait VmObject: 'static {
     fn register_type(program: &mut Program) -> Option<&VmType>
     where
