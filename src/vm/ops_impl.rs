@@ -718,11 +718,26 @@ impl Vm {
     }
 
     // IndexObject
-    pub(crate) fn index_object(
-        &mut self,
-        symbol_register: Register,
-        object_register: Register,
-    ) -> OpResult {
+    pub(crate) fn index_object(&mut self, register: Register) -> OpResult {
+        let symbol = self.registers[register].symbol_or_err(OpError::Type)?;
+        let name = self
+            .program
+            .symbols
+            .get(symbol)
+            .ok_or(OpError::SymbolNotFound)?;
+        let ty = self.program.types.get(name).ok_or(OpError::TypeNotFound)?;
+
+        let called_func = ty
+            .operators
+            .index
+            .clone()
+            .ok_or(OpError::OperatorNotSupported)?;
+
+        let caller = mem::replace(&mut self.current_frame, CallFrame::new(called_func, 0));
+
+        self.push_call_stack(caller)?;
+
+        Ok(Transition::Continue)
     }
 
     // DebugRegister

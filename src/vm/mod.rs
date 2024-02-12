@@ -3,7 +3,6 @@ use self::{
     memory::{CallStack, ValueMemory},
 };
 use crate::{
-    native::{NativeFn, NativeRegistry},
     object::VmType,
     ops::{Function, OpCode, OpError, Transition},
     program::{Path, Program},
@@ -22,6 +21,7 @@ use strum::{EnumCount, EnumIter};
 pub mod heap;
 pub mod memory;
 pub(crate) mod ops_impl;
+pub mod gc;
 
 pub struct Vm {
     registers: Registers,
@@ -29,7 +29,6 @@ pub struct Vm {
     call_stack: CallStack,
     memory: ValueMemory,
     heap: Heap,
-    native_fns: NativeRegistry,
     program: Program,
 }
 
@@ -47,7 +46,6 @@ impl Vm {
             call_stack: CallStack::new(64),
             memory: ValueMemory::new(128),
             heap: Heap::new(1024),
-            native_fns: NativeRegistry::new(),
             program,
         })
     }

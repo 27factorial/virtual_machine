@@ -165,7 +165,7 @@ pub enum OpCode {
 
     Init(Register),
 
-    Index(Register, Register),
+    Index(Register),
 
     /// Print out the value in the register to stderr.
     DbgReg(Register),
@@ -231,9 +231,7 @@ impl OpCode {
             Op::CallNative(index) => vm.call_native(index),
             Op::Ret => vm.ret(),
             Op::Init(register) => vm.init_object(register),
-            Op::Index(symbol_register, object_register) => {
-                vm.index_object(symbol_register, object_register)
-            }
+            Op::Index(register) => vm.index_object(register),
             Op::DbgReg(register) => vm.dbg_reg(register),
             Op::DbgMem(address) => vm.dbg_mem(address),
         }
@@ -258,6 +256,7 @@ pub enum OpError {
     FunctionNotFound,
     SymbolNotFound,
     TypeNotFound,
+    OperatorNotSupported,
 }
 
 #[derive(Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]

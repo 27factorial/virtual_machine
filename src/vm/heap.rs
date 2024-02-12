@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 
 use crate::{
-    gc::{GcBox, GcObject},
+    vm::gc::{GcBox, GcObject},
     gc_box,
     object::VmObject,
     value::Value,

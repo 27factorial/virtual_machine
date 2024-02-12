@@ -6,8 +6,6 @@
 // Used to ensure GcBox follows the upcoming pointer provenance rules.
 #![feature(strict_provenance)]
 
-mod gc;
-mod native;
 mod object;
 mod ops;
 mod program;
