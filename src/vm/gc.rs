@@ -132,8 +132,6 @@ fn alloc_aligned<T>(value: T) -> NonNull<T> {
     }
 }
 
-unsafe fn gc_dealloc()
-
 /// A pointer type providing ownership over a heap allocated value of type `T` and a flag to mark
 /// the value for garbage collection algorithms.
 pub struct GcBox<T: ?Sized> {
