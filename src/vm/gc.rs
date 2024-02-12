@@ -147,8 +147,18 @@ impl<T> GcBox<T> {
         Self { data }
     }
 
-    pub fn into_inner(self) -> T {
-        todo!("safe into_inner implementation for GcBox<T>")
+    pub fn into_inner(mut self) -> T {
+        let mut val = MaybeUninit::uninit();
+
+        let (ptr, layout) = self.ptr_and_layout();
+
+        mem::forget(self);
+
+        unsafe {
+            ptr::copy_nonoverlapping(ptr, val.as_mut_ptr(), 1);
+            dealloc(ptr.cast(), layout);
+            val.assume_init()
+        }
     }
 }
 
@@ -197,6 +207,14 @@ impl<T: ?Sized> GcBox<T> {
         let data = unsafe { NonNull::new_unchecked(ptr) };
 
         Self { data }
+    }
+
+    fn ptr_and_layout(&mut self) -> (*mut T, Layout) {
+        let masked = unsafe { mask_ptr(self.data).as_ptr() };
+
+        let layout = unsafe { gc_layout_of_val(&*masked) };
+
+        (masked, layout)
     }
 }
 
@@ -435,18 +453,13 @@ unsafe impl<T: Sync> Sync for GcBox<T> {}
 
 impl<T: ?Sized> Drop for GcBox<T> {
     fn drop(&mut self) {
-        let layout = unsafe { gc_layout_of_val(&*mask_ptr(self.data).as_ptr()) };
-
-        let ptr = unsafe { mask_ptr(self.data).as_ptr().cast() };
-
-        unsafe {
-            ptr::drop_in_place(ptr)
-        }
+        let (ptr, layout) = self.ptr_and_layout();
 
         // SAFETY: The given pointer came from an `alloc` call in GcBox::new with the same layout,
         // and is non-null.
         unsafe {
-            dealloc(ptr, layout);
+            ptr::drop_in_place(ptr);
+            dealloc(ptr.cast(), layout);
         }
     }
 }
