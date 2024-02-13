@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    program::Program,
     string::SymbolIndex,
     value::Value,
     vm::{Register, Vm},
@@ -285,5 +284,11 @@ impl<T: SliceIndex<[OpCode]>> Index<T> for Function {
 
     fn index(&self, index: T) -> &Self::Output {
         self.0.index(index)
+    }
+}
+
+impl Default for Function {
+    fn default() -> Self {
+        Self(Arc::from([]))
     }
 }

@@ -3,18 +3,12 @@ use self::{
     memory::{CallStack, ValueMemory},
 };
 use crate::{
-    object::VmType,
-    ops::{Function, OpCode, OpError, Transition},
-    program::{Path, Program},
-    string::{SymbolIndex, Symbols},
-    utils::HashMap,
-    value::Value,
+    ops::{Function, OpCode, OpError, Transition}, program::{Path, Program}, string::SymbolIndex, utils::HashMap, value::Value
 };
 use serde_repr::{Deserialize_repr as DeserializeRepr, Serialize_repr as SerializeRepr};
 use std::{
     mem,
-    ops::{Add, BitAnd, BitOr, BitXor, Div, Index, IndexMut, Mul, Rem, Sub},
-    sync::Arc,
+    ops::{Add, BitAnd, BitOr, BitXor, Div, Index, IndexMut, Mul, Rem, Sub}, sync::Arc,
 };
 use strum::{EnumCount, EnumIter};
 
@@ -217,9 +211,9 @@ impl CallFrame {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Instant;
+    use std::sync::Arc;
 
-    use crate::object::{Operators, VmObject};
+    use crate::object::{Operators, VmObject, VmType};
 
     use super::*;
 

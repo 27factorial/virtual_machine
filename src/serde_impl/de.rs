@@ -329,6 +329,10 @@ impl<'de, 'a, R: io::Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
             "pfvm does not support deserialize_ignored_any",
         ))
     }
+
+    fn is_human_readable(&self) -> bool {
+        false
+    }
 }
 
 impl<'de, 'a, R: io::Read> de::EnumAccess<'de> for &'a mut Deserializer<R> {

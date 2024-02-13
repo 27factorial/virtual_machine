@@ -1,23 +1,26 @@
 use serde::{Deserialize, Serialize};
-use std::{ops::Index, rc::Rc, str::FromStr, sync::Arc};
+use std::{sync::Arc};
 
 use hashbrown::hash_map::RawEntryMut;
 
 use crate::{
-    object::{VmObject, VmType},
+    object::VmType,
     ops::{Function, OpCode},
     string::{SymbolIndex, Symbols},
     utils::HashMap,
-    value::Value,
-    vm::CallFrame,
+    value::Value, vm::Vm,
 };
 
 const VALID_MAGIC: &[u8; 7] = b"27FCTRL";
 
-#[derive(Clone, PartialEq, Debug, Default, Serialize, Deserialize)]
+pub type NativeFn = dyn Fn(&mut Vm) -> Option<Value>;
+
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Program {
     pub(crate) constants: Vec<Value>,
     pub(crate) functions: HashMap<Arc<str>, Function>,
+    #[serde(skip)]
+    pub(crate) native_fns: HashMap<Arc<str>, Arc<NativeFn>>,
     pub(crate) types: HashMap<Arc<str>, VmType>,
     pub(crate) symbols: Symbols,
 }
@@ -26,8 +29,9 @@ impl Program {
     pub fn new() -> Self {
         Self {
             constants: Vec::new(),
-            functions: HashMap::with_hasher(Default::default()),
-            types: HashMap::with_hasher(Default::default()),
+            functions: HashMap::default(),
+            native_fns: HashMap::default(),
+            types: HashMap::default(),
             symbols: Symbols::new(),
         }
     }

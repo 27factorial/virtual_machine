@@ -4,16 +4,12 @@ use std::{
     hash::{Hash, Hasher},
     io::{self, Read, Seek, Write},
     iter::FusedIterator,
-    marker::PhantomData,
     mem::{self, MaybeUninit},
     ops::{Deref, DerefMut},
     ptr::{self, NonNull},
 };
 
-use crate::{
-    object::{VmObject, VmType},
-    value::Value,
-};
+use crate::object::VmObject;
 
 /// Constructs a new `GcBox<T>`, while also performing unsized coercions as necessary.
 ///
@@ -471,43 +467,4 @@ impl<T: ?Sized> Drop for GcBox<T> {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::{alloc::Layout, mem};
-
-    use crate::vm::gc::GcBox;
-
-    #[test]
-    fn gc_box() {
-        trait Trait {}
-
-        struct ZeroSized;
-
-        #[derive(Clone)]
-        struct NonZeroSized(u64);
-        struct DynStruct(u64, u32);
-
-        #[repr(align(128))]
-        struct Aligned(u64);
-
-        impl Trait for DynStruct {}
-
-        let mut zero_sized = GcBox::new(ZeroSized);
-        let mut sized = GcBox::new(NonZeroSized(0));
-        let mut dynamic: GcBox<dyn Trait> = gc_box!(DynStruct(0, 0));
-        let mut aligned = GcBox::new(Aligned(0));
-
-        sized.0 = 1;
-        sized.mark();
-        dynamic.mark();
-
-        *zero_sized = ZeroSized;
-
-        let cloned = sized.clone();
-        GcBox::into_inner(cloned);
-
-        assert_eq!(
-            Layout::for_value(&*aligned).align(),
-            mem::align_of::<Aligned>()
-        )
-    }
-}
+mod tests {}

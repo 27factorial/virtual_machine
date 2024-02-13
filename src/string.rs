@@ -1,4 +1,4 @@
-use std::ops::{ControlFlow, Index};
+use std::ops::{Index};
 
 use serde::{Deserialize, Serialize};
 
@@ -58,7 +58,7 @@ impl Symbols {
         I: IntoIterator<Item = &'a str>,
         I::IntoIter: Clone,
     {
-        let mut iter = iter.into_iter();
+        let iter = iter.into_iter();
 
         let total_len: usize = iter.clone().map(|elem| elem.len()).sum();
 

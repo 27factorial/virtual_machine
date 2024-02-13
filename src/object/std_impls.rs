@@ -1,9 +1,9 @@
-use crate::value::Value;
+use crate::{program::Program, value::Value};
 
 use super::{VmObject, VmType};
 
 impl VmObject for String {
-    fn register_type(program: &mut crate::program::Program) -> &VmType
+    fn register_type(program: &mut Program) -> &VmType
     where
         Self: Sized,
     {
@@ -19,6 +19,6 @@ impl VmObject for String {
     }
 
     fn fields(&self) -> &[Value] {
-        todo!()
+        todo!() 
     }
 }

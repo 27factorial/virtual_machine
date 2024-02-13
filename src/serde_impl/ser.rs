@@ -220,6 +220,10 @@ impl<'a, W: io::Write> ser::Serializer for &'a mut Serializer<W> {
         self.serialize_u32(variant_index)?;
         Ok(self)
     }
+
+    fn is_human_readable(&self) -> bool {
+        false
+    }
 }
 
 impl<'a, W: io::Write> ser::SerializeSeq for &'a mut Serializer<W> {

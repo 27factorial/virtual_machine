@@ -249,6 +249,8 @@ impl Vm {
             .get_mut(index_dst)
             .ok_or(OpError::InvalidAddress)?;
 
+        *dst = value;
+
         Ok(Transition::Continue)
     }
 

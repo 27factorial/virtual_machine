@@ -1,13 +1,12 @@
-use hashbrown::hash_map::RawEntryMut;
+
 use serde::{Deserialize, Serialize};
-use std::{rc::Rc, sync::Arc};
+use std::{sync::Arc};
 
 use crate::{
     ops::{Function, OpCode},
     program::Program,
     utils::HashMap,
     value::Value,
-    vm::Vm,
 };
 
 mod std_impls;
@@ -29,7 +28,57 @@ pub struct VmType {
     pub(crate) methods: HashMap<Arc<str>, Function>,
 }
 
-#[derive(Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
+impl VmType {
+    pub fn new(name: impl Into<Arc<str>>, init: impl IntoIterator<Item = OpCode>) -> Self {
+        Self {
+            name: name.into(),
+            operators: Operators {
+                init: init.into_iter().collect(),
+                ..Default::default()
+            },
+            fields: Default::default(),
+            methods: Default::default(),
+        }
+    }
+
+    pub fn with_field(mut self, name: impl Into<Arc<str>>, index: usize) -> Self {
+        self.fields.insert(name.into(), index);
+        self
+    }
+
+    pub fn with_method(
+        mut self,
+        name: impl Into<Arc<str>>,
+        func: impl IntoIterator<Item = OpCode>,
+    ) -> Self {
+        fn inner(methods: &mut HashMap<Arc<str>, Function>, name: Arc<str>, func: Function) {
+            methods.insert(name, func);
+        }
+
+        inner(&mut self.methods, name.into(), func.into_iter().collect());
+        self
+    }
+
+    pub fn with_deinit(
+        mut self,
+        func: impl IntoIterator<Item = OpCode>,
+    ) -> Self {
+        self.operators.deinit = Some(func.into_iter().collect());
+        self
+    }
+
+    pub fn with_index(
+        mut self,
+        func: impl IntoIterator<Item = OpCode>,
+    ) -> Self {
+        self.operators.index = Some(func.into_iter().collect());
+        self
+    }
+
+
+}
+
+#[derive(Clone, PartialEq, PartialOrd, Debug, Default, Serialize, Deserialize)]
 pub struct Operators {
     pub(crate) init: Function,
     pub(crate) deinit: Option<Function>,
