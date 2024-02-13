@@ -3,17 +3,12 @@ use std::{collections::VecDeque, mem};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 
-use crate::{
-    vm::gc::{GcBox, GcObject},
-    gc_box,
-    object::VmObject,
-    value::Value,
-};
+use crate::{gc_box, object::VmObject, value::Value, vm::gc::GcBox};
 
 use super::{memory::ValueMemory, Register, RegisterIter, Registers};
 
 pub struct Heap {
-    memory: Vec<Option<GcObject>>,
+    memory: Vec<Option<GcBox<dyn VmObject>>>,
     free_indices: VecDeque<usize>,
     worklist: Vec<usize>,
     current_children: Vec<ObjectRef>,
@@ -47,7 +42,7 @@ impl Heap {
                     // Remove the index we used from free_indices.
                     self.free_indices.pop_front();
 
-                    self.memory[idx] = Some(GcObject::new(value));
+                    self.memory[idx] = Some(gc_box!(value));
 
                     Ok(ObjectRef(idx))
                 } else {
@@ -55,12 +50,13 @@ impl Heap {
                 }
             }
             None => {
-                let required_space =
-                    self.byte_len + mem::size_of::<Option<GcObject>>() + mem::size_of::<T>();
+                let required_space = self.byte_len
+                    + mem::size_of::<Option<GcBox<dyn VmObject>>>()
+                    + mem::size_of::<T>();
 
                 if required_space <= self.byte_capacity {
                     let idx = self.memory.len();
-                    self.memory.push(Some(GcObject::new(value)));
+                    self.memory.push(Some(gc_box!(value)));
                     self.byte_len = required_space;
                     Ok(ObjectRef(idx))
                 } else {

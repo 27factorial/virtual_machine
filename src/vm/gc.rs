@@ -98,6 +98,12 @@ fn gc_layout_of_val<T: ?Sized>(value: &T) -> Layout {
     }
 }
 
+unsafe fn gc_dealloc<T: ?Sized>(ptr: *mut T, layout: Layout) {
+    if layout.size() != 0 {
+        unsafe { dealloc(ptr.cast(), layout) }
+    }
+}
+
 /// Allocates a `T` on the heap using the default allocator. The pointer returned by this function
 /// will have an alignment which is valid for use in `GcBox`.
 ///
@@ -147,16 +153,16 @@ impl<T> GcBox<T> {
         Self { data }
     }
 
-    pub fn into_inner(mut self) -> T {
+    pub fn into_inner(mut this: Self) -> T {
         let mut val = MaybeUninit::uninit();
 
-        let (ptr, layout) = self.ptr_and_layout();
+        let (ptr, layout) = this.ptr_and_layout();
 
-        mem::forget(self);
+        mem::forget(this);
 
         unsafe {
             ptr::copy_nonoverlapping(ptr, val.as_mut_ptr(), 1);
-            dealloc(ptr.cast(), layout);
+            gc_dealloc(ptr, layout);
             val.assume_init()
         }
     }
@@ -459,43 +465,46 @@ impl<T: ?Sized> Drop for GcBox<T> {
         // and is non-null.
         unsafe {
             ptr::drop_in_place(ptr);
-            dealloc(ptr.cast(), layout);
+            gc_dealloc(ptr, layout);
         }
     }
 }
 
-pub struct GcObject {
-    pub(crate) obj: GcBox<dyn VmObject>,
-}
+#[cfg(test)]
+mod tests {
+    use std::{alloc::Layout, mem};
 
-impl GcObject {
-    pub fn new<T: VmObject + 'static>(value: T) -> Self {
-        Self {
-            obj: gc_box!(value),
-        }
-    }
+    use crate::vm::gc::GcBox;
 
-    pub fn field(&self, name: &str) -> Option<&Value> {
-        self.obj.field(name)
-    }
+    #[test]
+    fn gc_box() {
+        trait Trait {}
 
-    pub fn field_mut(&mut self, name: &str) -> Option<&mut Value> {
-        self.obj.field_mut(name)
-    }
+        struct ZeroSized;
 
-    pub fn fields(&self) -> &[Value] {
-        self.obj.fields()
-    }
+        #[derive(Clone)]
+        struct NonZeroSized(u64);
+        struct DynStruct(u64, u32);
 
-    pub fn mark(&mut self) {
-        self.obj.mark();
-    }
+        #[repr(align(128))]
+        struct Aligned(u64);
 
-    pub fn unmark(&mut self) {
-        self.obj.unmark();
-    }
+        impl Trait for DynStruct {}
 
-    pub fn is_marked(&self) -> bool {
-        self.obj.is_marked()
+        let mut zero_sized = GcBox::new(ZeroSized);
+        let mut sized = GcBox::new(NonZeroSized(0));
+        let mut dynamic: GcBox<dyn Trait> = gc_box!(DynStruct(0, 0));
+        let mut aligned = GcBox::new(Aligned(0));
+
+        sized.0 = 1;
+        sized.mark();
+        dynamic.mark();
+
+        *zero_sized = ZeroSized;
+
+        let cloned = sized.clone();
+        GcBox::into_inner(cloned);
+
+        assert_eq!(Layout::for_value(&*aligned).align(), mem::align_of::<Aligned>())
     }
 }
