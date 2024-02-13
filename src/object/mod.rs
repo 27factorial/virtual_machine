@@ -13,7 +13,7 @@ use crate::{
 mod std_impls;
 
 pub trait VmObject: 'static {
-    fn register_type(program: &mut Program) -> Option<&VmType>
+    fn register_type(program: &mut Program) -> &VmType
     where
         Self: Sized;
     fn field(&self, name: &str) -> Option<&Value>;

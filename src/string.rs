@@ -1,4 +1,4 @@
-use std::ops::Index;
+use std::ops::{ControlFlow, Index};
 
 use serde::{Deserialize, Serialize};
 
@@ -51,6 +51,49 @@ impl Symbols {
         }
 
         inner(self, s.as_ref())
+    }
+
+    pub fn get_or_push_iter<'a, I>(&mut self, iter: I) -> SymbolIndex
+    where
+        I: IntoIterator<Item = &'a str>,
+        I::IntoIter: Clone,
+    {
+        let mut iter = iter.into_iter();
+
+        let total_len: usize = iter.clone().map(|elem| elem.len()).sum();
+
+        // This might be the ugliest shit I've ever written.
+        let possible_symbol = self
+            .indices
+            .iter()
+            .enumerate()
+            .filter(|(_, span)| span.len == total_len)
+            .map(|(idx, span)| (idx, &self.data[span.start..span.start + span.len]))
+            .find_map(|(idx, string)| {
+                string
+                    .as_bytes()
+                    .iter()
+                    .eq(iter.clone().flat_map(|s| s.as_bytes()))
+                    .then_some(idx)
+            })
+            .map(SymbolIndex);
+
+        match possible_symbol {
+            Some(symbol) => symbol,
+            None => {
+                let span = SymbolSpan {
+                    start: self.data.len(),
+                    len: total_len,
+                };
+
+                let idx = self.indices.len();
+
+                self.data.extend(iter);
+                self.indices.push(span);
+
+                SymbolIndex(idx)
+            }
+        }
     }
 
     pub fn get(&self, symbol: SymbolIndex) -> Option<&str> {

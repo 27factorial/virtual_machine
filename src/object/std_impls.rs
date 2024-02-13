@@ -3,7 +3,7 @@ use crate::value::Value;
 use super::{VmObject, VmType};
 
 impl VmObject for String {
-    fn register_type(program: &mut crate::program::Program) -> Option<&VmType>
+    fn register_type(program: &mut crate::program::Program) -> &VmType
     where
         Self: Sized,
     {

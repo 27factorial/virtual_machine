@@ -268,7 +268,7 @@ mod tests {
         struct Test;
 
         impl VmObject for Test {
-            fn register_type(program: &mut Program) -> Option<&VmType>
+            fn register_type(program: &mut Program) -> &VmType
             where
                 Self: Sized,
             {
@@ -283,9 +283,6 @@ mod tests {
                 .into_iter()
                 .collect();
 
-                let ty_name = program.define_symbol("Test");
-                program.define_symbol("Test::test");
-
                 let operators = Operators {
                     init: Function::new([Ret]),
                     deinit: None,
@@ -293,7 +290,6 @@ mod tests {
                 };
 
                 program.register_type(
-                    ty_name,
                     VmType {
                         name: Arc::from("Test"),
                         operators,
@@ -318,10 +314,10 @@ mod tests {
 
         let mut program = Program::new();
 
-        let object_name = program.define_symbol("Test");
-
         let test = program.define_symbol("Test::test");
         let main = program.define_symbol("main");
+
+        Test::register_type(&mut program);
 
         program.define_function(main, [CallImm(test)]).unwrap();
 

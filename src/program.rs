@@ -60,18 +60,16 @@ impl Program {
         }
     }
 
-    pub fn register_type(&mut self, symbol: SymbolIndex, ty: VmType) -> Option<&VmType> {
-        if let Some(name) = self.symbols.get(symbol) {
-            let (_, vm_type) = self
-                .types
-                .raw_entry_mut()
-                .from_key(name)
-                .or_insert_with(|| (Arc::from(name), ty));
+    pub fn register_type(&mut self, ty: VmType) -> &VmType {
+        self.symbols.get_or_push(&ty.name);
 
-            Some(vm_type)
-        } else {
-            None
-        }
+        let (_, vm_type) = self
+            .types
+            .raw_entry_mut()
+            .from_key(&ty.name)
+            .or_insert_with(|| (Arc::clone(&ty.name), ty));
+
+        vm_type
     }
 }
 
