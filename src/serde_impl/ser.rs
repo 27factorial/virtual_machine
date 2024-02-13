@@ -1,4 +1,4 @@
-use super::error::{Result, Error};
+use super::error::{Error, Result};
 use serde::ser;
 use std::io;
 
@@ -146,11 +146,7 @@ impl<'a, W: io::Write> ser::Serializer for &'a mut Serializer<W> {
         self.serialize_u32(variant_index)
     }
 
-    fn serialize_newtype_struct<T: ?Sized>(
-        self,
-        _: &'static str,
-        value: &T,
-    ) -> Result<Self::Ok>
+    fn serialize_newtype_struct<T: ?Sized>(self, _: &'static str, value: &T) -> Result<Self::Ok>
     where
         T: ser::Serialize,
     {
@@ -210,11 +206,7 @@ impl<'a, W: io::Write> ser::Serializer for &'a mut Serializer<W> {
         Ok(self)
     }
 
-    fn serialize_struct(
-        self,
-        _: &'static str,
-        _: usize,
-    ) -> Result<Self::SerializeStruct> {
+    fn serialize_struct(self, _: &'static str, _: usize) -> Result<Self::SerializeStruct> {
         Ok(self)
     }
 
@@ -327,11 +319,7 @@ impl<'a, W: io::Write> ser::SerializeStruct for &'a mut Serializer<W> {
 
     type Error = Error;
 
-    fn serialize_field<T: ?Sized>(
-        &mut self,
-        _: &'static str,
-        value: &T,
-    ) -> Result<()>
+    fn serialize_field<T: ?Sized>(&mut self, _: &'static str, value: &T) -> Result<()>
     where
         T: ser::Serialize,
     {
@@ -348,11 +336,7 @@ impl<'a, W: io::Write> ser::SerializeStructVariant for &'a mut Serializer<W> {
 
     type Error = Error;
 
-    fn serialize_field<T: ?Sized>(
-        &mut self,
-        _: &'static str,
-        value: &T,
-    ) -> Result<()>
+    fn serialize_field<T: ?Sized>(&mut self, _: &'static str, value: &T) -> Result<()>
     where
         T: ser::Serialize,
     {

@@ -3,7 +3,8 @@ use super::VmObject;
 impl VmObject for String {
     fn register_type(program: &mut crate::program::Program) -> Option<&super::VmType>
     where
-        Self: Sized {
+        Self: Sized,
+    {
         todo!()
     }
 

@@ -18,10 +18,10 @@ use std::{
 };
 use strum::{EnumCount, EnumIter};
 
+pub mod gc;
 pub mod heap;
 pub mod memory;
 pub(crate) mod ops_impl;
-pub mod gc;
 
 pub struct Vm {
     registers: Registers,

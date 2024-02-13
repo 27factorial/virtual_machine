@@ -325,7 +325,9 @@ impl<'de, 'a, R: io::Read> de::Deserializer<'de> for &'a mut Deserializer<R> {
     where
         V: de::Visitor<'de>,
     {
-        Err(de::Error::custom("pfvm does not support deserialize_ignored_any"))
+        Err(de::Error::custom(
+            "pfvm does not support deserialize_ignored_any",
+        ))
     }
 }
 

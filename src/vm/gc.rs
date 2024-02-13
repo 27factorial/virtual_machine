@@ -505,6 +505,9 @@ mod tests {
         let cloned = sized.clone();
         GcBox::into_inner(cloned);
 
-        assert_eq!(Layout::for_value(&*aligned).align(), mem::align_of::<Aligned>())
+        assert_eq!(
+            Layout::for_value(&*aligned).align(),
+            mem::align_of::<Aligned>()
+        )
     }
 }
