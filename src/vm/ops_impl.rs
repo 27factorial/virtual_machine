@@ -680,7 +680,7 @@ impl Vm {
 
     #[inline]
     // CallNative
-    pub(crate) fn call_native(&mut self, index: usize) -> OpResult {
+    pub(crate) fn call_native(&mut self, symbol: SymbolIndex) -> OpResult {
         // let func_name = self.strings.get(index).ok_or(OpError::InvalidAddress)?;
 
         // let native_fn = self.native_fns.get(func_name).ok_or(OpError::NoNativeFn)?;

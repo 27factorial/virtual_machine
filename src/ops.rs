@@ -158,7 +158,7 @@ pub enum OpCode {
     CallImm(SymbolIndex),
     /// Call a native function determined by the immediate index pointing to a Program's string
     /// pool.
-    CallNative(usize),
+    CallNative(SymbolIndex),
     /// Set the VM's current frame to the call frame popped from the call stack.
     Ret,
 

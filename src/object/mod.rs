@@ -1,6 +1,5 @@
-
 use serde::{Deserialize, Serialize};
-use std::{sync::Arc};
+use std::sync::Arc;
 
 use crate::{
     ops::{Function, OpCode},
@@ -18,6 +17,22 @@ pub trait VmObject: 'static {
     fn field(&self, name: &str) -> Option<&Value>;
     fn field_mut(&mut self, name: &str) -> Option<&mut Value>;
     fn fields(&self) -> &[Value];
+}
+
+pub trait Operations {
+    type InitArgs;
+    type DeinitArgs;
+    type IndexArgs;
+
+    fn init(args: Self::InitArgs) -> impl IntoIterator<Item = OpCode>;
+    fn deinit(args: Self::DeinitArgs) -> Option<impl IntoIterator<Item = OpCode>>;
+    fn index(args: Self::IndexArgs) -> Option<impl IntoIterator<Item = OpCode>>;
+
+    /// A convenience method for returning `None` from an operator constructor when the operator is 
+    /// not defined for this type. Equivalent to `None::<Option<OpCode>>`
+    fn unimplemented() -> Option<impl IntoIterator<Item = OpCode>> {
+        None::<Option<OpCode>>
+    }
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -59,23 +74,15 @@ impl VmType {
         self
     }
 
-    pub fn with_deinit(
-        mut self,
-        func: impl IntoIterator<Item = OpCode>,
-    ) -> Self {
+    pub fn with_deinit(mut self, func: impl IntoIterator<Item = OpCode>) -> Self {
         self.operators.deinit = Some(func.into_iter().collect());
         self
     }
 
-    pub fn with_index(
-        mut self,
-        func: impl IntoIterator<Item = OpCode>,
-    ) -> Self {
+    pub fn with_index(mut self, func: impl IntoIterator<Item = OpCode>) -> Self {
         self.operators.index = Some(func.into_iter().collect());
         self
     }
-
-
 }
 
 #[derive(Clone, PartialEq, PartialOrd, Debug, Default, Serialize, Deserialize)]
