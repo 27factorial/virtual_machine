@@ -56,7 +56,7 @@ impl VmObject for String {
             .unwrap_or_else(|_| todo!());
 
         let ty = VmType::new("String", String::init(new))
-            .with_method("String::print", [OpCode::CallNative(print), OpCode::Ret]);
+            .with_method("print", [OpCode::CallNative(print), OpCode::Ret]);
 
         program.register_type(ty)
     }

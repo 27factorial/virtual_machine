@@ -3,12 +3,12 @@ use serde::{Deserialize, Serialize};
 use crate::{
     string::SymbolIndex,
     value::Value,
-    vm::{Register, Vm},
+    vm::{CallFrame, Register, Vm},
 };
 
 use std::{ops::Index, slice::SliceIndex, sync::Arc};
 
-pub type OpResult = Result<Transition, OpError>;
+pub type OpResult = Result<Transition, VmError>;
 
 /// Opcodes representing the virtual machine's instruction set.
 ///
@@ -244,8 +244,23 @@ pub enum Transition {
     Halt,
 }
 
+#[derive(Clone, PartialEq, PartialOrd, Debug)]
+pub struct VmError {
+    kind: VmErrorKind,
+    current_frame: Option<CallFrame>,
+}
+
+impl VmError {
+    pub fn new(kind: VmErrorKind, current_frame: Option<CallFrame>) -> Self {
+        Self {
+            kind,
+            current_frame,
+        }
+    }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum OpError {
+pub enum VmErrorKind {
     Type,
     Arithmetic,
     StackOverflow,
