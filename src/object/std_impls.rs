@@ -7,13 +7,11 @@ impl Operations for String {
     type InitArgs = SymbolIndex;
     type DeinitArgs = ();
     type IndexArgs = ();
-    
+
     fn init(native: SymbolIndex) -> impl IntoIterator<Item = OpCode> {
         use OpCode::*;
 
-        [
-            CallNative(native)
-        ]
+        [CallNative(native)]
     }
 
     fn deinit(_: ()) -> Option<impl IntoIterator<Item = OpCode>> {
@@ -30,18 +28,24 @@ impl VmObject for String {
     where
         Self: Sized,
     {
-        let ty = VmType::new("String")
+        let new = program.define_symbol("String::new");
+        let print = program.define_symbol("String::print");
+
+        let ty = VmType::new("String", String::init(new))
+            .with_method("String::print", [OpCode::CallNative(print)]);
+
+        program.register_type(ty)
     }
 
-    fn field(&self, name: &str) -> Option<&Value> {
-        todo!()
+    fn field(&self, _: &str) -> Option<&Value> {
+        None
     }
 
-    fn field_mut(&mut self, name: &str) -> Option<&mut Value> {
-        todo!()
+    fn field_mut(&mut self, _: &str) -> Option<&mut Value> {
+        None
     }
 
     fn fields(&self) -> &[Value] {
-        todo!() 
+        &[]
     }
 }

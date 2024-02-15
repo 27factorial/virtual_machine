@@ -13,14 +13,14 @@ use crate::{
 
 const VALID_MAGIC: &[u8; 7] = b"27FCTRL";
 
-pub type NativeFn = dyn Fn(&mut Vm) -> Option<Value>;
+pub type NativeFn = dyn Fn(&mut Vm) -> Option<Value> + 'static;
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Program {
     pub(crate) constants: Vec<Value>,
     pub(crate) functions: HashMap<Arc<str>, Function>,
     #[serde(skip)]
-    pub(crate) native_fns: HashMap<Arc<str>, Arc<NativeFn>>,
+    pub(crate) native_functions: HashMap<Arc<str>, Arc<NativeFn>>,
     pub(crate) types: HashMap<Arc<str>, VmType>,
     pub(crate) symbols: Symbols,
 }
@@ -30,7 +30,7 @@ impl Program {
         Self {
             constants: Vec::new(),
             functions: HashMap::default(),
-            native_fns: HashMap::default(),
+            native_functions: HashMap::default(),
             types: HashMap::default(),
             symbols: Symbols::new(),
         }
@@ -55,6 +55,20 @@ impl Program {
             match self.functions.raw_entry_mut().from_key(name) {
                 RawEntryMut::Vacant(entry) => {
                     entry.insert(Arc::from(name), func.into_iter().collect());
+                    Ok(())
+                }
+                RawEntryMut::Occupied(_) => Err(func),
+            }
+        } else {
+            Err(func)
+        }
+    }
+
+    pub fn define_native_function<F: Fn(&mut Vm) -> Option<Value> + 'static>(&mut self, symbol: SymbolIndex, func: F) -> Result<(), F> {
+        if let Some(name) = self.symbols.get(symbol) {
+            match self.native_functions.raw_entry_mut().from_key(name) {
+                RawEntryMut::Vacant(entry) => {
+                    entry.insert(Arc::from(name), Arc::new(func));
                     Ok(())
                 }
                 RawEntryMut::Occupied(_) => Err(func),
