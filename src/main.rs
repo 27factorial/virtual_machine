@@ -2,6 +2,8 @@
 #![feature(ptr_metadata)]
 // Used to ensure GcBox follows the upcoming pointer provenance rules.
 #![feature(strict_provenance)]
+// To allow trait upcasting for VmObject. Should be mostly complete and stable soon.
+#![feature(trait_upcasting)]
 
 // Enforces strict pointer provenenance for the above feature.
 #![deny(fuzzy_provenance_casts)]

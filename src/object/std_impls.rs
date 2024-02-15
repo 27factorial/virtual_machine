@@ -1,4 +1,4 @@
-use crate::{ops::OpCode, program::Program, string::SymbolIndex, value::Value};
+use crate::{ops::OpCode, program::Program, string::SymbolIndex, value::Value, vm::Register};
 
 use super::{Operations, VmObject, VmType};
 
@@ -31,9 +31,29 @@ impl VmObject for String {
         let new = program.define_symbol("String::new");
         let print = program.define_symbol("String::print");
 
-        program.define_native_function(new, |vm| {
-            
-        });
+        program
+            .define_native_function(new, |vm| {
+                let object = vm.alloc(String::from("init worked!"));
+                Some(Value::Object(object))
+            })
+            .unwrap_or_else(|_| todo!());
+
+        program
+            .define_native_function(print, |vm| {
+                let mem = vm.memory();
+
+                let object_ref = mem.registers[Register::R0].object().unwrap();
+                let this = mem
+                    .heap
+                    .get(object_ref)
+                    .and_then(|obj| obj.downcast_ref::<Self>())
+                    .unwrap();
+
+                eprintln!("{this}");
+
+                None
+            })
+            .unwrap_or_else(|_| todo!());
 
         let ty = VmType::new("String", String::init(new))
             .with_method("String::print", [OpCode::CallNative(print), OpCode::Ret]);

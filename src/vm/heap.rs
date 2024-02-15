@@ -87,6 +87,28 @@ impl Heap {
         todo!()
     }
 
+    pub fn sweep(&mut self) {
+        let enumerated = self.memory.iter_mut().enumerate();
+
+        for (idx, slot) in enumerated {
+            match slot {
+                Some(object) if object.is_marked() => object.unmark(),
+                opt => {
+                    *opt = None;
+                    self.free_indices.push_back(idx)
+                }
+            }
+        }
+    }
+
+    pub fn get(&self, object: ObjectRef) -> Option<&dyn VmObject> {
+        self.memory.get(object.0).and_then(|opt| opt.as_deref())
+    }
+
+    pub fn get_mut(&mut self, object: ObjectRef) -> Option<&mut dyn VmObject> {
+        self.memory.get_mut(object.0).and_then(|opt| opt.as_deref_mut())
+    }
+
     fn mark_children(&mut self) {
         while let Some(idx) = self.worklist.pop() {
             let object = self
@@ -110,20 +132,6 @@ impl Heap {
                         child_object.mark();
                         self.worklist.push(child_idx);
                     }
-                }
-            }
-        }
-    }
-
-    pub fn sweep(&mut self) {
-        let enumerated = self.memory.iter_mut().enumerate();
-
-        for (idx, slot) in enumerated {
-            match slot {
-                Some(object) if object.is_marked() => object.unmark(),
-                opt => {
-                    *opt = None;
-                    self.free_indices.push_back(idx)
                 }
             }
         }

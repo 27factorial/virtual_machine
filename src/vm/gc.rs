@@ -9,8 +9,6 @@ use std::{
     ptr::{self, NonNull},
 };
 
-use crate::object::VmObject;
-
 /// Constructs a new `GcBox<T>`, while also performing unsized coercions as necessary.
 ///
 /// Types like `Box<T>` can be converted to a type `Box<U>` under certain conditons. The main

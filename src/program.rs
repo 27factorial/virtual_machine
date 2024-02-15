@@ -105,7 +105,7 @@ impl<'a> Path<'a> {
 
         // Attempts to split a string of the form "object::member" or just "member". If there is no
         // "::" separator, then rsplit_once will return None, and the unwrap_or will cause the
-        // result to be  (object = None, member = path). If a is separator is found, rsplit_once
+        // result to be  (object = None, member = path). If the separator is found, rsplit_once
         // will return Some(("object", "member")). Map turns this into
         // (object = Some("object"), member = "member"). This means that, if path isn't empty,
         // We end up with the components of a Path, where there is at least a member and possibly

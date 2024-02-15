@@ -1,14 +1,20 @@
 use self::{
-    heap::Heap,
+    heap::{Heap, ObjectRef, RootsIter},
     memory::{CallStack, ValueMemory},
 };
 use crate::{
-    ops::{Function, OpCode, OpError, Transition}, program::{Path, Program}, string::SymbolIndex, utils::HashMap, value::Value
+    object::VmObject,
+    ops::{Function, OpCode, OpError, Transition},
+    program::{NativeFn, Path, Program},
+    string::SymbolIndex,
+    utils::HashMap,
+    value::Value,
 };
 use serde_repr::{Deserialize_repr as DeserializeRepr, Serialize_repr as SerializeRepr};
 use std::{
     mem,
-    ops::{Add, BitAnd, BitOr, BitXor, Div, Index, IndexMut, Mul, Rem, Sub}, sync::Arc,
+    ops::{Add, BitAnd, BitOr, BitXor, Div, Index, IndexMut, Mul, Rem, Sub},
+    sync::Arc,
 };
 use strum::{EnumCount, EnumIter};
 
@@ -84,6 +90,48 @@ impl Vm {
 
     pub fn ip_mut(&mut self) -> &mut usize {
         &mut self.current_frame.ip
+    }
+
+    pub fn memory(&mut self) -> MemoryHandle<'_> {
+        MemoryHandle {
+            registers: &mut self.registers,
+            values: &mut self.memory,
+            heap: &mut self.heap,
+        }
+    }
+
+    pub fn alloc<T: VmObject>(&mut self, value: T) -> ObjectRef {
+        match self.heap.alloc(value) {
+            Ok(object) => object,
+            Err(value) => {
+                self.heap
+                    .collect(RootsIter::new(&self.registers, &self.memory));
+
+                self.heap.alloc(value).unwrap_or_else(|_| {
+                    panic!(
+                        "VM heap out of memory, failed to allocate {} bytes",
+                        mem::size_of::<T>()
+                    );
+                })
+            }
+        }
+    }
+
+    pub fn resolve_native_function(&self, symbol: SymbolIndex) -> Result<Arc<NativeFn>, OpError> {
+        let name = self
+            .program
+            .symbols
+            .get(symbol)
+            .ok_or(OpError::SymbolNotFound)?;
+
+        let function = self
+            .program
+            .native_functions
+            .get(name)
+            .cloned()
+            .ok_or(OpError::FunctionNotFound)?;
+
+        Ok(function)
     }
 
     pub fn resolve_function(&self, symbol: SymbolIndex) -> Result<Function, OpError> {
@@ -209,6 +257,12 @@ impl CallFrame {
     }
 }
 
+pub struct MemoryHandle<'a> {
+    pub(crate) registers: &'a mut Registers,
+    pub(crate) values: &'a mut ValueMemory,
+    pub(crate) heap: &'a mut Heap,
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -283,14 +337,12 @@ mod tests {
                     index: None,
                 };
 
-                program.register_type(
-                    VmType {
-                        name: Arc::from("Test"),
-                        operators,
-                        fields: Default::default(),
-                        methods,
-                    },
-                )
+                program.register_type(VmType {
+                    name: Arc::from("Test"),
+                    operators,
+                    fields: Default::default(),
+                    methods,
+                })
             }
 
             fn field(&self, name: &str) -> Option<&Value> {
@@ -314,6 +366,33 @@ mod tests {
         Test::register_type(&mut program);
 
         program.define_function(main, [CallImm(test)]).unwrap();
+
+        let mut vm = Vm::new(program).unwrap();
+
+        vm.run().unwrap();
+    }
+
+    #[test]
+    fn native() {
+        let mut program = Program::new();
+
+        String::register_type(&mut program);
+
+        let main = program.define_symbol("main");
+        let string_ty = program.define_symbol("String");
+        let print = program.define_symbol("String::print");
+
+        program
+            .define_function(
+                main,
+                [
+                    OpCode::LoadImm(Value::Symbol(string_ty), Register::R0),
+                    OpCode::Init(Register::R0),
+                    OpCode::CallImm(print),
+                    OpCode::Halt,
+                ],
+            )
+            .unwrap();
 
         let mut vm = Vm::new(program).unwrap();
 

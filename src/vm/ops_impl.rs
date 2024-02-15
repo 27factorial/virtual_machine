@@ -681,13 +681,11 @@ impl Vm {
     #[inline]
     // CallNative
     pub(crate) fn call_native(&mut self, symbol: SymbolIndex) -> OpResult {
-        // let func_name = self.strings.get(index).ok_or(OpError::InvalidAddress)?;
+        let native = self.resolve_native_function(symbol)?;
 
-        // let native_fn = self.native_fns.get(func_name).ok_or(OpError::NoNativeFn)?;
-
-        // if let Some(value) = native_fn(self, program) {
-        //     self.registers[Register::R0] = value;
-        // };
+        if let Some(value) = native(self) {
+            self.registers[Register::R0] = value;
+        };
 
         Ok(Transition::Continue)
     }
