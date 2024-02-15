@@ -11,7 +11,7 @@ impl Operations for String {
     fn init(native: SymbolIndex) -> impl IntoIterator<Item = OpCode> {
         use OpCode::*;
 
-        [CallNative(native)]
+        [CallNative(native), Ret]
     }
 
     fn deinit(_: ()) -> Option<impl IntoIterator<Item = OpCode>> {
@@ -31,8 +31,12 @@ impl VmObject for String {
         let new = program.define_symbol("String::new");
         let print = program.define_symbol("String::print");
 
+        program.define_native_function(new, |vm| {
+            
+        });
+
         let ty = VmType::new("String", String::init(new))
-            .with_method("String::print", [OpCode::CallNative(print)]);
+            .with_method("String::print", [OpCode::CallNative(print), OpCode::Ret]);
 
         program.register_type(ty)
     }
