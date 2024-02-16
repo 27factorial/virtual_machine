@@ -251,10 +251,10 @@ pub struct VmError {
 }
 
 impl VmError {
-    pub fn new(kind: VmErrorKind, current_frame: Option<CallFrame>) -> Self {
+    pub fn new<'a>(kind: VmErrorKind, current_frame: impl Into<Option<&'a CallFrame>>) -> Self {
         Self {
             kind,
-            current_frame,
+            current_frame: current_frame.into().cloned(),
         }
     }
 }

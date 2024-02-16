@@ -73,3 +73,4 @@ impl VmObject for String {
         &[]
     }
 }
+

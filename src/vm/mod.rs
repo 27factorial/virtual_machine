@@ -66,7 +66,7 @@ impl Vm {
         self.call_stack.push(frame).map_err(|_| {
             VmError::new(
                 VmErrorKind::StackOverflow,
-                self.current_frame.clone().into(),
+                Some(&self.current_frame),
             )
         })
     }
@@ -74,7 +74,7 @@ impl Vm {
     pub fn pop_call_stack(&mut self) -> Result<CallFrame, VmError> {
         self.call_stack.pop().ok_or(VmError::new(
             VmErrorKind::StackUnderflow,
-            self.current_frame.clone().into(),
+            Some(&self.current_frame),
         ))
     }
 
@@ -82,7 +82,7 @@ impl Vm {
         self.memory.push(value).map_err(|_| {
             VmError::new(
                 VmErrorKind::StackOverflow,
-                self.current_frame.clone().into(),
+                Some(&self.current_frame),
             )
         })
     }
@@ -91,7 +91,7 @@ impl Vm {
         self.memory.pop().ok_or_else(|| {
             VmError::new(
                 VmErrorKind::StackUnderflow,
-                self.current_frame.clone().into(),
+                Some(&self.current_frame),
             )
         })
     }
@@ -137,7 +137,7 @@ impl Vm {
         let name = self.program.symbols.get(symbol).ok_or_else(|| {
             VmError::new(
                 VmErrorKind::SymbolNotFound,
-                self.current_frame.clone().into(),
+                Some(&self.current_frame),
             )
         })?;
 
@@ -149,7 +149,7 @@ impl Vm {
             .ok_or_else(|| {
                 VmError::new(
                     VmErrorKind::FunctionNotFound,
-                    self.current_frame.clone().into(),
+                    Some(&self.current_frame),
                 )
             })?;
 
@@ -160,21 +160,21 @@ impl Vm {
         let name = self.program.symbols.get(symbol).ok_or_else(|| {
             VmError::new(
                 VmErrorKind::SymbolNotFound,
-                self.current_frame.clone().into(),
+                Some(&self.current_frame),
             )
         })?;
 
         let path = Path::new(name).ok_or_else(|| {
             VmError::new(
                 VmErrorKind::FunctionNotFound,
-                self.current_frame.clone().into(),
+                Some(&self.current_frame),
             )
         })?;
 
         let functions = match path.object {
             Some(name) => {
                 let vm_type = self.program.types.get(name).ok_or_else(|| {
-                    VmError::new(VmErrorKind::TypeNotFound, self.current_frame.clone().into())
+                    VmError::new(VmErrorKind::TypeNotFound, Some(&self.current_frame))
                 })?;
                 &vm_type.methods
             }
@@ -184,7 +184,7 @@ impl Vm {
         let function = functions.get(path.member).cloned().ok_or_else(|| {
             VmError::new(
                 VmErrorKind::FunctionNotFound,
-                self.current_frame.clone().into(),
+                Some(&self.current_frame),
             )
         })?;
 
@@ -196,7 +196,7 @@ impl Vm {
         let main = self.program.functions.get("main").cloned().ok_or_else(|| {
             VmError::new(
                 VmErrorKind::FunctionNotFound,
-                self.current_frame.clone().into(),
+                Some(&self.current_frame),
             )
         })?;
 

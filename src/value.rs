@@ -45,6 +45,7 @@ macro_rules! variant_methods {
     }
 }
 
+#[repr(C, u8)]
 #[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Default, Serialize, Deserialize)]
 pub enum Value {
     /// A value corresponding to "nothing". The default value when operating on memory.
@@ -77,4 +78,16 @@ variant_methods! {
     Address(usize), "an";
     Symbol(SymbolIndex), "a";
     Object(ObjectRef), "an";
+}
+
+union ValueUnion {
+    null: (),
+    uint: u64,
+    sint: i64,
+    float: f64,
+    boolean: bool,
+    character: char,
+    address: usize,
+    symbol: SymbolIndex,
+    object: ObjectRef,
 }

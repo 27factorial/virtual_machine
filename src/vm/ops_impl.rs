@@ -14,13 +14,13 @@ macro_rules! bin_arithmetic {
             (Value::UInt(a), Value::UInt(b)) => {
                 $self.registers[Register::R0] =
                     Value::UInt(u64::$int_op(a, b).ok_or_else(|| {
-                        VmError::new(VmErrorKind::Arithmetic, $self.current_frame.clone().into())
+                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
                     })?);
             }
             (Value::SInt(a), Value::SInt(b)) => {
                 $self.registers[Register::R0] =
                     Value::SInt(i64::$int_op(a, b).ok_or_else(|| {
-                        VmError::new(VmErrorKind::Arithmetic, $self.current_frame.clone().into())
+                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
                     })?);
             }
             (Value::Float(a), Value::Float(b)) => {
@@ -29,13 +29,13 @@ macro_rules! bin_arithmetic {
             (Value::Address(a), Value::Address(b)) => {
                 $self.registers[Register::R0] =
                     Value::Address(usize::$int_op(a, b).ok_or_else(|| {
-                        VmError::new(VmErrorKind::Arithmetic, $self.current_frame.clone().into())
+                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
                     })?)
             }
             _ => {
                 return Err(VmError::new(
                     VmErrorKind::Type,
-                    $self.current_frame.clone().into(),
+                    &$self.current_frame,
                 ))
             }
         }
@@ -67,7 +67,7 @@ macro_rules! bin_bitwise {
             _ => {
                 return Err(VmError::new(
                     VmErrorKind::Type,
-                    $self.current_frame.clone().into(),
+                    &$self.current_frame,
                 ))
             }
         }
@@ -88,86 +88,86 @@ macro_rules! bin_shift {
                 let b = u32::try_from(b).or_else(|_| {
                     Err(VmError::new(
                         VmErrorKind::Arithmetic,
-                        $self.current_frame.clone().into(),
+                        &$self.current_frame,
                     ))
                 })?;
                 $self.registers[Register::R0] = Value::UInt(u64::$op(a, b).ok_or_else(|| {
-                    VmError::new(VmErrorKind::Arithmetic, $self.current_frame.clone().into())
+                    VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
                 })?);
             }
             (Value::UInt(a), Value::SInt(b)) => {
                 let b = u32::try_from(b).or_else(|_| {
                     Err(VmError::new(
                         VmErrorKind::Arithmetic,
-                        $self.current_frame.clone().into(),
+                        &$self.current_frame,
                     ))
                 })?;
                 $self.registers[Register::R0] = Value::UInt(u64::$op(a, b).ok_or_else(|| {
-                    VmError::new(VmErrorKind::Arithmetic, $self.current_frame.clone().into())
+                    VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
                 })?);
             }
             (Value::SInt(a), Value::SInt(b)) => {
                 let b = u32::try_from(b).or_else(|_| {
                     Err(VmError::new(
                         VmErrorKind::Arithmetic,
-                        $self.current_frame.clone().into(),
+                        &$self.current_frame,
                     ))
                 })?;
                 $self.registers[Register::R0] = Value::SInt(i64::$op(a, b).ok_or_else(|| {
-                    VmError::new(VmErrorKind::Arithmetic, $self.current_frame.clone().into())
+                    VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
                 })?);
             }
             (Value::SInt(a), Value::UInt(b)) => {
                 let b = u32::try_from(b).or_else(|_| {
                     Err(VmError::new(
                         VmErrorKind::Arithmetic,
-                        $self.current_frame.clone().into(),
+                        &$self.current_frame,
                     ))
                 })?;
                 $self.registers[Register::R0] = Value::SInt(i64::$op(a, b).ok_or_else(|| {
-                    VmError::new(VmErrorKind::Arithmetic, $self.current_frame.clone().into())
+                    VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
                 })?);
             }
             (Value::Address(a), Value::Address(b)) => {
                 let b = u32::try_from(b).or_else(|_| {
                     Err(VmError::new(
                         VmErrorKind::Arithmetic,
-                        $self.current_frame.clone().into(),
+                        &$self.current_frame,
                     ))
                 })?;
                 $self.registers[Register::R0] =
                     Value::Address(usize::$op(a, b).ok_or_else(|| {
-                        VmError::new(VmErrorKind::Arithmetic, $self.current_frame.clone().into())
+                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
                     })?)
             }
             (Value::Address(a), Value::UInt(b)) => {
                 let b = u32::try_from(b).or_else(|_| {
                     Err(VmError::new(
                         VmErrorKind::Arithmetic,
-                        $self.current_frame.clone().into(),
+                        &$self.current_frame,
                     ))
                 })?;
                 $self.registers[Register::R0] =
                     Value::Address(usize::$op(a, b).ok_or_else(|| {
-                        VmError::new(VmErrorKind::Arithmetic, $self.current_frame.clone().into())
+                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
                     })?)
             }
             (Value::Address(a), Value::SInt(b)) => {
                 let b = u32::try_from(b).or_else(|_| {
                     Err(VmError::new(
                         VmErrorKind::Arithmetic,
-                        $self.current_frame.clone().into(),
+                        &$self.current_frame,
                     ))
                 })?;
                 $self.registers[Register::R0] =
                     Value::Address(usize::$op(a, b).ok_or_else(|| {
-                        VmError::new(VmErrorKind::Arithmetic, $self.current_frame.clone().into())
+                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
                     })?)
             }
             _ => {
                 return Err(VmError::new(
                     VmErrorKind::Type,
-                    $self.current_frame.clone().into(),
+                    &$self.current_frame,
                 ))
             }
         }
@@ -211,7 +211,7 @@ macro_rules! bin_compare {
             _ => {
                 return Err(VmError::new(
                     VmErrorKind::Type,
-                    $self.current_frame.clone().into(),
+                    &$self.current_frame,
                 ))
             }
         }
@@ -277,7 +277,7 @@ impl Vm {
         let value = self.memory.get(index).copied().ok_or_else(|| {
             VmError::new(
                 VmErrorKind::InvalidAddress,
-                self.current_frame.clone().into(),
+                &self.current_frame,
             )
         })?;
 
@@ -293,7 +293,7 @@ impl Vm {
         let location = self.memory.get_mut(index).ok_or_else(|| {
             VmError::new(
                 VmErrorKind::InvalidAddress,
-                self.current_frame.clone().into(),
+                &self.current_frame,
             )
         })?;
 
@@ -308,7 +308,7 @@ impl Vm {
         let location = self.memory.get_mut(index).ok_or_else(|| {
             VmError::new(
                 VmErrorKind::InvalidAddress,
-                self.current_frame.clone().into(),
+                &self.current_frame,
             )
         })?;
 
@@ -323,14 +323,14 @@ impl Vm {
         let value = self.memory.get(index_src).copied().ok_or_else(|| {
             VmError::new(
                 VmErrorKind::InvalidAddress,
-                self.current_frame.clone().into(),
+                &self.current_frame,
             )
         })?;
 
         let dst = self.memory.get_mut(index_dst).ok_or_else(|| {
             VmError::new(
                 VmErrorKind::InvalidAddress,
-                self.current_frame.clone().into(),
+                &self.current_frame,
             )
         })?;
 
@@ -546,7 +546,7 @@ impl Vm {
             _ => {
                 return Err(VmError::new(
                     VmErrorKind::Type,
-                    self.current_frame.clone().into(),
+                    &self.current_frame,
                 ))
             }
         }
@@ -714,7 +714,7 @@ impl Vm {
         // TODO: *_or_else_err
         let address = self.registers[register].address_or_err(VmError::new(
             VmErrorKind::Type,
-            self.current_frame.clone().into(),
+            &self.current_frame,
         ))?;
 
         self.jump_imm(address)
@@ -740,7 +740,7 @@ impl Vm {
             Value::Bool(false) => Ok(Transition::Continue),
             _ => Err(VmError::new(
                 VmErrorKind::Type,
-                self.current_frame.clone().into(),
+                &self.current_frame,
             )),
         }
     }
@@ -753,7 +753,7 @@ impl Vm {
             Value::Bool(false) => Ok(Transition::Continue),
             _ => Err(VmError::new(
                 VmErrorKind::Type,
-                self.current_frame.clone().into(),
+                &self.current_frame,
             )),
         }
     }
@@ -764,7 +764,7 @@ impl Vm {
         // TODO: *_or_else_err
         let symbol = self.registers[register].symbol_or_err(VmError::new(
             VmErrorKind::Type,
-            self.current_frame.clone().into(),
+            &self.current_frame,
         ))?;
 
         self.call_imm(symbol)
@@ -811,17 +811,17 @@ impl Vm {
     pub(crate) fn init_object(&mut self, register: Register) -> OpResult {
         let symbol = self.registers[register].symbol_or_err(VmError::new(
             VmErrorKind::Type,
-            self.current_frame.clone().into(),
+            &self.current_frame,
         ))?;
         let name = self.program.symbols.get(symbol).ok_or_else(|| {
             VmError::new(
                 VmErrorKind::SymbolNotFound,
-                self.current_frame.clone().into(),
+                &self.current_frame,
             )
         })?;
 
         let ty = self.program.types.get(name).ok_or_else(|| {
-            VmError::new(VmErrorKind::TypeNotFound, self.current_frame.clone().into())
+            VmError::new(VmErrorKind::TypeNotFound, &self.current_frame)
         })?;
 
         let called_func = ty.operators.init.clone();
@@ -840,22 +840,22 @@ impl Vm {
     pub(crate) fn index_object(&mut self, register: Register) -> OpResult {
         let symbol = self.registers[register].symbol_or_err(VmError::new(
             VmErrorKind::Type,
-            self.current_frame.clone().into(),
+            &self.current_frame,
         ))?;
         let name = self.program.symbols.get(symbol).ok_or_else(|| {
             VmError::new(
                 VmErrorKind::SymbolNotFound,
-                self.current_frame.clone().into(),
+                &self.current_frame,
             )
         })?;
         let ty = self.program.types.get(name).ok_or_else(|| {
-            VmError::new(VmErrorKind::TypeNotFound, self.current_frame.clone().into())
+            VmError::new(VmErrorKind::TypeNotFound, &self.current_frame)
         })?;
 
         let called_func = ty.operators.index.clone().ok_or_else(|| {
             VmError::new(
                 VmErrorKind::OperatorNotSupported,
-                self.current_frame.clone().into(),
+                &self.current_frame,
             )
         })?;
 
