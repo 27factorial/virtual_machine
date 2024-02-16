@@ -74,4 +74,4 @@ impl VmObject for String {
     }
 }
 
-// TODO: Some sort of vector/array typee.
+

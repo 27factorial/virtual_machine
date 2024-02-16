@@ -9,6 +9,7 @@ use crate::{
 };
 
 mod std_impls;
+pub mod array;
 
 pub trait VmObject: Any + Send + Sync {
     fn register_type(program: &mut Program) -> &VmType
