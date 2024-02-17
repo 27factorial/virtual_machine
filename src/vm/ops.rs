@@ -24,7 +24,7 @@ pub enum OpCode {
 
     /// Push an immediate value to the top of the stack.
     /// Corresponds to the PushImmediate instruction.
-    PushImm(Value),
+    Push(Value),
     /// Pop the value at the top of the stack into a register
     Pop,
 
@@ -161,7 +161,7 @@ impl OpCode {
         match self {
             Op::NoOp => vm.op_nop(),
             Op::Halt => vm.op_halt(),
-            Op::PushImm(value) => vm.op_push_imm(value),
+            Op::Push(value) => vm.op_push(value),
             // Op::Push(register) => vm.op_push(register),
             Op::Pop => vm.op_pop(),
             Op::Add => vm.op_add(),
@@ -504,7 +504,7 @@ mod imp {
 
         // pshi
         #[inline]
-        pub(super) fn op_push_imm(&mut self, value: Value) -> OpResult {
+        pub(super) fn op_push(&mut self, value: Value) -> OpResult {
             self.push_data_stack(value)?;
             Ok(Transition::Continue)
         }
