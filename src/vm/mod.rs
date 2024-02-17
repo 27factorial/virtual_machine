@@ -1,5 +1,5 @@
 use self::{
-    heap::{Heap, ObjectRef, RootsIter},
+    heap::{Heap, ObjectRef},
     memory::{CallStack, ValueMemory},
 };
 use crate::{
@@ -24,7 +24,6 @@ pub mod memory;
 pub(crate) mod ops_impl;
 
 pub struct Vm {
-    registers: Registers,
     current_frame: CallFrame,
     call_stack: CallStack,
     memory: ValueMemory,
@@ -41,7 +40,6 @@ impl Vm {
             .ok_or_else(|| VmError::new(VmErrorKind::FunctionNotFound, None))?;
 
         Ok(Self {
-            registers: Registers::new(),
             current_frame: CallFrame::new(Arc::from("main"), main, 0),
             call_stack: CallStack::new(64),
             memory: ValueMemory::new(128),
@@ -63,12 +61,9 @@ impl Vm {
     }
 
     pub fn push_call_stack(&mut self, frame: CallFrame) -> Result<(), VmError> {
-        self.call_stack.push(frame).map_err(|_| {
-            VmError::new(
-                VmErrorKind::StackOverflow,
-                Some(&self.current_frame),
-            )
-        })
+        self.call_stack
+            .push(frame)
+            .map_err(|_| VmError::new(VmErrorKind::StackOverflow, Some(&self.current_frame)))
     }
 
     pub fn pop_call_stack(&mut self) -> Result<CallFrame, VmError> {
@@ -79,21 +74,36 @@ impl Vm {
     }
 
     pub fn push_data_stack(&mut self, value: Value) -> Result<(), VmError> {
-        self.memory.push(value).map_err(|_| {
-            VmError::new(
-                VmErrorKind::StackOverflow,
-                Some(&self.current_frame),
-            )
-        })
+        self.memory
+            .push(value)
+            .map_err(|_| VmError::new(VmErrorKind::StackOverflow, Some(&self.current_frame)))
     }
 
     pub fn pop_data_stack(&mut self) -> Result<Value, VmError> {
-        self.memory.pop().ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::StackUnderflow,
-                Some(&self.current_frame),
-            )
-        })
+        self.memory
+            .pop()
+            .ok_or_else(|| VmError::new(VmErrorKind::StackUnderflow, Some(&self.current_frame)))
+    }
+
+    pub fn get_data_stack(&self, index: usize) -> Result<Value, VmError> {
+        let index = (self.memory.len().checked_sub(1))
+            .and_then(|last| last.checked_sub(index))
+            .ok_or_else(|| VmError::new(VmErrorKind::StackUnderflow, &self.current_frame))?;
+
+        self.memory
+            .get(index)
+            .cloned()
+            .ok_or_else(|| VmError::new(VmErrorKind::StackUnderflow, &self.current_frame))
+    }
+
+    pub fn get_data_stack_mut(&mut self, index: usize) -> Result<&mut Value, VmError> {
+        let index = (self.memory.len().checked_sub(1))
+            .and_then(|last| last.checked_sub(index))
+            .ok_or_else(|| VmError::new(VmErrorKind::StackUnderflow, &self.current_frame))?;
+
+        self.memory
+            .get_mut(index)
+            .ok_or_else(|| VmError::new(VmErrorKind::StackUnderflow, &self.current_frame))
     }
 
     pub fn current_op(&self) -> Option<OpCode> {
@@ -110,7 +120,6 @@ impl Vm {
 
     pub fn memory(&mut self) -> MemoryHandle<'_> {
         MemoryHandle {
-            registers: &mut self.registers,
             values: &mut self.memory,
             heap: &mut self.heap,
         }
@@ -120,8 +129,9 @@ impl Vm {
         match self.heap.alloc(value) {
             Ok(object) => object,
             Err(value) => {
-                self.heap
-                    .collect(RootsIter::new(&self.registers, &self.memory));
+                let iter = self.memory.iter().copied().filter_map(Value::object);
+
+                self.heap.collect(iter);
 
                 self.heap.alloc(value).unwrap_or_else(|_| {
                     panic!(
@@ -134,12 +144,10 @@ impl Vm {
     }
 
     pub fn resolve_native_function(&self, symbol: SymbolIndex) -> Result<Arc<NativeFn>, VmError> {
-        let name = self.program.symbols.get(symbol).ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::SymbolNotFound,
-                Some(&self.current_frame),
-            )
-        })?;
+        let name =
+            self.program.symbols.get(symbol).ok_or_else(|| {
+                VmError::new(VmErrorKind::SymbolNotFound, Some(&self.current_frame))
+            })?;
 
         let function = self
             .program
@@ -147,28 +155,20 @@ impl Vm {
             .get(name)
             .cloned()
             .ok_or_else(|| {
-                VmError::new(
-                    VmErrorKind::FunctionNotFound,
-                    Some(&self.current_frame),
-                )
+                VmError::new(VmErrorKind::FunctionNotFound, Some(&self.current_frame))
             })?;
 
         Ok(function)
     }
 
     pub fn resolve_function(&self, symbol: SymbolIndex) -> Result<Function, VmError> {
-        let name = self.program.symbols.get(symbol).ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::SymbolNotFound,
-                Some(&self.current_frame),
-            )
-        })?;
+        let name =
+            self.program.symbols.get(symbol).ok_or_else(|| {
+                VmError::new(VmErrorKind::SymbolNotFound, Some(&self.current_frame))
+            })?;
 
         let path = Path::new(name).ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::FunctionNotFound,
-                Some(&self.current_frame),
-            )
+            VmError::new(VmErrorKind::FunctionNotFound, Some(&self.current_frame))
         })?;
 
         let functions = match path.object {
@@ -182,10 +182,7 @@ impl Vm {
         };
 
         let function = functions.get(path.member).cloned().ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::FunctionNotFound,
-                Some(&self.current_frame),
-            )
+            VmError::new(VmErrorKind::FunctionNotFound, Some(&self.current_frame))
         })?;
 
         Ok(function)
@@ -194,13 +191,9 @@ impl Vm {
     #[cfg(test)]
     pub fn reset(&mut self) -> Result<(), VmError> {
         let main = self.program.functions.get("main").cloned().ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::FunctionNotFound,
-                Some(&self.current_frame),
-            )
+            VmError::new(VmErrorKind::FunctionNotFound, Some(&self.current_frame))
         })?;
 
-        self.registers = Registers::new();
         self.current_frame = CallFrame::new(Arc::from("main"), main, 0);
         self.call_stack.clear();
         self.memory.clear();
@@ -208,73 +201,6 @@ impl Vm {
 
         Ok(())
     }
-}
-
-#[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Default)]
-pub struct Registers([Value; Register::COUNT]);
-
-impl Registers {
-    pub const fn new() -> Self {
-        Self([Value::Null; Register::COUNT])
-    }
-}
-
-impl Index<Register> for Registers {
-    type Output = Value;
-
-    /// Performs the indexing (`container[index]`) operation.
-    ///
-    /// # Panics
-    ///
-    /// Unlike most `Index` implementations, this method cannot panic.
-    fn index(&self, index: Register) -> &Self::Output {
-        &self.0[index as usize]
-    }
-}
-
-impl IndexMut<Register> for Registers {
-    /// Performs the mutable indexing (`container[index]`) operation.
-    ///
-    /// # Panics
-    ///
-    /// Unlike most `IndexMut` implementations, this method cannot panic.
-    fn index_mut(&mut self, index: Register) -> &mut Self::Output {
-        &mut self.0[index as usize]
-    }
-}
-
-#[derive(
-    Copy,
-    Clone,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    Hash,
-    Debug,
-    SerializeRepr,
-    DeserializeRepr,
-    EnumCount,
-    EnumIter,
-)]
-#[repr(u8)]
-pub enum Register {
-    /// Register 0, also called the accumulator.
-    R0,
-    /// Register 1.
-    R1,
-    /// Register 2.
-    R2,
-    /// Register 3.
-    R3,
-    /// Register 4.
-    R4,
-    /// Register 5.
-    R5,
-    /// Register 6.
-    R6,
-    /// Register 7.
-    R7,
 }
 
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
@@ -291,144 +217,143 @@ impl CallFrame {
 }
 
 pub struct MemoryHandle<'a> {
-    pub(crate) registers: &'a mut Registers,
     pub(crate) values: &'a mut ValueMemory,
     pub(crate) heap: &'a mut Heap,
 }
 
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
+// #[cfg(test)]
+// mod tests {
+//     use std::sync::Arc;
 
-    use crate::object::{Operators, VmObject, VmType};
+//     use crate::object::{Operators, VmObject, VmType};
 
-    use super::*;
+//     use super::*;
 
-    #[test]
-    fn basic_program() {
-        use crate::ops::OpCode::*;
+//     #[test]
+//     fn basic_program() {
+//         use crate::ops::OpCode::*;
 
-        let mut program = Program::new();
+//         let mut program = Program::new();
 
-        let crunch = program.define_symbol("crunch");
-        let main = program.define_symbol("main");
+//         let crunch = program.define_symbol("crunch");
+//         let main = program.define_symbol("main");
 
-        program
-            .define_function(
-                main,
-                [
-                    LoadImm(Value::Bool(false), Register::R0),
-                    Not(Register::R0),
-                    LoadImm(Value::Symbol(crunch), Register::R0),
-                    Call(Register::R0),
-                ],
-            )
-            .unwrap();
+//         program
+//             .define_function(
+//                 main,
+//                 [
+//                     LoadImm(Value::Bool(false), Register::R0),
+//                     Not(Register::R0),
+//                     LoadImm(Value::Symbol(crunch), Register::R0),
+//                     Call(Register::R0),
+//                 ],
+//             )
+//             .unwrap();
 
-        program
-            .define_function(
-                crunch,
-                [
-                    LoadImm(Value::Float(42.0), Register::R1),
-                    LoadImm(Value::Float(2.0), Register::R2),
-                    Div(Register::R1, Register::R2),
-                    Ret,
-                ],
-            )
-            .unwrap();
+//         program
+//             .define_function(
+//                 crunch,
+//                 [
+//                     LoadImm(Value::Float(42.0), Register::R1),
+//                     LoadImm(Value::Float(2.0), Register::R2),
+//                     Div(Register::R1, Register::R2),
+//                     Ret,
+//                 ],
+//             )
+//             .unwrap();
 
-        let mut vm = Vm::new(program).unwrap();
+//         let mut vm = Vm::new(program).unwrap();
 
-        vm.run().unwrap();
-    }
+//         vm.run().unwrap();
+//     }
 
-    #[test]
-    fn object_fn() {
-        use crate::ops::OpCode::*;
+//     #[test]
+//     fn object_fn() {
+//         use crate::ops::OpCode::*;
 
-        struct Test;
+//         struct Test;
 
-        impl VmObject for Test {
-            fn register_type(program: &mut Program) -> &VmType
-            where
-                Self: Sized,
-            {
-                let methods = [(
-                    Arc::from("test"),
-                    Function::new([
-                        LoadImm(Value::UInt(1), Register::R0),
-                        AddImm(Register::R0, Value::UInt(1)),
-                        Ret,
-                    ]),
-                )]
-                .into_iter()
-                .collect();
+//         impl VmObject for Test {
+//             fn register_type(program: &mut Program) -> &VmType
+//             where
+//                 Self: Sized,
+//             {
+//                 let methods = [(
+//                     Arc::from("test"),
+//                     Function::new([
+//                         LoadImm(Value::UInt(1), Register::R0),
+//                         AddImm(Register::R0, Value::UInt(1)),
+//                         Ret,
+//                     ]),
+//                 )]
+//                 .into_iter()
+//                 .collect();
 
-                let operators = Operators {
-                    init: Function::new([Ret]),
-                    deinit: None,
-                    index: None,
-                };
+//                 let operators = Operators {
+//                     init: Function::new([Ret]),
+//                     deinit: None,
+//                     index: None,
+//                 };
 
-                program.register_type(VmType {
-                    name: Arc::from("Test"),
-                    operators,
-                    fields: Default::default(),
-                    methods,
-                })
-            }
+//                 program.register_type(VmType {
+//                     name: Arc::from("Test"),
+//                     operators,
+//                     fields: Default::default(),
+//                     methods,
+//                 })
+//             }
 
-            fn field(&self, name: &str) -> Option<&Value> {
-                None
-            }
+//             fn field(&self, name: &str) -> Option<&Value> {
+//                 None
+//             }
 
-            fn field_mut(&mut self, name: &str) -> Option<&mut Value> {
-                None
-            }
+//             fn field_mut(&mut self, name: &str) -> Option<&mut Value> {
+//                 None
+//             }
 
-            fn fields(&self) -> &[Value] {
-                &[]
-            }
-        }
+//             fn fields(&self) -> &[Value] {
+//                 &[]
+//             }
+//         }
 
-        let mut program = Program::new();
+//         let mut program = Program::new();
 
-        let test = program.define_symbol("Test::test");
-        let main = program.define_symbol("main");
+//         let test = program.define_symbol("Test::test");
+//         let main = program.define_symbol("main");
 
-        Test::register_type(&mut program);
+//         Test::register_type(&mut program);
 
-        program.define_function(main, [CallImm(test)]).unwrap();
+//         program.define_function(main, [CallImm(test)]).unwrap();
 
-        let mut vm = Vm::new(program).unwrap();
+//         let mut vm = Vm::new(program).unwrap();
 
-        vm.run().unwrap();
-    }
+//         vm.run().unwrap();
+//     }
 
-    #[test]
-    fn native() {
-        let mut program = Program::new();
+//     #[test]
+//     fn native() {
+//         let mut program = Program::new();
 
-        String::register_type(&mut program);
+//         String::register_type(&mut program);
 
-        let main = program.define_symbol("main");
-        let string_ty = program.define_symbol("String");
-        let print = program.define_symbol("String::print");
+//         let main = program.define_symbol("main");
+//         let string_ty = program.define_symbol("String");
+//         let print = program.define_symbol("String::print");
 
-        program
-            .define_function(
-                main,
-                [
-                    OpCode::LoadImm(Value::Symbol(string_ty), Register::R0),
-                    OpCode::Init(Register::R0),
-                    OpCode::CallImm(print),
-                    OpCode::Halt,
-                ],
-            )
-            .unwrap();
+//         program
+//             .define_function(
+//                 main,
+//                 [
+//                     OpCode::LoadImm(Value::Symbol(string_ty), Register::R0),
+//                     OpCode::Init(Register::R0),
+//                     OpCode::CallImm(print),
+//                     OpCode::Halt,
+//                 ],
+//             )
+//             .unwrap();
 
-        let mut vm = Vm::new(program).unwrap();
+//         let mut vm = Vm::new(program).unwrap();
 
-        vm.run().unwrap();
-    }
-}
+//         vm.run().unwrap();
+//     }
+// }

@@ -6,7 +6,7 @@ use std::{
 
 use crate::value::Value;
 
-use super::CallFrame;
+use super::{heap::ObjectRef, CallFrame};
 
 #[derive(Clone, PartialEq, PartialOrd, Debug, Default)]
 pub struct ValueMemory {
@@ -58,6 +58,18 @@ impl ValueMemory {
 
     pub fn get_mut<I: SliceIndex<[Value]>>(&mut self, index: I) -> Option<&mut I::Output> {
         self.data.get_mut(index)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Value> {
+        self.data.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Value> {
+        self.data.iter_mut()
+    }
+
+    pub fn into_iter(self) -> impl Iterator<Item = Value> {
+        self.data.into_iter()
     }
 }
 

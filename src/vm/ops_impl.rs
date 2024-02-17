@@ -12,32 +12,33 @@ macro_rules! bin_arithmetic {
     ) => {{
         match ($a, $b) {
             (Value::UInt(a), Value::UInt(b)) => {
-                $self.registers[Register::R0] =
+                let value =
                     Value::UInt(u64::$int_op(a, b).ok_or_else(|| {
                         VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
                     })?);
+
+                $self.push_data_stack(value)?;
             }
             (Value::SInt(a), Value::SInt(b)) => {
-                $self.registers[Register::R0] =
+                let value =
                     Value::SInt(i64::$int_op(a, b).ok_or_else(|| {
                         VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
                     })?);
+
+                $self.push_data_stack(value)?;
             }
             (Value::Float(a), Value::Float(b)) => {
-                $self.registers[Register::R0] = Value::Float(f64::$float_op(a, b));
+                $self.push_data_stack(Value::Float(f64::$float_op(a, b)))?;
             }
             (Value::Address(a), Value::Address(b)) => {
-                $self.registers[Register::R0] =
+                let value =
                     Value::Address(usize::$int_op(a, b).ok_or_else(|| {
                         VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
-                    })?)
+                    })?);
+
+                $self.push_data_stack(value)?;
             }
-            _ => {
-                return Err(VmError::new(
-                    VmErrorKind::Type,
-                    &$self.current_frame,
-                ))
-            }
+            _ => return Err(VmError::new(VmErrorKind::Type, &$self.current_frame)),
         }
 
         Ok(Transition::Continue)
@@ -53,23 +54,18 @@ macro_rules! bin_bitwise {
     ) => {{
         match ($a, $b) {
             (Value::UInt(a), Value::UInt(b)) => {
-                $self.registers[Register::R0] = Value::UInt($op(a, b));
+                $self.push_data_stack(Value::UInt($op(a, b)))?;
             }
             (Value::SInt(a), Value::SInt(b)) => {
-                $self.registers[Register::R0] = Value::SInt($op(a, b));
+                $self.push_data_stack(Value::SInt($op(a, b)))?;
             }
             (Value::Bool(a), Value::Bool(b)) => {
-                $self.registers[Register::R0] = Value::Bool($op(a, b));
+                $self.push_data_stack(Value::Bool($op(a, b)))?;
             }
             (Value::Address(a), Value::Address(b)) => {
-                $self.registers[Register::R0] = Value::Address($op(a, b));
+                $self.push_data_stack(Value::Address($op(a, b)))?;
             }
-            _ => {
-                return Err(VmError::new(
-                    VmErrorKind::Type,
-                    &$self.current_frame,
-                ))
-            }
+            _ => return Err(VmError::new(VmErrorKind::Type, &$self.current_frame)),
         }
 
         Ok(Transition::Continue)
@@ -86,90 +82,89 @@ macro_rules! bin_shift {
         match ($a, $b) {
             (Value::UInt(a), Value::UInt(b)) => {
                 let b = u32::try_from(b).or_else(|_| {
-                    Err(VmError::new(
-                        VmErrorKind::Arithmetic,
-                        &$self.current_frame,
-                    ))
+                    Err(VmError::new(VmErrorKind::Arithmetic, &$self.current_frame))
                 })?;
-                $self.registers[Register::R0] = Value::UInt(u64::$op(a, b).ok_or_else(|| {
-                    VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
-                })?);
+
+                let value =
+                    Value::UInt(u64::$op(a, b).ok_or_else(|| {
+                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
+                    })?);
+
+                $self.push_data_stack(value)?;
             }
             (Value::UInt(a), Value::SInt(b)) => {
                 let b = u32::try_from(b).or_else(|_| {
-                    Err(VmError::new(
-                        VmErrorKind::Arithmetic,
-                        &$self.current_frame,
-                    ))
+                    Err(VmError::new(VmErrorKind::Arithmetic, &$self.current_frame))
                 })?;
-                $self.registers[Register::R0] = Value::UInt(u64::$op(a, b).ok_or_else(|| {
-                    VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
-                })?);
+
+                let value =
+                    Value::UInt(u64::$op(a, b).ok_or_else(|| {
+                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
+                    })?);
+
+                $self.push_data_stack(value)?;
             }
             (Value::SInt(a), Value::SInt(b)) => {
                 let b = u32::try_from(b).or_else(|_| {
-                    Err(VmError::new(
-                        VmErrorKind::Arithmetic,
-                        &$self.current_frame,
-                    ))
+                    Err(VmError::new(VmErrorKind::Arithmetic, &$self.current_frame))
                 })?;
-                $self.registers[Register::R0] = Value::SInt(i64::$op(a, b).ok_or_else(|| {
-                    VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
-                })?);
+
+                let value =
+                    Value::SInt(i64::$op(a, b).ok_or_else(|| {
+                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
+                    })?);
+
+                $self.push_data_stack(value)?;
             }
             (Value::SInt(a), Value::UInt(b)) => {
                 let b = u32::try_from(b).or_else(|_| {
-                    Err(VmError::new(
-                        VmErrorKind::Arithmetic,
-                        &$self.current_frame,
-                    ))
+                    Err(VmError::new(VmErrorKind::Arithmetic, &$self.current_frame))
                 })?;
-                $self.registers[Register::R0] = Value::SInt(i64::$op(a, b).ok_or_else(|| {
-                    VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
-                })?);
+
+                let value =
+                    Value::SInt(i64::$op(a, b).ok_or_else(|| {
+                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
+                    })?);
+
+                $self.push_data_stack(value)?;
             }
             (Value::Address(a), Value::Address(b)) => {
                 let b = u32::try_from(b).or_else(|_| {
-                    Err(VmError::new(
-                        VmErrorKind::Arithmetic,
-                        &$self.current_frame,
-                    ))
+                    Err(VmError::new(VmErrorKind::Arithmetic, &$self.current_frame))
                 })?;
-                $self.registers[Register::R0] =
+
+                let value =
                     Value::Address(usize::$op(a, b).ok_or_else(|| {
                         VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
-                    })?)
+                    })?);
+
+                $self.push_data_stack(value)?;
             }
             (Value::Address(a), Value::UInt(b)) => {
                 let b = u32::try_from(b).or_else(|_| {
-                    Err(VmError::new(
-                        VmErrorKind::Arithmetic,
-                        &$self.current_frame,
-                    ))
+                    Err(VmError::new(VmErrorKind::Arithmetic, &$self.current_frame))
                 })?;
-                $self.registers[Register::R0] =
+
+                let value =
                     Value::Address(usize::$op(a, b).ok_or_else(|| {
                         VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
-                    })?)
+                    })?);
+
+                $self.push_data_stack(value)?;
             }
             (Value::Address(a), Value::SInt(b)) => {
                 let b = u32::try_from(b).or_else(|_| {
-                    Err(VmError::new(
-                        VmErrorKind::Arithmetic,
-                        &$self.current_frame,
-                    ))
+                    Err(VmError::new(VmErrorKind::Arithmetic, &$self.current_frame))
                 })?;
-                $self.registers[Register::R0] =
+
+                let value =
                     Value::Address(usize::$op(a, b).ok_or_else(|| {
                         VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
-                    })?)
+                    })?);
+
+                $self.push_data_stack(value)?;
             }
-            _ => {
-                return Err(VmError::new(
-                    VmErrorKind::Type,
-                    &$self.current_frame,
-                ))
-            }
+            _ => return Err(VmError::new(VmErrorKind::Type, &$self.current_frame)),
         }
 
         Ok(Transition::Continue)
@@ -181,39 +176,35 @@ macro_rules! bin_compare {
         vm = $self:ident,
         a = $a:expr,
         b = $b:expr,
+        null = $null:literal,
         op = $op:path $(,)?
     ) => {{
         match ($a, $b) {
             (Value::Null, Value::Null) => {
-                $self.registers[Register::R0] = Value::Bool(true);
+                $self.push_data_stack(Value::Bool($null))?;
             }
             (Value::UInt(a), Value::UInt(b)) => {
-                $self.registers[Register::R0] = Value::Bool($op(&a, &b));
+                $self.push_data_stack(Value::Bool($op(&a, &b)))?;
             }
             (Value::SInt(a), Value::SInt(b)) => {
-                $self.registers[Register::R0] = Value::Bool($op(&a, &b));
+                $self.push_data_stack(Value::Bool($op(&a, &b)))?;
             }
             (Value::Float(a), Value::Float(b)) => {
-                $self.registers[Register::R0] = Value::Bool($op(&a, &b));
+                $self.push_data_stack(Value::Bool($op(&a, &b)))?;
             }
             (Value::Bool(a), Value::Bool(b)) => {
-                $self.registers[Register::R0] = Value::Bool($op(&a, &b));
+                $self.push_data_stack(Value::Bool($op(&a, &b)))?;
             }
             (Value::Char(a), Value::Char(b)) => {
-                $self.registers[Register::R0] = Value::Bool($op(&a, &b));
+                $self.push_data_stack(Value::Bool($op(&a, &b)))?;
             }
             (Value::Address(a), Value::Address(b)) => {
-                $self.registers[Register::R0] = Value::Bool($op(&a, &b));
+                $self.push_data_stack(Value::Bool($op(&a, &b)))?;
             }
             (Value::Object(a), Value::Object(b)) => {
-                $self.registers[Register::R0] = Value::Bool($op(&a, &b));
+                $self.push_data_stack(Value::Bool($op(&a, &b)))?;
             }
-            _ => {
-                return Err(VmError::new(
-                    VmErrorKind::Type,
-                    &$self.current_frame,
-                ))
-            }
+            _ => return Err(VmError::new(VmErrorKind::Type, &$self.current_frame)),
         }
 
         Ok(Transition::Continue)
@@ -240,112 +231,75 @@ impl Vm {
         Ok(Transition::Continue)
     }
 
-    // Push
-    #[inline]
-    pub(crate) fn push(&mut self, register: Register) -> OpResult {
-        self.push_data_stack(self.registers[register])?;
-        Ok(Transition::Continue)
-    }
+    // // Push
+    // #[inline]
+    // pub(crate) fn push(&mut self, register: Register) -> OpResult {
+    //     self.push_data_stack(self.registers[register])?;
+    //     Ok(Transition::Continue)
+    // }
 
     // Pop
     #[inline]
-    pub(crate) fn pop(&mut self, register: Register) -> OpResult {
-        let value = self.pop_data_stack()?;
-
-        self.registers[register] = value;
-        Ok(Transition::Continue)
-    }
-
-    // LoadRegister
-    #[inline]
-    pub(crate) fn load_reg(&mut self, register_src: Register, register_dst: Register) -> OpResult {
-        let value = self.registers[register_src];
-        self.registers[register_dst] = value;
-        Ok(Transition::Continue)
-    }
-
-    // LoadImmediate
-    #[inline]
-    pub(crate) fn load_imm(&mut self, value: Value, register: Register) -> OpResult {
-        self.registers[register] = value;
-        Ok(Transition::Continue)
-    }
-
-    // LoadMemory
-    #[inline]
-    pub(crate) fn load_mem(&mut self, index: usize, register: Register) -> OpResult {
-        let value = self.memory.get(index).copied().ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::InvalidAddress,
-                &self.current_frame,
-            )
-        })?;
-
-        self.registers[register] = value;
-        Ok(Transition::Continue)
-    }
-
-    // StoreRegister
-    #[inline]
-    pub(crate) fn store_reg(&mut self, register: Register, index: usize) -> OpResult {
-        let value = self.registers[register];
-
-        let location = self.memory.get_mut(index).ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::InvalidAddress,
-                &self.current_frame,
-            )
-        })?;
-
-        *location = value;
+    pub(crate) fn pop(&mut self) -> OpResult {
+        let _ = self.pop_data_stack()?;
 
         Ok(Transition::Continue)
     }
 
-    // StoreImmediate
-    #[inline]
-    pub(crate) fn store_imm(&mut self, value: Value, index: usize) -> OpResult {
-        let location = self.memory.get_mut(index).ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::InvalidAddress,
-                &self.current_frame,
-            )
-        })?;
+    // // StoreRegister
+    // #[inline]
+    // pub(crate) fn store_reg(&mut self,  index: usize) -> OpResult {
+    //     let value = self.registers[register];
 
-        *location = value;
+    //     let location = self
+    //         .memory
+    //         .get_mut(index)
+    //         .ok_or_else(|| VmError::new(VmErrorKind::InvalidAddress, &self.current_frame))?;
 
-        Ok(Transition::Continue)
-    }
+    //     *location = value;
 
-    // StoreMemory
-    #[inline]
-    pub(crate) fn store_mem(&mut self, index_src: usize, index_dst: usize) -> OpResult {
-        let value = self.memory.get(index_src).copied().ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::InvalidAddress,
-                &self.current_frame,
-            )
-        })?;
+    //     Ok(Transition::Continue)
+    // }
 
-        let dst = self.memory.get_mut(index_dst).ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::InvalidAddress,
-                &self.current_frame,
-            )
-        })?;
+    // // StoreImmediate
+    // #[inline]
+    // pub(crate) fn store_imm(&mut self, value: Value, index: usize) -> OpResult {
+    //     let location = self
+    //         .memory
+    //         .get_mut(index)
+    //         .ok_or_else(|| VmError::new(VmErrorKind::InvalidAddress, &self.current_frame))?;
 
-        *dst = value;
+    //     *location = value;
 
-        Ok(Transition::Continue)
-    }
+    //     Ok(Transition::Continue)
+    // }
+
+    // // StoreMemory
+    // #[inline]
+    // pub(crate) fn store_mem(&mut self, index_src: usize, index_dst: usize) -> OpResult {
+    //     let value = self
+    //         .memory
+    //         .get(index_src)
+    //         .copied()
+    //         .ok_or_else(|| VmError::new(VmErrorKind::InvalidAddress, &self.current_frame))?;
+
+    //     let dst = self
+    //         .memory
+    //         .get_mut(index_dst)
+    //         .ok_or_else(|| VmError::new(VmErrorKind::InvalidAddress, &self.current_frame))?;
+
+    //     *dst = value;
+
+    //     Ok(Transition::Continue)
+    // }
 
     // Add
     #[inline]
-    pub(crate) fn add(&mut self, register_a: Register, register_b: Register) -> OpResult {
+    pub(crate) fn add(&mut self) -> OpResult {
         bin_arithmetic! {
             vm = self,
-            a = self.registers[register_a],
-            b = self.registers[register_b],
+            a = self.get_data_stack(0)?,
+            b = self.get_data_stack(1)?,
             int_op = checked_add,
             float_op = add,
         }
@@ -353,10 +307,10 @@ impl Vm {
 
     // AddImmediate
     #[inline]
-    pub(crate) fn add_imm(&mut self, register: Register, value: Value) -> OpResult {
+    pub(crate) fn add_imm(&mut self, value: Value) -> OpResult {
         bin_arithmetic! {
             vm = self,
-            a = self.registers[register],
+            a = self.get_data_stack(0)?,
             b = value,
             int_op = checked_add,
             float_op = add,
@@ -365,11 +319,11 @@ impl Vm {
 
     // Sub
     #[inline]
-    pub(crate) fn sub(&mut self, register_a: Register, register_b: Register) -> OpResult {
+    pub(crate) fn sub(&mut self) -> OpResult {
         bin_arithmetic! {
             vm = self,
-            a = self.registers[register_a],
-            b = self.registers[register_b],
+            a = self.get_data_stack(0)?,
+            b = self.get_data_stack(1)?,
             int_op = checked_sub,
             float_op = sub,
         }
@@ -377,10 +331,10 @@ impl Vm {
 
     // SubImmediate
     #[inline]
-    pub(crate) fn sub_imm(&mut self, register: Register, value: Value) -> OpResult {
+    pub(crate) fn sub_imm(&mut self, value: Value) -> OpResult {
         bin_arithmetic! {
             vm = self,
-            a = self.registers[register],
+            a = self.get_data_stack(0)?,
             b = value,
             int_op = checked_sub,
             float_op = sub,
@@ -389,11 +343,11 @@ impl Vm {
 
     // Mul
     #[inline]
-    pub(crate) fn mul(&mut self, register_a: Register, register_b: Register) -> OpResult {
+    pub(crate) fn mul(&mut self) -> OpResult {
         bin_arithmetic! {
             vm = self,
-            a = self.registers[register_a],
-            b = self.registers[register_b],
+            a = self.get_data_stack(0)?,
+            b = self.get_data_stack(1)?,
             int_op = checked_mul,
             float_op = mul,
         }
@@ -401,10 +355,10 @@ impl Vm {
 
     // MulImmediate
     #[inline]
-    pub(crate) fn mul_imm(&mut self, register: Register, value: Value) -> OpResult {
+    pub(crate) fn mul_imm(&mut self, value: Value) -> OpResult {
         bin_arithmetic! {
             vm = self,
-            a = self.registers[register],
+            a = self.get_data_stack(0)?,
             b = value,
             int_op = checked_mul,
             float_op = mul,
@@ -413,11 +367,11 @@ impl Vm {
 
     // Div
     #[inline]
-    pub(crate) fn div(&mut self, register_a: Register, register_b: Register) -> OpResult {
+    pub(crate) fn div(&mut self) -> OpResult {
         bin_arithmetic! {
             vm = self,
-            a = self.registers[register_a],
-            b = self.registers[register_b],
+            a = self.get_data_stack(0)?,
+            b = self.get_data_stack(1)?,
             int_op = checked_div,
             float_op = div,
         }
@@ -425,10 +379,10 @@ impl Vm {
 
     // DivImmediate
     #[inline]
-    pub(crate) fn div_imm(&mut self, register: Register, value: Value) -> OpResult {
+    pub(crate) fn div_imm(&mut self, value: Value) -> OpResult {
         bin_arithmetic! {
             vm = self,
-            a = self.registers[register],
+            a = self.get_data_stack(0)?,
             b = value,
             int_op = checked_div,
             float_op = div,
@@ -437,11 +391,11 @@ impl Vm {
 
     // Rem
     #[inline]
-    pub(crate) fn rem(&mut self, register_a: Register, register_b: Register) -> OpResult {
+    pub(crate) fn rem(&mut self) -> OpResult {
         bin_arithmetic! {
             vm = self,
-            a = self.registers[register_a],
-            b = self.registers[register_b],
+            a = self.get_data_stack(0)?,
+            b = self.get_data_stack(1)?,
             int_op = checked_rem,
             float_op = rem,
         }
@@ -449,10 +403,10 @@ impl Vm {
 
     // RemImmediate
     #[inline]
-    pub(crate) fn rem_imm(&mut self, register: Register, value: Value) -> OpResult {
+    pub(crate) fn rem_imm(&mut self, value: Value) -> OpResult {
         bin_arithmetic! {
             vm = self,
-            a = self.registers[register],
+            a = self.get_data_stack(0)?,
             b = value,
             int_op = checked_rem,
             float_op = rem,
@@ -461,21 +415,21 @@ impl Vm {
 
     // And
     #[inline]
-    pub(crate) fn and(&mut self, register_a: Register, register_b: Register) -> OpResult {
+    pub(crate) fn and(&mut self) -> OpResult {
         bin_bitwise! {
             vm = self,
-            a = self.registers[register_a],
-            b = self.registers[register_b],
+            a = self.get_data_stack(0)?,
+            b = self.get_data_stack(1)?,
             op = BitAnd::bitand,
         }
     }
 
     // AndImmediate
     #[inline]
-    pub(crate) fn and_imm(&mut self, register: Register, value: Value) -> OpResult {
+    pub(crate) fn and_imm(&mut self, value: Value) -> OpResult {
         bin_bitwise! {
             vm = self,
-            a = self.registers[register],
+            a = self.get_data_stack(0)?,
             b = value,
             op = BitAnd::bitand,
         }
@@ -483,21 +437,21 @@ impl Vm {
 
     // Or
     #[inline]
-    pub(crate) fn or(&mut self, register_a: Register, register_b: Register) -> OpResult {
+    pub(crate) fn or(&mut self) -> OpResult {
         bin_bitwise! {
             vm = self,
-            a = self.registers[register_a],
-            b = self.registers[register_b],
+            a = self.get_data_stack(0)?,
+            b = self.get_data_stack(1)?,
             op = BitOr::bitor,
         }
     }
 
     // OrImmediate
     #[inline]
-    pub(crate) fn or_imm(&mut self, register: Register, value: Value) -> OpResult {
+    pub(crate) fn or_imm(&mut self, value: Value) -> OpResult {
         bin_bitwise! {
             vm = self,
-            a = self.registers[register],
+            a = self.get_data_stack(0)?,
             b = value,
             op = BitOr::bitor,
         }
@@ -505,21 +459,21 @@ impl Vm {
 
     // Xor
     #[inline]
-    pub(crate) fn xor(&mut self, register_a: Register, register_b: Register) -> OpResult {
+    pub(crate) fn xor(&mut self) -> OpResult {
         bin_bitwise! {
             vm = self,
-            a = self.registers[register_a],
-            b = self.registers[register_b],
+            a = self.get_data_stack(0)?,
+            b = self.get_data_stack(1)?,
             op = BitXor::bitxor,
         }
     }
 
     // XorImmediate
     #[inline]
-    pub(crate) fn xor_imm(&mut self, register: Register, value: Value) -> OpResult {
+    pub(crate) fn xor_imm(&mut self, value: Value) -> OpResult {
         bin_bitwise! {
             vm = self,
-            a = self.registers[register],
+            a = self.get_data_stack(0)?,
             b = value,
             op = BitXor::bitxor,
         }
@@ -527,28 +481,23 @@ impl Vm {
 
     // Not
     #[inline]
-    pub(crate) fn not(&mut self, register: Register) -> OpResult {
-        let value = self.registers[register];
+    pub(crate) fn not(&mut self) -> OpResult {
+        let value = self.get_data_stack(0)?;
 
         match value {
             Value::UInt(val) => {
-                self.registers[Register::R0] = Value::UInt(!val);
+                self.push_data_stack(Value::UInt(!val))?;
             }
             Value::SInt(val) => {
-                self.registers[Register::R0] = Value::SInt(!val);
+                self.push_data_stack(Value::SInt(!val))?;
             }
             Value::Bool(val) => {
-                self.registers[Register::R0] = Value::Bool(!val);
+                self.push_data_stack(Value::Bool(!val))?;
             }
             Value::Address(val) => {
-                self.registers[Register::R0] = Value::Address(!val);
+                self.push_data_stack(Value::Address(!val))?;
             }
-            _ => {
-                return Err(VmError::new(
-                    VmErrorKind::Type,
-                    &self.current_frame,
-                ))
-            }
+            _ => return Err(VmError::new(VmErrorKind::Type, &self.current_frame)),
         }
 
         Ok(Transition::Continue)
@@ -556,21 +505,21 @@ impl Vm {
 
     // ShiftRight
     #[inline]
-    pub(crate) fn shr(&mut self, register_a: Register, register_b: Register) -> OpResult {
+    pub(crate) fn shr(&mut self) -> OpResult {
         bin_shift! {
             vm = self,
-            a = self.registers[register_a],
-            b = self.registers[register_b],
+            a = self.get_data_stack(0)?,
+            b = self.get_data_stack(1)?,
             op = checked_shr,
         }
     }
 
     // ShiftRightImmediate
     #[inline]
-    pub(crate) fn shr_imm(&mut self, register: Register, value: Value) -> OpResult {
+    pub(crate) fn shr_imm(&mut self, value: Value) -> OpResult {
         bin_shift! {
             vm = self,
-            a = self.registers[register],
+            a = self.get_data_stack(0)?,
             b = value,
             op = checked_shr,
         }
@@ -578,21 +527,21 @@ impl Vm {
 
     // ShiftLeft
     #[inline]
-    pub(crate) fn shl(&mut self, register_a: Register, register_b: Register) -> OpResult {
+    pub(crate) fn shl(&mut self) -> OpResult {
         bin_shift! {
             vm = self,
-            a = self.registers[register_a],
-            b = self.registers[register_b],
+            a = self.get_data_stack(0)?,
+            b = self.get_data_stack(1)?,
             op = checked_shl,
         }
     }
 
     // ShiftLeftImmediate
     #[inline]
-    pub(crate) fn shl_imm(&mut self, register: Register, value: Value) -> OpResult {
+    pub(crate) fn shl_imm(&mut self, value: Value) -> OpResult {
         bin_shift! {
             vm = self,
-            a = self.registers[register],
+            a = self.get_data_stack(0)?,
             b = value,
             op = checked_shl,
         }
@@ -600,122 +549,131 @@ impl Vm {
 
     // Equals
     #[inline]
-    pub(crate) fn eq(&mut self, register_a: Register, register_b: Register) -> OpResult {
+    pub(crate) fn eq(&mut self) -> OpResult {
         bin_compare! {
             vm = self,
-            a = self.registers[register_a],
-            b = self.registers[register_b],
+            a = self.get_data_stack(0)?,
+            b = self.get_data_stack(1)?,
+            null = true,
             op = PartialEq::eq,
         }
     }
 
     // EqualsImmediate
     #[inline]
-    pub(crate) fn eq_imm(&mut self, register: Register, value: Value) -> OpResult {
+    pub(crate) fn eq_imm(&mut self, value: Value) -> OpResult {
         bin_compare! {
             vm = self,
-            a = self.registers[register],
+            a = self.get_data_stack(0)?,
             b = value,
+            null = true,
             op = PartialEq::eq,
         }
     }
 
     // GreaterThan
     #[inline]
-    pub(crate) fn gt(&mut self, register_a: Register, register_b: Register) -> OpResult {
+    pub(crate) fn gt(&mut self) -> OpResult {
         bin_compare! {
             vm = self,
-            a = self.registers[register_a],
-            b = self.registers[register_b],
+            a = self.get_data_stack(0)?,
+            b = self.get_data_stack(1)?,
+            null = false,
             op = PartialOrd::gt,
         }
     }
 
     // GreaterThanImmediate
     #[inline]
-    pub(crate) fn gt_imm(&mut self, register: Register, value: Value) -> OpResult {
+    pub(crate) fn gt_imm(&mut self, value: Value) -> OpResult {
         bin_compare! {
             vm = self,
-            a = self.registers[register],
+            a = self.get_data_stack(0)?,
             b = value,
+            null = false,
             op = PartialOrd::gt,
         }
     }
 
     // GreaterThanOrEqual
     #[inline]
-    pub(crate) fn ge(&mut self, register_a: Register, register_b: Register) -> OpResult {
+    pub(crate) fn ge(&mut self) -> OpResult {
         bin_compare! {
             vm = self,
-            a = self.registers[register_a],
-            b = self.registers[register_b],
+            a = self.get_data_stack(0)?,
+            b = self.get_data_stack(1)?,
+            null = true,
             op = PartialOrd::ge,
         }
     }
 
     // GreaterThanOrEqualImmediate
     #[inline]
-    pub(crate) fn ge_imm(&mut self, register: Register, value: Value) -> OpResult {
+    pub(crate) fn ge_imm(&mut self, value: Value) -> OpResult {
         bin_compare! {
             vm = self,
-            a = self.registers[register],
+            a = self.get_data_stack(0)?,
             b = value,
+            null = true,
             op = PartialOrd::ge,
         }
     }
 
     // LessThan
     #[inline]
-    pub(crate) fn lt(&mut self, register_a: Register, register_b: Register) -> OpResult {
+    pub(crate) fn lt(&mut self) -> OpResult {
         bin_compare! {
             vm = self,
-            a = self.registers[register_a],
-            b = self.registers[register_b],
+            a = self.get_data_stack(0)?,
+            b = self.get_data_stack(1)?,
+            null = false,
             op = PartialOrd::lt,
         }
     }
 
     // LessThanImmediate
     #[inline]
-    pub(crate) fn lt_imm(&mut self, register: Register, value: Value) -> OpResult {
+    pub(crate) fn lt_imm(&mut self, value: Value) -> OpResult {
         bin_compare! {
             vm = self,
-            a = self.registers[register],
+            a = self.get_data_stack(0)?,
             b = value,
+            null = false,
             op = PartialOrd::lt,
         }
     }
 
     // LessThanEqual
     #[inline]
-    pub(crate) fn le(&mut self, register_a: Register, register_b: Register) -> OpResult {
+    pub(crate) fn le(&mut self) -> OpResult {
         bin_compare! {
             vm = self,
-            a = self.registers[register_a],
-            b = self.registers[register_b],
+            a = self.get_data_stack(0)?,
+            b = self.get_data_stack(1)?,
+            null = true,
             op = PartialOrd::le,
         }
     }
 
     // LessThanEqualImmediate
     #[inline]
-    pub(crate) fn le_imm(&mut self, register: Register, value: Value) -> OpResult {
+    pub(crate) fn le_imm(&mut self, value: Value) -> OpResult {
         bin_compare! {
             vm = self,
-            a = self.registers[register],
+            a = self.get_data_stack(0)?,
             b = value,
+            null = true,
             op = PartialOrd::le,
         }
     }
 
     // Jump
     #[inline]
-    pub(crate) fn jump(&mut self, register: Register) -> OpResult {
+    pub(crate) fn jump(&mut self) -> OpResult {
         // TODO: *_or_else_err
-        let address = self.registers[register].address_or_err(VmError::new(
-            VmErrorKind::Type,
-            &self.current_frame,
-        ))?;
+        let address = self
+            .get_data_stack(0)?
+            .address_or_err(VmError::new(VmErrorKind::Type, &self.current_frame))?;
 
         self.jump_imm(address)
     }
@@ -730,42 +688,31 @@ impl Vm {
 
     // JumpConditional
     #[inline]
-    pub(crate) fn jump_cond(
-        &mut self,
-        condition_register: Register,
-        address_register: Register,
-    ) -> OpResult {
-        match self.registers[condition_register] {
-            Value::Bool(true) => self.jump(address_register),
+    pub(crate) fn jump_cond(&mut self) -> OpResult {
+        match self.get_data_stack(0)? {
+            Value::Bool(true) => self.jump(),
             Value::Bool(false) => Ok(Transition::Continue),
-            _ => Err(VmError::new(
-                VmErrorKind::Type,
-                &self.current_frame,
-            )),
+            _ => Err(VmError::new(VmErrorKind::Type, &self.current_frame)),
         }
     }
 
     // JumpConditionalImmediate
     #[inline]
-    pub(crate) fn jump_cond_imm(&mut self, register: Register, address: usize) -> OpResult {
-        match self.registers[register] {
+    pub(crate) fn jump_cond_imm(&mut self, address: usize) -> OpResult {
+        match self.get_data_stack(0)? {
             Value::Bool(true) => self.jump_imm(address),
             Value::Bool(false) => Ok(Transition::Continue),
-            _ => Err(VmError::new(
-                VmErrorKind::Type,
-                &self.current_frame,
-            )),
+            _ => Err(VmError::new(VmErrorKind::Type, &self.current_frame)),
         }
     }
 
     // Call
     #[inline]
-    pub(crate) fn call(&mut self, register: Register) -> OpResult {
+    pub(crate) fn call(&mut self) -> OpResult {
         // TODO: *_or_else_err
-        let symbol = self.registers[register].symbol_or_err(VmError::new(
-            VmErrorKind::Type,
-            &self.current_frame,
-        ))?;
+        let symbol = self
+            .get_data_stack(0)?
+            .symbol_or_err(VmError::new(VmErrorKind::Type, &self.current_frame))?;
 
         self.call_imm(symbol)
     }
@@ -793,7 +740,7 @@ impl Vm {
         let native = self.resolve_native_function(symbol)?;
 
         if let Some(value) = native(self) {
-            self.registers[Register::R0] = value;
+            self.push_data_stack(value)?;
         };
 
         Ok(Transition::Continue)
@@ -808,21 +755,21 @@ impl Vm {
     }
 
     // InitializeObject
-    pub(crate) fn init_object(&mut self, register: Register) -> OpResult {
-        let symbol = self.registers[register].symbol_or_err(VmError::new(
-            VmErrorKind::Type,
-            &self.current_frame,
-        ))?;
-        let name = self.program.symbols.get(symbol).ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::SymbolNotFound,
-                &self.current_frame,
-            )
-        })?;
+    pub(crate) fn init_object(&mut self) -> OpResult {
+        let symbol = self
+            .get_data_stack(0)?
+            .symbol_or_err(VmError::new(VmErrorKind::Type, &self.current_frame))?;
+        let name = self
+            .program
+            .symbols
+            .get(symbol)
+            .ok_or_else(|| VmError::new(VmErrorKind::SymbolNotFound, &self.current_frame))?;
 
-        let ty = self.program.types.get(name).ok_or_else(|| {
-            VmError::new(VmErrorKind::TypeNotFound, &self.current_frame)
-        })?;
+        let ty = self
+            .program
+            .types
+            .get(name)
+            .ok_or_else(|| VmError::new(VmErrorKind::TypeNotFound, &self.current_frame))?;
 
         let called_func = ty.operators.init.clone();
 
@@ -837,27 +784,25 @@ impl Vm {
     }
 
     // IndexObject
-    pub(crate) fn index_object(&mut self, register: Register) -> OpResult {
-        let symbol = self.registers[register].symbol_or_err(VmError::new(
-            VmErrorKind::Type,
-            &self.current_frame,
-        ))?;
-        let name = self.program.symbols.get(symbol).ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::SymbolNotFound,
-                &self.current_frame,
-            )
-        })?;
-        let ty = self.program.types.get(name).ok_or_else(|| {
-            VmError::new(VmErrorKind::TypeNotFound, &self.current_frame)
-        })?;
+    pub(crate) fn index_object(&mut self) -> OpResult {
+        let symbol = self
+            .get_data_stack(0)?
+            .symbol_or_err(VmError::new(VmErrorKind::Type, &self.current_frame))?;
+        let name = self
+            .program
+            .symbols
+            .get(symbol)
+            .ok_or_else(|| VmError::new(VmErrorKind::SymbolNotFound, &self.current_frame))?;
+        let ty = self
+            .program
+            .types
+            .get(name)
+            .ok_or_else(|| VmError::new(VmErrorKind::TypeNotFound, &self.current_frame))?;
 
-        let called_func = ty.operators.index.clone().ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::OperatorNotSupported,
-                &self.current_frame,
-            )
-        })?;
+        let called_func =
+            ty.operators.index.clone().ok_or_else(|| {
+                VmError::new(VmErrorKind::OperatorNotSupported, &self.current_frame)
+            })?;
 
         let caller = mem::replace(
             &mut self.current_frame,
@@ -869,14 +814,14 @@ impl Vm {
         Ok(Transition::Continue)
     }
 
-    // DebugRegister
-    #[inline]
-    pub(crate) fn dbg_reg(&self, register: Register) -> OpResult {
-        let value = self.registers[register];
+    // // DebugRegister
+    // #[inline]
+    // pub(crate) fn dbg_reg(&self, register: Register) -> OpResult {
+    //     let value = self.registers[register];
 
-        eprintln!("Register {register:?}: {value:?}");
-        Ok(Transition::Continue)
-    }
+    //     eprintln!("Register {register:?}: {value:?}");
+    //     Ok(Transition::Continue)
+    // }
 
     // DebugMemory
     #[inline]

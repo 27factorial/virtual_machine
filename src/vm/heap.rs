@@ -5,7 +5,7 @@ use strum::IntoEnumIterator;
 
 use crate::{gc_box, object::VmObject, value::Value, vm::gc::GcBox};
 
-use super::{memory::ValueMemory, Register, RegisterIter, Registers};
+use super::memory::ValueMemory;
 
 pub struct Heap {
     memory: Vec<Option<GcBox<dyn VmObject>>>,
@@ -66,12 +66,12 @@ impl Heap {
         }
     }
 
-    pub fn collect(&mut self, roots: RootsIter<'_>) {
+    pub fn collect(&mut self, roots: impl IntoIterator<Item = ObjectRef>) {
         self.mark_from_roots(roots);
         self.sweep();
     }
 
-    pub fn mark_from_roots(&mut self, roots: RootsIter<'_>) {
+    pub fn mark_from_roots(&mut self, roots: impl IntoIterator<Item = ObjectRef>) {
         for root in roots {
             let Some(object) = self.memory.get_mut(root.0).and_then(|opt| opt.as_mut()) else {
                 continue;
@@ -106,7 +106,9 @@ impl Heap {
     }
 
     pub fn get_mut(&mut self, object: ObjectRef) -> Option<&mut dyn VmObject> {
-        self.memory.get_mut(object.0).and_then(|opt| opt.as_deref_mut())
+        self.memory
+            .get_mut(object.0)
+            .and_then(|opt| opt.as_deref_mut())
     }
 
     fn mark_children(&mut self) {
@@ -142,46 +144,3 @@ impl Heap {
     Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize, Deserialize,
 )]
 pub struct ObjectRef(usize);
-
-pub struct RootsIter<'a> {
-    registers: &'a Registers,
-    memory: &'a ValueMemory,
-    registers_iter: RegisterIter,
-    idx: usize,
-}
-
-impl<'a> RootsIter<'a> {
-    pub fn new(registers: &'a Registers, memory: &'a ValueMemory) -> Self {
-        Self {
-            registers,
-            memory,
-            registers_iter: Register::iter(),
-            idx: 0,
-        }
-    }
-}
-
-impl Iterator for RootsIter<'_> {
-    type Item = ObjectRef;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.idx == self.memory.len() {
-            return None;
-        }
-
-        let value = match self.registers_iter.next() {
-            Some(register) => self.registers[register],
-            None => {
-                let v = self.memory[self.idx];
-                self.idx += 1;
-                v
-            }
-        };
-
-        let Value::Object(idx) = value else {
-            return None;
-        };
-
-        Some(idx)
-    }
-}
