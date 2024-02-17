@@ -5,7 +5,7 @@ use strum::IntoEnumIterator;
 
 use crate::{gc_box, object::VmObject, value::Value, vm::gc::GcBox};
 
-use super::{memory::ValueMemory, Register, RegisterIter, Registers};
+use super::memory::ValueMemory;
 
 pub struct Heap {
     memory: Vec<Option<GcBox<dyn VmObject>>>,
@@ -106,7 +106,9 @@ impl Heap {
     }
 
     pub fn get_mut(&mut self, object: ObjectRef) -> Option<&mut dyn VmObject> {
-        self.memory.get_mut(object.0).and_then(|opt| opt.as_deref_mut())
+        self.memory
+            .get_mut(object.0)
+            .and_then(|opt| opt.as_deref_mut())
     }
 
     fn mark_children(&mut self) {
