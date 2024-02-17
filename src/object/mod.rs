@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{any::{Any, TypeId}, sync::Arc};
 
 use crate::{
-    ops::{Function, OpCode},
+    vm::ops::{Function, OpCode},
     program::Program,
     utils::HashMap,
     value::Value, vm::gc::GcBox,

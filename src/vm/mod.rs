@@ -4,12 +4,12 @@ use self::{
 };
 use crate::{
     object::VmObject,
-    ops::{Function, OpCode, Transition, VmError, VmErrorKind},
     program::{NativeFn, Path, Program},
     string::SymbolIndex,
     utils::HashMap,
     value::Value,
 };
+use ops::{Function, OpCode, Transition, VmError, VmErrorKind};
 use serde_repr::{Deserialize_repr as DeserializeRepr, Serialize_repr as SerializeRepr};
 use std::{
     mem,
@@ -21,7 +21,8 @@ use strum::{EnumCount, EnumIter};
 pub mod gc;
 pub mod heap;
 pub mod memory;
-pub(crate) mod ops_impl;
+pub mod ops;
+mod ops_impl;
 
 pub struct Vm {
     current_frame: CallFrame,

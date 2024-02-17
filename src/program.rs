@@ -1,14 +1,17 @@
 use serde::{Deserialize, Serialize};
-use std::{sync::Arc};
+use std::sync::Arc;
 
 use hashbrown::hash_map::RawEntryMut;
 
 use crate::{
     object::VmType,
-    ops::{Function, OpCode},
     string::{SymbolIndex, Symbols},
     utils::HashMap,
-    value::Value, vm::Vm,
+    value::Value,
+    vm::{
+        ops::{Function, OpCode},
+        Vm,
+    },
 };
 
 const VALID_MAGIC: &[u8; 7] = b"27FCTRL";
@@ -64,7 +67,11 @@ impl Program {
         }
     }
 
-    pub fn define_native_function<F: Fn(&mut Vm) -> Option<Value> + 'static>(&mut self, symbol: SymbolIndex, func: F) -> Result<(), F> {
+    pub fn define_native_function<F: Fn(&mut Vm) -> Option<Value> + 'static>(
+        &mut self,
+        symbol: SymbolIndex,
+        func: F,
+    ) -> Result<(), F> {
         if let Some(name) = self.symbols.get(symbol) {
             match self.native_functions.raw_entry_mut().from_key(name) {
                 RawEntryMut::Vacant(entry) => {
