@@ -1,6 +1,12 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::{ops::OpCode, program::Program, string::SymbolIndex, value::Value, vm::Vm};
+use crate::{
+    ops::OpCode,
+    program::Program,
+    string::SymbolIndex,
+    value::Value,
+    vm::{Register, Vm},
+};
 
 use super::{Operations, VmObject, VmType};
 
@@ -55,7 +61,8 @@ impl Operations for Array {
 impl VmObject for Array {
     fn register_type(program: &mut Program) -> &VmType
     where
-        Self: Sized {
+        Self: Sized,
+    {
         todo!()
     }
 
