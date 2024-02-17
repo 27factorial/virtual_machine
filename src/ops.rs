@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     string::SymbolIndex,
     value::Value,
-    vm::{CallFrame, Register, Vm},
+    vm::{CallFrame, Vm},
 };
 
 use std::{ops::Index, slice::SliceIndex, sync::Arc};
@@ -25,10 +25,8 @@ pub enum OpCode {
     /// Push an immediate value to the top of the stack.
     /// Corresponds to the PushImmediate instruction.
     PushImm(Value),
-    /// Push the value in a register to the top of the stack.
-    Push(Register),
     /// Pop the value at the top of the stack into a register
-    Pop(Register),
+    Pop,
 
     /// Add the value in the first register to the value in the second register, putting the result
     /// into the accumulator register.
@@ -164,8 +162,8 @@ impl OpCode {
             Op::NoOp => vm.noop(),
             Op::Halt => vm.halt(),
             Op::PushImm(value) => vm.push_imm(value),
-            Op::Push(register) => vm.push(register),
-            Op::Pop(register) => vm.pop(register),
+            // Op::Push(register) => vm.push(register),
+            Op::Pop => vm.pop(),
             Op::Add => vm.add(),
             Op::AddImm(value) => vm.add_imm(value),
             Op::Sub => vm.sub(),

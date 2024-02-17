@@ -1,5 +1,5 @@
 use self::{
-    heap::{Heap, ObjectRef, RootsIter},
+    heap::{Heap, ObjectRef},
     memory::{CallStack, ValueMemory},
 };
 use crate::{
@@ -61,12 +61,9 @@ impl Vm {
     }
 
     pub fn push_call_stack(&mut self, frame: CallFrame) -> Result<(), VmError> {
-        self.call_stack.push(frame).map_err(|_| {
-            VmError::new(
-                VmErrorKind::StackOverflow,
-                Some(&self.current_frame),
-            )
-        })
+        self.call_stack
+            .push(frame)
+            .map_err(|_| VmError::new(VmErrorKind::StackOverflow, Some(&self.current_frame)))
     }
 
     pub fn pop_call_stack(&mut self) -> Result<CallFrame, VmError> {
@@ -77,21 +74,36 @@ impl Vm {
     }
 
     pub fn push_data_stack(&mut self, value: Value) -> Result<(), VmError> {
-        self.memory.push(value).map_err(|_| {
-            VmError::new(
-                VmErrorKind::StackOverflow,
-                Some(&self.current_frame),
-            )
-        })
+        self.memory
+            .push(value)
+            .map_err(|_| VmError::new(VmErrorKind::StackOverflow, Some(&self.current_frame)))
     }
 
     pub fn pop_data_stack(&mut self) -> Result<Value, VmError> {
-        self.memory.pop().ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::StackUnderflow,
-                Some(&self.current_frame),
-            )
-        })
+        self.memory
+            .pop()
+            .ok_or_else(|| VmError::new(VmErrorKind::StackUnderflow, Some(&self.current_frame)))
+    }
+
+    pub fn get_data_stack(&self, index: usize) -> Result<Value, VmError> {
+        let index = (self.memory.len().checked_sub(1))
+            .and_then(|last| last.checked_sub(index))
+            .ok_or_else(|| VmError::new(VmErrorKind::StackUnderflow, &self.current_frame))?;
+
+        self.memory
+            .get(index)
+            .cloned()
+            .ok_or_else(|| VmError::new(VmErrorKind::StackUnderflow, &self.current_frame))
+    }
+
+    pub fn get_data_stack_mut(&mut self, index: usize) -> Result<&mut Value, VmError> {
+        let index = (self.memory.len().checked_sub(1))
+            .and_then(|last| last.checked_sub(index))
+            .ok_or_else(|| VmError::new(VmErrorKind::StackUnderflow, &self.current_frame))?;
+
+        self.memory
+            .get_mut(index)
+            .ok_or_else(|| VmError::new(VmErrorKind::StackUnderflow, &self.current_frame))
     }
 
     pub fn current_op(&self) -> Option<OpCode> {
@@ -117,8 +129,9 @@ impl Vm {
         match self.heap.alloc(value) {
             Ok(object) => object,
             Err(value) => {
-                self.heap
-                    .collect(RootsIter::new(&self.registers, &self.memory));
+                let iter = self.memory.iter().copied().filter_map(Value::object);
+
+                self.heap.collect(iter);
 
                 self.heap.alloc(value).unwrap_or_else(|_| {
                     panic!(
@@ -131,12 +144,10 @@ impl Vm {
     }
 
     pub fn resolve_native_function(&self, symbol: SymbolIndex) -> Result<Arc<NativeFn>, VmError> {
-        let name = self.program.symbols.get(symbol).ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::SymbolNotFound,
-                Some(&self.current_frame),
-            )
-        })?;
+        let name =
+            self.program.symbols.get(symbol).ok_or_else(|| {
+                VmError::new(VmErrorKind::SymbolNotFound, Some(&self.current_frame))
+            })?;
 
         let function = self
             .program
@@ -144,28 +155,20 @@ impl Vm {
             .get(name)
             .cloned()
             .ok_or_else(|| {
-                VmError::new(
-                    VmErrorKind::FunctionNotFound,
-                    Some(&self.current_frame),
-                )
+                VmError::new(VmErrorKind::FunctionNotFound, Some(&self.current_frame))
             })?;
 
         Ok(function)
     }
 
     pub fn resolve_function(&self, symbol: SymbolIndex) -> Result<Function, VmError> {
-        let name = self.program.symbols.get(symbol).ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::SymbolNotFound,
-                Some(&self.current_frame),
-            )
-        })?;
+        let name =
+            self.program.symbols.get(symbol).ok_or_else(|| {
+                VmError::new(VmErrorKind::SymbolNotFound, Some(&self.current_frame))
+            })?;
 
         let path = Path::new(name).ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::FunctionNotFound,
-                Some(&self.current_frame),
-            )
+            VmError::new(VmErrorKind::FunctionNotFound, Some(&self.current_frame))
         })?;
 
         let functions = match path.object {
@@ -179,10 +182,7 @@ impl Vm {
         };
 
         let function = functions.get(path.member).cloned().ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::FunctionNotFound,
-                Some(&self.current_frame),
-            )
+            VmError::new(VmErrorKind::FunctionNotFound, Some(&self.current_frame))
         })?;
 
         Ok(function)
@@ -191,10 +191,7 @@ impl Vm {
     #[cfg(test)]
     pub fn reset(&mut self) -> Result<(), VmError> {
         let main = self.program.functions.get("main").cloned().ok_or_else(|| {
-            VmError::new(
-                VmErrorKind::FunctionNotFound,
-                Some(&self.current_frame),
-            )
+            VmError::new(VmErrorKind::FunctionNotFound, Some(&self.current_frame))
         })?;
 
         self.current_frame = CallFrame::new(Arc::from("main"), main, 0);
