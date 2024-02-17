@@ -9,14 +9,14 @@ use crate::{
     utils::HashMap,
     value::Value,
     vm::{
-        ops::{Function, OpCode},
+        ops::{Function, OpCode, VmError},
         Vm,
     },
 };
 
 const VALID_MAGIC: &[u8; 7] = b"27FCTRL";
 
-pub type NativeFn = dyn Fn(&mut Vm) -> Option<Value> + 'static;
+pub type NativeFn = dyn Fn(&mut Vm) -> Result<Value, VmError> + 'static;
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Program {
@@ -67,11 +67,10 @@ impl Program {
         }
     }
 
-    pub fn define_native_function<F: Fn(&mut Vm) -> Option<Value> + 'static>(
-        &mut self,
-        symbol: SymbolIndex,
-        func: F,
-    ) -> Result<(), F> {
+    pub fn define_native_function<F>(&mut self, symbol: SymbolIndex, func: F) -> Result<(), F>
+    where
+        F: Fn(&mut Vm) -> Result<Value, VmError> + 'static,
+    {
         if let Some(name) = self.symbols.get(symbol) {
             match self.native_functions.raw_entry_mut().from_key(name) {
                 RawEntryMut::Vacant(entry) => {

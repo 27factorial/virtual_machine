@@ -7,6 +7,11 @@ macro_rules! variant_methods {
         impl Value {
             paste! {
                 $(
+                    #[doc = "Returns `true` if the `Value` is " $article " `" $variant "`."]
+                    pub fn [<is_ $variant:lower>](self) -> bool {
+                        matches!(self, Self::$variant(_))
+                    }
+
                     #[doc = "Converts from `Value` to `Option<" $inner_ty ">`, discarding"]
                     #[doc = "the value is `self` is not"]
                     #[doc = " " $article " "]
@@ -66,6 +71,12 @@ pub enum Value {
     Symbol(SymbolIndex),
     /// An object reference, referring to some data in the object heap.
     Object(ObjectRef),
+}
+
+impl Value {
+    pub fn is_null(self) -> bool {
+        matches!(self, Self::Null)
+    }
 }
 
 variant_methods! {

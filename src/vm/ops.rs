@@ -220,14 +220,14 @@ pub enum Transition {
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
 pub struct VmError {
     kind: VmErrorKind,
-    current_frame: Option<CallFrame>,
+    frame: Option<CallFrame>,
 }
 
 impl VmError {
-    pub fn new<'a>(kind: VmErrorKind, current_frame: impl Into<Option<&'a CallFrame>>) -> Self {
+    pub fn new<'a>(kind: VmErrorKind, frame: impl Into<Option<&'a CallFrame>>) -> Self {
         Self {
             kind,
-            current_frame: current_frame.into().cloned(),
+            frame: frame.into().cloned(),
         }
     }
 }
@@ -244,6 +244,8 @@ pub enum VmErrorKind {
     SymbolNotFound,
     TypeNotFound,
     OperatorNotSupported,
+    InvalidObject,
+    OutOfBounds,
 }
 
 #[derive(Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
@@ -301,14 +303,14 @@ mod imp {
             match ($a, $b) {
                 (Value::UInt(a), Value::UInt(b)) => {
                     let value = Value::UInt(u64::$int_op(a, b).ok_or_else(|| {
-                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
+                        VmError::new(VmErrorKind::Arithmetic, &$self.frame)
                     })?);
 
                     $self.push_data_stack(value)?;
                 }
                 (Value::SInt(a), Value::SInt(b)) => {
                     let value = Value::SInt(i64::$int_op(a, b).ok_or_else(|| {
-                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
+                        VmError::new(VmErrorKind::Arithmetic, &$self.frame)
                     })?);
 
                     $self.push_data_stack(value)?;
@@ -318,12 +320,12 @@ mod imp {
                 }
                 (Value::Address(a), Value::Address(b)) => {
                     let value = Value::Address(usize::$int_op(a, b).ok_or_else(|| {
-                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
+                        VmError::new(VmErrorKind::Arithmetic, &$self.frame)
                     })?);
 
                     $self.push_data_stack(value)?;
                 }
-                _ => return Err(VmError::new(VmErrorKind::Type, &$self.current_frame)),
+                _ => return Err(VmError::new(VmErrorKind::Type, &$self.frame)),
             }
 
             Ok(Transition::Continue)
@@ -350,7 +352,7 @@ mod imp {
                 (Value::Address(a), Value::Address(b)) => {
                     $self.push_data_stack(Value::Address($op(a, b)))?;
                 }
-                _ => return Err(VmError::new(VmErrorKind::Type, &$self.current_frame)),
+                _ => return Err(VmError::new(VmErrorKind::Type, &$self.frame)),
             }
 
             Ok(Transition::Continue)
@@ -367,82 +369,82 @@ mod imp {
             match ($a, $b) {
                 (Value::UInt(a), Value::UInt(b)) => {
                     let b = u32::try_from(b).or_else(|_| {
-                        Err(VmError::new(VmErrorKind::Arithmetic, &$self.current_frame))
+                        Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame))
                     })?;
 
                     let value = Value::UInt(u64::$op(a, b).ok_or_else(|| {
-                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
+                        VmError::new(VmErrorKind::Arithmetic, &$self.frame)
                     })?);
 
                     $self.push_data_stack(value)?;
                 }
                 (Value::UInt(a), Value::SInt(b)) => {
                     let b = u32::try_from(b).or_else(|_| {
-                        Err(VmError::new(VmErrorKind::Arithmetic, &$self.current_frame))
+                        Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame))
                     })?;
 
                     let value = Value::UInt(u64::$op(a, b).ok_or_else(|| {
-                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
+                        VmError::new(VmErrorKind::Arithmetic, &$self.frame)
                     })?);
 
                     $self.push_data_stack(value)?;
                 }
                 (Value::SInt(a), Value::SInt(b)) => {
                     let b = u32::try_from(b).or_else(|_| {
-                        Err(VmError::new(VmErrorKind::Arithmetic, &$self.current_frame))
+                        Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame))
                     })?;
 
                     let value = Value::SInt(i64::$op(a, b).ok_or_else(|| {
-                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
+                        VmError::new(VmErrorKind::Arithmetic, &$self.frame)
                     })?);
 
                     $self.push_data_stack(value)?;
                 }
                 (Value::SInt(a), Value::UInt(b)) => {
                     let b = u32::try_from(b).or_else(|_| {
-                        Err(VmError::new(VmErrorKind::Arithmetic, &$self.current_frame))
+                        Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame))
                     })?;
 
                     let value = Value::SInt(i64::$op(a, b).ok_or_else(|| {
-                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
+                        VmError::new(VmErrorKind::Arithmetic, &$self.frame)
                     })?);
 
                     $self.push_data_stack(value)?;
                 }
                 (Value::Address(a), Value::Address(b)) => {
                     let b = u32::try_from(b).or_else(|_| {
-                        Err(VmError::new(VmErrorKind::Arithmetic, &$self.current_frame))
+                        Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame))
                     })?;
 
                     let value = Value::Address(usize::$op(a, b).ok_or_else(|| {
-                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
+                        VmError::new(VmErrorKind::Arithmetic, &$self.frame)
                     })?);
 
                     $self.push_data_stack(value)?;
                 }
                 (Value::Address(a), Value::UInt(b)) => {
                     let b = u32::try_from(b).or_else(|_| {
-                        Err(VmError::new(VmErrorKind::Arithmetic, &$self.current_frame))
+                        Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame))
                     })?;
 
                     let value = Value::Address(usize::$op(a, b).ok_or_else(|| {
-                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
+                        VmError::new(VmErrorKind::Arithmetic, &$self.frame)
                     })?);
 
                     $self.push_data_stack(value)?;
                 }
                 (Value::Address(a), Value::SInt(b)) => {
                     let b = u32::try_from(b).or_else(|_| {
-                        Err(VmError::new(VmErrorKind::Arithmetic, &$self.current_frame))
+                        Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame))
                     })?;
 
                     let value = Value::Address(usize::$op(a, b).ok_or_else(|| {
-                        VmError::new(VmErrorKind::Arithmetic, &$self.current_frame)
+                        VmError::new(VmErrorKind::Arithmetic, &$self.frame)
                     })?);
 
                     $self.push_data_stack(value)?;
                 }
-                _ => return Err(VmError::new(VmErrorKind::Type, &$self.current_frame)),
+                _ => return Err(VmError::new(VmErrorKind::Type, &$self.frame)),
             }
 
             Ok(Transition::Continue)
@@ -482,7 +484,7 @@ mod imp {
                 (Value::Object(a), Value::Object(b)) => {
                     $self.push_data_stack(Value::Bool($op(&a, &b)))?;
                 }
-                _ => return Err(VmError::new(VmErrorKind::Type, &$self.current_frame)),
+                _ => return Err(VmError::new(VmErrorKind::Type, &$self.frame)),
             }
 
             Ok(Transition::Continue)
@@ -532,7 +534,7 @@ mod imp {
         //     let location = self
         //         .memory
         //         .get_mut(index)
-        //         .ok_or_else(|| VmError::new(VmErrorKind::InvalidAddress, &self.current_frame))?;
+        //         .ok_or_else(|| VmError::new(VmErrorKind::InvalidAddress, &self.frame))?;
 
         //     *location = value;
 
@@ -545,7 +547,7 @@ mod imp {
         //     let location = self
         //         .memory
         //         .get_mut(index)
-        //         .ok_or_else(|| VmError::new(VmErrorKind::InvalidAddress, &self.current_frame))?;
+        //         .ok_or_else(|| VmError::new(VmErrorKind::InvalidAddress, &self.frame))?;
 
         //     *location = value;
 
@@ -559,12 +561,12 @@ mod imp {
         //         .memory
         //         .get(index_src)
         //         .copied()
-        //         .ok_or_else(|| VmError::new(VmErrorKind::InvalidAddress, &self.current_frame))?;
+        //         .ok_or_else(|| VmError::new(VmErrorKind::InvalidAddress, &self.frame))?;
 
         //     let dst = self
         //         .memory
         //         .get_mut(index_dst)
-        //         .ok_or_else(|| VmError::new(VmErrorKind::InvalidAddress, &self.current_frame))?;
+        //         .ok_or_else(|| VmError::new(VmErrorKind::InvalidAddress, &self.frame))?;
 
         //     *dst = value;
 
@@ -775,7 +777,7 @@ mod imp {
                 Value::Address(val) => {
                     self.push_data_stack(Value::Address(!val))?;
                 }
-                _ => return Err(VmError::new(VmErrorKind::Type, &self.current_frame)),
+                _ => return Err(self.error(VmErrorKind::Type)),
             }
 
             Ok(Transition::Continue)
@@ -951,7 +953,7 @@ mod imp {
             // TODO: *_or_else_err
             let address = self
                 .get_data_stack(0)?
-                .address_or_err(VmError::new(VmErrorKind::Type, &self.current_frame))?;
+                .address_or_err(self.error(VmErrorKind::Type))?;
 
             self.op_jump_imm(address)
         }
@@ -959,7 +961,7 @@ mod imp {
         // jmpi
         #[inline]
         pub(super) fn op_jump_imm(&mut self, address: usize) -> OpResult {
-            self.current_frame.ip = address;
+            self.frame.ip = address;
 
             Ok(Transition::Jump)
         }
@@ -970,7 +972,7 @@ mod imp {
             match self.get_data_stack(0)? {
                 Value::Bool(true) => self.op_jump(),
                 Value::Bool(false) => Ok(Transition::Continue),
-                _ => Err(VmError::new(VmErrorKind::Type, &self.current_frame)),
+                _ => Err(self.error(VmErrorKind::Type)),
             }
         }
 
@@ -980,7 +982,7 @@ mod imp {
             match self.get_data_stack(0)? {
                 Value::Bool(true) => self.op_jump_imm(address),
                 Value::Bool(false) => Ok(Transition::Continue),
-                _ => Err(VmError::new(VmErrorKind::Type, &self.current_frame)),
+                _ => Err(self.error(VmErrorKind::Type)),
             }
         }
 
@@ -990,7 +992,7 @@ mod imp {
             // TODO: *_or_else_err
             let symbol = self
                 .get_data_stack(0)?
-                .symbol_or_err(VmError::new(VmErrorKind::Type, &self.current_frame))?;
+                .symbol_or_err(self.error(VmErrorKind::Type))?;
 
             self.op_call_imm(symbol)
         }
@@ -1003,7 +1005,7 @@ mod imp {
             let name = self.program.symbols.get(symbol).unwrap();
 
             let caller = mem::replace(
-                &mut self.current_frame,
+                &mut self.frame,
                 CallFrame::new(Arc::from(name), called_func, 0),
             );
 
@@ -1017,9 +1019,11 @@ mod imp {
         pub(super) fn op_call_native(&mut self, symbol: SymbolIndex) -> OpResult {
             let native = self.resolve_native_function(symbol)?;
 
-            if let Some(value) = native(self) {
+            let value = native(self)?;
+
+            if !value.is_null() {
                 self.push_data_stack(value)?;
-            };
+            }
 
             Ok(Transition::Continue)
         }
@@ -1027,7 +1031,7 @@ mod imp {
         // ret
         #[inline]
         pub(super) fn op_ret(&mut self) -> OpResult {
-            self.current_frame = self.pop_call_stack()?;
+            self.frame = self.pop_call_stack()?;
 
             Ok(Transition::Continue)
         }
@@ -1036,22 +1040,23 @@ mod imp {
         pub(super) fn op_init_object(&mut self) -> OpResult {
             let symbol = self
                 .get_data_stack(0)?
-                .symbol_or_err(VmError::new(VmErrorKind::Type, &self.current_frame))?;
-            let name =
-                self.program.symbols.get(symbol).ok_or_else(|| {
-                    VmError::new(VmErrorKind::SymbolNotFound, &self.current_frame)
-                })?;
+                .symbol_or_err(self.error(VmErrorKind::Type))?;
+            let name = self
+                .program
+                .symbols
+                .get(symbol)
+                .ok_or_else(|| self.error(VmErrorKind::SymbolNotFound))?;
 
             let ty = self
                 .program
                 .types
                 .get(name)
-                .ok_or_else(|| VmError::new(VmErrorKind::TypeNotFound, &self.current_frame))?;
+                .ok_or_else(|| self.error(VmErrorKind::TypeNotFound))?;
 
             let called_func = ty.operators.init.clone();
 
             let caller = mem::replace(
-                &mut self.current_frame,
+                &mut self.frame,
                 CallFrame::new(Arc::from(name), called_func, 0),
             );
 
@@ -1064,23 +1069,26 @@ mod imp {
         pub(super) fn op_index_object(&mut self) -> OpResult {
             let symbol = self
                 .get_data_stack(0)?
-                .symbol_or_err(VmError::new(VmErrorKind::Type, &self.current_frame))?;
-            let name =
-                self.program.symbols.get(symbol).ok_or_else(|| {
-                    VmError::new(VmErrorKind::SymbolNotFound, &self.current_frame)
-                })?;
+                .symbol_or_err(self.error(VmErrorKind::Type))?;
+            let name = self
+                .program
+                .symbols
+                .get(symbol)
+                .ok_or_else(|| self.error(VmErrorKind::SymbolNotFound))?;
             let ty = self
                 .program
                 .types
                 .get(name)
-                .ok_or_else(|| VmError::new(VmErrorKind::TypeNotFound, &self.current_frame))?;
+                .ok_or_else(|| self.error(VmErrorKind::TypeNotFound))?;
 
-            let called_func = ty.operators.index.clone().ok_or_else(|| {
-                VmError::new(VmErrorKind::OperatorNotSupported, &self.current_frame)
-            })?;
+            let called_func = ty
+                .operators
+                .index
+                .clone()
+                .ok_or_else(|| self.error(VmErrorKind::OperatorNotSupported))?;
 
             let caller = mem::replace(
-                &mut self.current_frame,
+                &mut self.frame,
                 CallFrame::new(Arc::from("name"), called_func, 0),
             );
 

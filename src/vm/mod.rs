@@ -22,10 +22,11 @@ pub mod gc;
 pub mod heap;
 pub mod memory;
 pub mod ops;
-mod ops_impl;
+
+// TODO: Reduce usage of ok_or_else and similar methods.
 
 pub struct Vm {
-    current_frame: CallFrame,
+    frame: CallFrame,
     call_stack: CallStack,
     memory: ValueMemory,
     heap: Heap,
@@ -41,7 +42,7 @@ impl Vm {
             .ok_or_else(|| VmError::new(VmErrorKind::FunctionNotFound, None))?;
 
         Ok(Self {
-            current_frame: CallFrame::new(Arc::from("main"), main, 0),
+            frame: CallFrame::new(Arc::from("main"), main, 0),
             call_stack: CallStack::new(64),
             memory: ValueMemory::new(128),
             heap: Heap::new(1024),
@@ -52,7 +53,7 @@ impl Vm {
     pub fn run(&mut self) -> Result<(), VmError> {
         while let Some(opcode) = self.current_op() {
             match opcode.execute(self)? {
-                Transition::Continue => self.current_frame.ip += 1,
+                Transition::Continue => self.frame.ip += 1,
                 Transition::Jump => {}
                 Transition::Halt => return Ok(()),
             }
@@ -64,66 +65,67 @@ impl Vm {
     pub fn push_call_stack(&mut self, frame: CallFrame) -> Result<(), VmError> {
         self.call_stack
             .push(frame)
-            .map_err(|_| VmError::new(VmErrorKind::StackOverflow, Some(&self.current_frame)))
+            .map_err(|_| self.error(VmErrorKind::StackOverflow))
     }
 
     pub fn pop_call_stack(&mut self) -> Result<CallFrame, VmError> {
-        self.call_stack.pop().ok_or(VmError::new(
-            VmErrorKind::StackUnderflow,
-            Some(&self.current_frame),
-        ))
+        self.call_stack
+            .pop()
+            .ok_or_else(|| self.error(VmErrorKind::StackUnderflow))
     }
 
     pub fn push_data_stack(&mut self, value: Value) -> Result<(), VmError> {
         self.memory
             .push(value)
-            .map_err(|_| VmError::new(VmErrorKind::StackOverflow, Some(&self.current_frame)))
+            .map_err(|_| self.error(VmErrorKind::StackOverflow))
     }
 
     pub fn pop_data_stack(&mut self) -> Result<Value, VmError> {
         self.memory
             .pop()
-            .ok_or_else(|| VmError::new(VmErrorKind::StackUnderflow, Some(&self.current_frame)))
+            .ok_or_else(|| self.error(VmErrorKind::StackUnderflow))
     }
 
     pub fn get_data_stack(&self, index: usize) -> Result<Value, VmError> {
         let index = (self.memory.len().checked_sub(1))
             .and_then(|last| last.checked_sub(index))
-            .ok_or_else(|| VmError::new(VmErrorKind::StackUnderflow, &self.current_frame))?;
+            .ok_or_else(|| self.error(VmErrorKind::StackUnderflow))?;
 
         self.memory
             .get(index)
             .cloned()
-            .ok_or_else(|| VmError::new(VmErrorKind::StackUnderflow, &self.current_frame))
+            .ok_or_else(|| self.error(VmErrorKind::StackUnderflow))
     }
 
-    pub fn get_data_stack_mut(&mut self, index: usize) -> Result<&mut Value, VmError> {
-        let index = (self.memory.len().checked_sub(1))
-            .and_then(|last| last.checked_sub(index))
-            .ok_or_else(|| VmError::new(VmErrorKind::StackUnderflow, &self.current_frame))?;
+    // pub fn get_data_stack_mut(&mut self, index: usize) -> Result<&mut Value, VmError> {
+    //     let index = (self.memory.len().checked_sub(1))
+    //         .and_then(|last| last.checked_sub(index))
+    //         .ok_or_else(|| self.error(VmErrorKind::StackUnderflow))?;
 
-        self.memory
-            .get_mut(index)
-            .ok_or_else(|| VmError::new(VmErrorKind::StackUnderflow, &self.current_frame))
-    }
+    //     match self.memory.get_mut(index) {
+    //         Some(value) => Ok(value),
+    //         None => Err(self.error(VmErrorKind::StackUnderflow)),
+    //     }
+    // }
 
     pub fn current_op(&self) -> Option<OpCode> {
-        self.current_frame.func.get(self.ip()).copied()
+        self.frame.func.get(self.ip()).copied()
     }
 
     pub fn ip(&self) -> usize {
-        self.current_frame.ip
+        self.frame.ip
     }
 
     pub fn ip_mut(&mut self) -> &mut usize {
-        &mut self.current_frame.ip
+        &mut self.frame.ip
     }
 
-    pub fn memory(&mut self) -> MemoryHandle<'_> {
-        MemoryHandle {
-            values: &mut self.memory,
-            heap: &mut self.heap,
-        }
+    pub fn heap(&self) -> &Heap {
+        &self.heap
+    }
+
+    pub fn heap_mut(&mut self) -> &mut Heap {
+        &mut self.heap
     }
 
     pub fn alloc<T: VmObject>(&mut self, value: T) -> ObjectRef {
@@ -145,57 +147,65 @@ impl Vm {
     }
 
     pub fn resolve_native_function(&self, symbol: SymbolIndex) -> Result<Arc<NativeFn>, VmError> {
-        let name =
-            self.program.symbols.get(symbol).ok_or_else(|| {
-                VmError::new(VmErrorKind::SymbolNotFound, Some(&self.current_frame))
-            })?;
+        let name = self
+            .program
+            .symbols
+            .get(symbol)
+            .ok_or_else(|| self.error(VmErrorKind::SymbolNotFound))?;
 
         let function = self
             .program
             .native_functions
             .get(name)
             .cloned()
-            .ok_or_else(|| {
-                VmError::new(VmErrorKind::FunctionNotFound, Some(&self.current_frame))
-            })?;
+            .ok_or_else(|| self.error(VmErrorKind::FunctionNotFound))?;
 
         Ok(function)
     }
 
     pub fn resolve_function(&self, symbol: SymbolIndex) -> Result<Function, VmError> {
-        let name =
-            self.program.symbols.get(symbol).ok_or_else(|| {
-                VmError::new(VmErrorKind::SymbolNotFound, Some(&self.current_frame))
-            })?;
+        let name = self
+            .program
+            .symbols
+            .get(symbol)
+            .ok_or_else(|| self.error(VmErrorKind::SymbolNotFound))?;
 
-        let path = Path::new(name).ok_or_else(|| {
-            VmError::new(VmErrorKind::FunctionNotFound, Some(&self.current_frame))
-        })?;
+        let path = Path::new(name).ok_or_else(|| self.error(VmErrorKind::FunctionNotFound))?;
 
         let functions = match path.object {
             Some(name) => {
-                let vm_type = self.program.types.get(name).ok_or_else(|| {
-                    VmError::new(VmErrorKind::TypeNotFound, Some(&self.current_frame))
-                })?;
+                let vm_type = self
+                    .program
+                    .types
+                    .get(name)
+                    .ok_or_else(|| self.error(VmErrorKind::TypeNotFound))?;
                 &vm_type.methods
             }
             None => &self.program.functions,
         };
 
-        let function = functions.get(path.member).cloned().ok_or_else(|| {
-            VmError::new(VmErrorKind::FunctionNotFound, Some(&self.current_frame))
-        })?;
+        let function = functions
+            .get(path.member)
+            .cloned()
+            .ok_or_else(|| self.error(VmErrorKind::FunctionNotFound))?;
 
         Ok(function)
     }
 
+    pub fn error(&self, kind: VmErrorKind) -> VmError {
+        VmError::new(kind, &self.frame)
+    }
+
     #[cfg(test)]
     pub fn reset(&mut self) -> Result<(), VmError> {
-        let main = self.program.functions.get("main").cloned().ok_or_else(|| {
-            VmError::new(VmErrorKind::FunctionNotFound, Some(&self.current_frame))
-        })?;
+        let main = self
+            .program
+            .functions
+            .get("main")
+            .cloned()
+            .ok_or_else(|| VmError::new(VmErrorKind::FunctionNotFound, Some(&self.frame)))?;
 
-        self.current_frame = CallFrame::new(Arc::from("main"), main, 0);
+        self.frame = CallFrame::new(Arc::from("main"), main, 0);
         self.call_stack.clear();
         self.memory.clear();
         self.heap = Heap::new(1024);

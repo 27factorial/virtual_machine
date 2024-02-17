@@ -119,10 +119,7 @@ impl Heap {
                 .and_then(|opt| opt.as_ref())
                 .expect("object should exist");
 
-            let object_children = object.fields().iter().filter_map(|&field| match field {
-                Value::Object(idx) => Some(idx),
-                _ => None,
-            });
+            let object_children = object.fields().iter().copied().filter_map(Value::object);
 
             self.current_children.extend(object_children);
 
