@@ -282,6 +282,8 @@ pub struct MemoryHandle<'a> {
     pub(crate) heap: &'a mut Heap,
 }
 
+// TODO: Rewrite tests to be up to date with current VM architecture
+
 // #[cfg(test)]
 // mod tests {
 //     use std::sync::Arc;
