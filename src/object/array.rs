@@ -28,13 +28,29 @@ impl Array {
 
     fn vm_index(vm: &mut Vm) -> Result<Value, VmError> {
         let this_ref = vm.get_object_ref(0)?;
-        let index: usize = vm.get_uint(1)?.try_into().vm_err(VmErrorKind::Type, vm)?;
+        let index: usize = vm
+            .get_uint(1)?
+            .try_into()
+            .vm_err(VmErrorKind::OutOfBounds, vm)?;
 
         let this = vm.get_object::<Self>(this_ref)?;
 
-        this.get(index).vm_err(VmErrorKind::OutOfBounds, vm)?;
+        let val = this
+            .get(index)
+            .copied()
+            .vm_err(VmErrorKind::OutOfBounds, vm)?;
 
-        todo!()
+        Ok(val)
+    }
+
+    fn vm_length(vm: &mut Vm) -> Result<Value, VmError> {
+        let this = vm
+            .get_object_ref(0)
+            .and_then(|obj| vm.get_object::<Array>(obj))?;
+        
+        let len = this.len();
+
+        Ok(Value::UInt(len as u64))
     }
 }
 
