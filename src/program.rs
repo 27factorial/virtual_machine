@@ -5,7 +5,7 @@ use hashbrown::hash_map::RawEntryMut;
 
 use crate::{
     object::VmType,
-    string::{SymbolIndex, Symbols},
+    string::{Symbol, Symbols},
     utils::HashMap,
     value::Value,
     vm::{
@@ -39,7 +39,7 @@ impl Program {
         }
     }
 
-    pub fn define_symbol(&mut self, symbol: impl AsRef<str>) -> SymbolIndex {
+    pub fn define_symbol(&mut self, symbol: impl AsRef<str>) -> Symbol {
         self.symbols.get_or_push(symbol.as_ref())
     }
 
@@ -51,7 +51,7 @@ impl Program {
 
     pub fn define_function<F: IntoIterator<Item = OpCode>>(
         &mut self,
-        symbol: SymbolIndex,
+        symbol: Symbol,
         func: F,
     ) -> Result<(), F> {
         if let Some(name) = self.symbols.get(symbol) {
@@ -67,7 +67,7 @@ impl Program {
         }
     }
 
-    pub fn define_native_function<F>(&mut self, symbol: SymbolIndex, func: F) -> Result<(), F>
+    pub fn define_native_function<F>(&mut self, symbol: Symbol, func: F) -> Result<(), F>
     where
         F: Fn(&mut Vm) -> Result<Value, VmError> + 'static,
     {

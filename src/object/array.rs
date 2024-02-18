@@ -2,7 +2,8 @@ use std::ops::{Deref, DerefMut};
 
 use crate::{
     program::Program,
-    string::SymbolIndex,
+    string::Symbol,
+    utils::VmResult,
     value::Value,
     vm::{
         ops::{OpCode, VmError, VmErrorKind},
@@ -26,25 +27,12 @@ impl Array {
     }
 
     fn vm_index(vm: &mut Vm) -> Result<Value, VmError> {
-        let this_ref = vm
-            .get_data_stack(0)?
-            .object()
-            .ok_or_else(|| vm.error(VmErrorKind::Type))?;
-        let index: usize = vm
-            .get_data_stack(1)?
-            .uint()
-            .ok_or_else(|| vm.error(VmErrorKind::Type))?
-            .try_into()
-            .map_err(|_| vm.error(VmErrorKind::Type))?;
+        let this_ref = vm.get_object_ref(0)?;
+        let index: usize = vm.get_uint(1)?.try_into().vm_err(VmErrorKind::Type, vm)?;
 
-        let this = vm
-            .heap()
-            .get(this_ref)
-            .ok_or_else(|| vm.error(VmErrorKind::OutOfBounds))?
-            .downcast_ref::<Array>()
-            .ok_or_else(|| vm.error(VmErrorKind::InvalidObject))?;
+        let this = vm.get_object::<Self>(this_ref)?;
 
-        this.get(index).ok_or_else(|| vm.error(VmErrorKind::OutOfBounds))?;
+        this.get(index).vm_err(VmErrorKind::OutOfBounds, vm)?;
 
         todo!()
     }
@@ -65,13 +53,13 @@ impl DerefMut for Array {
 }
 
 impl Operations for Array {
-    type InitArgs = SymbolIndex;
+    type InitArgs = Symbol;
 
     type DeinitArgs = ();
 
-    type IndexArgs = SymbolIndex;
+    type IndexArgs = Symbol;
 
-    fn init(native: SymbolIndex) -> impl IntoIterator<Item = OpCode> {
+    fn init(native: Symbol) -> impl IntoIterator<Item = OpCode> {
         [OpCode::CallNative(native), OpCode::Ret]
     }
 
@@ -79,7 +67,7 @@ impl Operations for Array {
         Self::unimplemented()
     }
 
-    fn index(native: SymbolIndex) -> Option<impl IntoIterator<Item = OpCode>> {
+    fn index(native: Symbol) -> Option<impl IntoIterator<Item = OpCode>> {
         Some([OpCode::CallNative(native), OpCode::Ret])
     }
 }

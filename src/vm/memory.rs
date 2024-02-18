@@ -4,17 +4,19 @@ use std::{
     slice::SliceIndex,
 };
 
+use serde::{Deserialize, Serialize};
+
 use crate::value::Value;
 
 use super::{heap::ObjectRef, CallFrame};
 
 #[derive(Clone, PartialEq, PartialOrd, Debug, Default)]
-pub struct ValueMemory {
+pub struct DataStack {
     data: Vec<Value>,
     capacity: usize,
 }
 
-impl ValueMemory {
+impl DataStack {
     pub fn new(capacity: usize) -> Self {
         Self {
             data: Vec::with_capacity(capacity),
@@ -73,7 +75,7 @@ impl ValueMemory {
     }
 }
 
-impl<I: SliceIndex<[Value]>> Index<I> for ValueMemory {
+impl<I: SliceIndex<[Value]>> Index<I> for DataStack {
     type Output = I::Output;
 
     fn index(&self, index: I) -> &Self::Output {
@@ -81,7 +83,7 @@ impl<I: SliceIndex<[Value]>> Index<I> for ValueMemory {
     }
 }
 
-impl<I: SliceIndex<[Value]>> IndexMut<I> for ValueMemory {
+impl<I: SliceIndex<[Value]>> IndexMut<I> for DataStack {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         self.data.index_mut(index)
     }
@@ -130,3 +132,4 @@ impl CallStack {
         self.data.clear();
     }
 }
+

@@ -1,4 +1,4 @@
-use crate::{string::SymbolIndex, vm::heap::ObjectRef};
+use crate::{string::Symbol, vm::heap::ObjectRef};
 use paste::paste;
 use serde::{Deserialize, Serialize};
 
@@ -68,7 +68,7 @@ pub enum Value {
     /// The address of an instruction, stack value, or object field.
     Address(usize),
     /// The index of a symbol.
-    Symbol(SymbolIndex),
+    Symbol(Symbol),
     /// An object reference, referring to some data in the object heap.
     Object(ObjectRef),
 }
@@ -86,6 +86,6 @@ variant_methods! {
     Bool(bool), "a";
     Char(char), "a";
     Address(usize), "an";
-    Symbol(SymbolIndex), "a";
+    Symbol(Symbol), "a";
     Object(ObjectRef), "an";
 }

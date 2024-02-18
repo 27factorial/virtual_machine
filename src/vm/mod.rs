@@ -1,22 +1,16 @@
 use self::{
     heap::{Heap, ObjectRef},
-    memory::{CallStack, ValueMemory},
+    memory::{CallStack, DataStack},
 };
 use crate::{
     object::VmObject,
     program::{NativeFn, Path, Program},
-    string::SymbolIndex,
-    utils::HashMap,
+    string::Symbol,
+    utils::VmResult,
     value::Value,
 };
 use ops::{Function, OpCode, Transition, VmError, VmErrorKind};
-use serde_repr::{Deserialize_repr as DeserializeRepr, Serialize_repr as SerializeRepr};
-use std::{
-    mem,
-    ops::{Add, BitAnd, BitOr, BitXor, Div, Index, IndexMut, Mul, Rem, Sub},
-    sync::Arc,
-};
-use strum::{EnumCount, EnumIter};
+use std::{mem, sync::Arc};
 
 pub mod gc;
 pub mod heap;
@@ -28,7 +22,7 @@ pub mod ops;
 pub struct Vm {
     frame: CallFrame,
     call_stack: CallStack,
-    memory: ValueMemory,
+    memory: DataStack,
     heap: Heap,
     program: Program,
 }
@@ -44,7 +38,7 @@ impl Vm {
         Ok(Self {
             frame: CallFrame::new(Arc::from("main"), main, 0),
             call_stack: CallStack::new(64),
-            memory: ValueMemory::new(128),
+            memory: DataStack::new(128),
             heap: Heap::new(1024),
             program,
         })
@@ -62,51 +56,106 @@ impl Vm {
         Ok(())
     }
 
-    pub fn push_call_stack(&mut self, frame: CallFrame) -> Result<(), VmError> {
+    pub fn push_frame(&mut self, frame: CallFrame) -> Result<(), VmError> {
         self.call_stack
             .push(frame)
             .map_err(|_| self.error(VmErrorKind::StackOverflow))
     }
 
-    pub fn pop_call_stack(&mut self) -> Result<CallFrame, VmError> {
+    pub fn pop_frame(&mut self) -> Result<CallFrame, VmError> {
         self.call_stack
             .pop()
-            .ok_or_else(|| self.error(VmErrorKind::StackUnderflow))
+            .vm_err(VmErrorKind::StackUnderflow, self)
     }
 
-    pub fn push_data_stack(&mut self, value: Value) -> Result<(), VmError> {
+    pub fn push_value(&mut self, value: Value) -> Result<(), VmError> {
         self.memory
             .push(value)
             .map_err(|_| self.error(VmErrorKind::StackOverflow))
     }
 
-    pub fn pop_data_stack(&mut self) -> Result<Value, VmError> {
-        self.memory
-            .pop()
-            .ok_or_else(|| self.error(VmErrorKind::StackUnderflow))
+    pub fn pop_value(&mut self) -> Result<Value, VmError> {
+        self.memory.pop().vm_err(VmErrorKind::StackUnderflow, self)
     }
 
-    pub fn get_data_stack(&self, index: usize) -> Result<Value, VmError> {
+    pub fn get_value(&self, index: usize) -> Result<Value, VmError> {
         let index = (self.memory.len().checked_sub(1))
             .and_then(|last| last.checked_sub(index))
-            .ok_or_else(|| self.error(VmErrorKind::StackUnderflow))?;
+            .vm_err(VmErrorKind::OutOfBounds, self)?;
 
         self.memory
             .get(index)
             .cloned()
-            .ok_or_else(|| self.error(VmErrorKind::StackUnderflow))
+            .vm_err(VmErrorKind::OutOfBounds, self)
     }
 
-    // pub fn get_data_stack_mut(&mut self, index: usize) -> Result<&mut Value, VmError> {
-    //     let index = (self.memory.len().checked_sub(1))
-    //         .and_then(|last| last.checked_sub(index))
-    //         .ok_or_else(|| self.error(VmErrorKind::StackUnderflow))?;
+    pub fn get_uint(&self, index: usize) -> Result<u64, VmError> {
+        self.get_value(index)?
+            .uint()
+            .vm_err(VmErrorKind::Type, self)
+    }
 
-    //     match self.memory.get_mut(index) {
-    //         Some(value) => Ok(value),
-    //         None => Err(self.error(VmErrorKind::StackUnderflow)),
-    //     }
-    // }
+    pub fn get_sint(&self, index: usize) -> Result<i64, VmError> {
+        self.get_value(index)?
+            .sint()
+            .vm_err(VmErrorKind::Type, self)
+    }
+
+    pub fn get_float(&self, index: usize) -> Result<f64, VmError> {
+        self.get_value(index)?
+            .float()
+            .vm_err(VmErrorKind::Type, self)
+    }
+
+    pub fn get_bool(&self, index: usize) -> Result<bool, VmError> {
+        self.get_value(index)?
+            .bool()
+            .vm_err(VmErrorKind::Type, self)
+    }
+
+    pub fn get_char(&self, index: usize) -> Result<char, VmError> {
+        self.get_value(index)?
+            .char()
+            .vm_err(VmErrorKind::Type, self)
+    }
+
+    pub fn get_address(&self, index: usize) -> Result<usize, VmError> {
+        self.get_value(index)?
+            .address()
+            .vm_err(VmErrorKind::Type, self)
+    }
+
+    pub fn get_symbol(&self, index: usize) -> Result<Symbol, VmError> {
+        self.get_value(index)?
+            .symbol()
+            .vm_err(VmErrorKind::Type, self)
+    }
+
+    pub fn get_object_ref(&self, index: usize) -> Result<ObjectRef, VmError> {
+        self.get_value(index)?
+            .object()
+            .vm_err(VmErrorKind::Type, self)
+    }
+
+    pub fn get_object<T: VmObject>(&self, obj: ObjectRef) -> Result<&T, VmError> {
+        self.heap
+            .get(obj)
+            .vm_err(VmErrorKind::InvalidObject, self)?
+            .downcast_ref()
+            .vm_err(VmErrorKind::Type, self)
+    }
+
+    pub fn get_object_mut<T: VmObject>(&mut self, obj: ObjectRef) -> Result<&mut T, VmError> {
+        // match must be used here because the borrow checker doesn't fully understand partial 
+        // borrows.
+        match self.heap.get_mut(obj) {
+            Some(object) => match object.downcast_mut() {
+                Some(t) => Ok(t),
+                None => Err(VmError::new(VmErrorKind::Type, &self.frame)),
+            },
+            None => Err(VmError::new(VmErrorKind::InvalidObject, &self.frame)),
+        }
+    }
 
     pub fn current_op(&self) -> Option<OpCode> {
         self.frame.func.get(self.ip()).copied()
@@ -128,6 +177,7 @@ impl Vm {
         &mut self.heap
     }
 
+    // Allocates a
     pub fn alloc<T: VmObject>(&mut self, value: T) -> ObjectRef {
         match self.heap.alloc(value) {
             Ok(object) => object,
@@ -146,40 +196,40 @@ impl Vm {
         }
     }
 
-    pub fn resolve_native_function(&self, symbol: SymbolIndex) -> Result<Arc<NativeFn>, VmError> {
+    pub fn resolve_native_function(&self, symbol: Symbol) -> Result<Arc<NativeFn>, VmError> {
         let name = self
             .program
             .symbols
             .get(symbol)
-            .ok_or_else(|| self.error(VmErrorKind::SymbolNotFound))?;
+            .vm_err(VmErrorKind::SymbolNotFound, self)?;
 
         let function = self
             .program
             .native_functions
             .get(name)
             .cloned()
-            .ok_or_else(|| self.error(VmErrorKind::FunctionNotFound))?;
+            .vm_err(VmErrorKind::FunctionNotFound, self)?;
 
         Ok(function)
     }
 
-    pub fn resolve_function(&self, symbol: SymbolIndex) -> Result<Function, VmError> {
+    pub fn resolve_function(&self, symbol: Symbol) -> Result<Function, VmError> {
         let name = self
             .program
             .symbols
             .get(symbol)
-            .ok_or_else(|| self.error(VmErrorKind::SymbolNotFound))?;
+            .vm_err(VmErrorKind::SymbolNotFound, self)?;
 
-        let path = Path::new(name).ok_or_else(|| self.error(VmErrorKind::FunctionNotFound))?;
+        let path = Path::new(name).vm_err(VmErrorKind::FunctionNotFound, self)?;
 
         let functions = match path.object {
             Some(name) => {
-                let vm_type = self
+                let ty = self
                     .program
                     .types
                     .get(name)
-                    .ok_or_else(|| self.error(VmErrorKind::TypeNotFound))?;
-                &vm_type.methods
+                    .vm_err(VmErrorKind::TypeNotFound, self)?;
+                &ty.methods
             }
             None => &self.program.functions,
         };
@@ -187,7 +237,7 @@ impl Vm {
         let function = functions
             .get(path.member)
             .cloned()
-            .ok_or_else(|| self.error(VmErrorKind::FunctionNotFound))?;
+            .vm_err(VmErrorKind::FunctionNotFound, self)?;
 
         Ok(function)
     }
@@ -203,7 +253,7 @@ impl Vm {
             .functions
             .get("main")
             .cloned()
-            .ok_or_else(|| VmError::new(VmErrorKind::FunctionNotFound, Some(&self.frame)))?;
+            .vm_err(VmErrorKind::FunctionNotFound, self)?;
 
         self.frame = CallFrame::new(Arc::from("main"), main, 0);
         self.call_stack.clear();
@@ -228,7 +278,7 @@ impl CallFrame {
 }
 
 pub struct MemoryHandle<'a> {
-    pub(crate) values: &'a mut ValueMemory,
+    pub(crate) values: &'a mut DataStack,
     pub(crate) heap: &'a mut Heap,
 }
 

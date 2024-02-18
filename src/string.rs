@@ -1,4 +1,4 @@
-use std::ops::{Index};
+use std::ops::Index;
 
 use serde::{Deserialize, Serialize};
 
@@ -16,8 +16,8 @@ impl Symbols {
         }
     }
 
-    pub fn get_or_push(&mut self, s: impl AsRef<str>) -> SymbolIndex {
-        fn inner(this: &mut Symbols, s: &str) -> SymbolIndex {
+    pub fn get_or_push(&mut self, s: impl AsRef<str>) -> Symbol {
+        fn inner(this: &mut Symbols, s: &str) -> Symbol {
             // Since substring searching is O(m * n), and self.data is expected to be somewhat
             // large, we can possibly speed this search up by first checking self.indices for any
             // strings matching the length of the given string, then filtering self.data to only
@@ -31,7 +31,7 @@ impl Symbols {
                 .filter(|(_, span)| span.len == s.len())
                 .map(|(idx, span)| (idx, &this.data[span.start..span.start + span.len]))
                 .find_map(|(idx, string)| (s == string).then_some(idx))
-                .map(SymbolIndex);
+                .map(Symbol);
 
             match possible_symbol {
                 Some(symbol) => symbol,
@@ -45,7 +45,7 @@ impl Symbols {
                     this.data.push_str(s);
                     this.indices.push(span);
 
-                    SymbolIndex(idx)
+                    Symbol(idx)
                 }
             }
         }
@@ -53,7 +53,7 @@ impl Symbols {
         inner(self, s.as_ref())
     }
 
-    pub fn get_or_push_iter<'a, I>(&mut self, iter: I) -> SymbolIndex
+    pub fn get_or_push_iter<'a, I>(&mut self, iter: I) -> Symbol
     where
         I: IntoIterator<Item = &'a str>,
         I::IntoIter: Clone,
@@ -76,7 +76,7 @@ impl Symbols {
                     .eq(iter.clone().flat_map(|s| s.as_bytes()))
                     .then_some(idx)
             })
-            .map(SymbolIndex);
+            .map(Symbol);
 
         match possible_symbol {
             Some(symbol) => symbol,
@@ -91,12 +91,12 @@ impl Symbols {
                 self.data.extend(iter);
                 self.indices.push(span);
 
-                SymbolIndex(idx)
+                Symbol(idx)
             }
         }
     }
 
-    pub fn get(&self, symbol: SymbolIndex) -> Option<&str> {
+    pub fn get(&self, symbol: Symbol) -> Option<&str> {
         self.indices
             .get(symbol.0)
             .and_then(|idx| self.data.get(idx.start..idx.start + idx.len))
@@ -107,10 +107,10 @@ impl Symbols {
     }
 }
 
-impl Index<SymbolIndex> for Symbols {
+impl Index<Symbol> for Symbols {
     type Output = str;
 
-    fn index(&self, index: SymbolIndex) -> &Self::Output {
+    fn index(&self, index: Symbol) -> &Self::Output {
         self.get(index).expect("index out of bounds")
     }
 }
@@ -136,4 +136,4 @@ pub struct SymbolSpan {
 #[derive(
     Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize, Deserialize,
 )]
-pub struct SymbolIndex(pub usize);
+pub struct Symbol(pub usize);
