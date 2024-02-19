@@ -36,7 +36,7 @@ impl Vm {
             .ok_or_else(|| VmError::new(VmErrorKind::FunctionNotFound, None))?;
 
         Ok(Self {
-            frame: CallFrame::new(Arc::from("main"), main, 0),
+            frame: CallFrame::new(main, 0),
             call_stack: CallStack::new(64),
             memory: DataStack::new(128),
             heap: Heap::new(1024),
@@ -89,10 +89,18 @@ impl Vm {
             .vm_err(VmErrorKind::OutOfBounds, self)
     }
 
+    pub fn pop_uint(&mut self) -> Result<u64, VmError> {
+        self.pop_value()?.uint().vm_err(VmErrorKind::Type, self)
+    }
+
     pub fn get_uint(&self, index: usize) -> Result<u64, VmError> {
         self.get_value(index)?
             .uint()
             .vm_err(VmErrorKind::Type, self)
+    }
+
+    pub fn pop_sint(&mut self) -> Result<i64, VmError> {
+        self.pop_value()?.sint().vm_err(VmErrorKind::Type, self)
     }
 
     pub fn get_sint(&self, index: usize) -> Result<i64, VmError> {
@@ -101,10 +109,18 @@ impl Vm {
             .vm_err(VmErrorKind::Type, self)
     }
 
+    pub fn pop_float(&mut self) -> Result<f64, VmError> {
+        self.pop_value()?.float().vm_err(VmErrorKind::Type, self)
+    }
+
     pub fn get_float(&self, index: usize) -> Result<f64, VmError> {
         self.get_value(index)?
             .float()
             .vm_err(VmErrorKind::Type, self)
+    }
+
+    pub fn pop_bool(&mut self) -> Result<bool, VmError> {
+        self.pop_value()?.bool().vm_err(VmErrorKind::Type, self)
     }
 
     pub fn get_bool(&self, index: usize) -> Result<bool, VmError> {
@@ -113,10 +129,18 @@ impl Vm {
             .vm_err(VmErrorKind::Type, self)
     }
 
+    pub fn pop_char(&mut self) -> Result<char, VmError> {
+        self.pop_value()?.char().vm_err(VmErrorKind::Type, self)
+    }
+
     pub fn get_char(&self, index: usize) -> Result<char, VmError> {
         self.get_value(index)?
             .char()
             .vm_err(VmErrorKind::Type, self)
+    }
+
+    pub fn pop_address(&mut self) -> Result<usize, VmError> {
+        self.pop_value()?.address().vm_err(VmErrorKind::Type, self)
     }
 
     pub fn get_address(&self, index: usize) -> Result<usize, VmError> {
@@ -125,10 +149,18 @@ impl Vm {
             .vm_err(VmErrorKind::Type, self)
     }
 
+    pub fn pop_symbol(&mut self) -> Result<Symbol, VmError> {
+        self.pop_value()?.symbol().vm_err(VmErrorKind::Type, self)
+    }
+
     pub fn get_symbol(&self, index: usize) -> Result<Symbol, VmError> {
         self.get_value(index)?
             .symbol()
             .vm_err(VmErrorKind::Type, self)
+    }
+
+    pub fn pop_object_ref(&mut self) -> Result<ObjectRef, VmError> {
+        self.pop_value()?.object().vm_err(VmErrorKind::Type, self)
     }
 
     pub fn get_object_ref(&self, index: usize) -> Result<ObjectRef, VmError> {
@@ -146,7 +178,7 @@ impl Vm {
     }
 
     pub fn get_object_mut<T: VmObject>(&mut self, obj: ObjectRef) -> Result<&mut T, VmError> {
-        // match must be used here because the borrow checker doesn't fully understand partial 
+        // match must be used here because the borrow checker doesn't fully understand partial
         // borrows.
         match self.heap.get_mut(obj) {
             Some(object) => match object.downcast_mut() {
@@ -255,7 +287,7 @@ impl Vm {
             .cloned()
             .vm_err(VmErrorKind::FunctionNotFound, self)?;
 
-        self.frame = CallFrame::new(Arc::from("main"), main, 0);
+        self.frame = CallFrame::new(main, 0);
         self.call_stack.clear();
         self.memory.clear();
         self.heap = Heap::new(1024);
@@ -266,14 +298,13 @@ impl Vm {
 
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
 pub struct CallFrame {
-    pub(crate) name: Arc<str>,
     pub(crate) func: Function,
     pub(crate) ip: usize,
 }
 
 impl CallFrame {
-    pub fn new(name: Arc<str>, func: Function, ip: usize) -> Self {
-        Self { name, func, ip }
+    pub fn new(func: Function, ip: usize) -> Self {
+        Self { func, ip }
     }
 }
 
@@ -283,6 +314,44 @@ pub struct MemoryHandle<'a> {
 }
 
 // TODO: Rewrite tests to be up to date with current VM architecture
+
+#[cfg(test)]
+mod test {
+    use crate::{program::Program, value::Value};
+
+    use super::{ops::OpCode, Vm};
+
+    #[test]
+    fn basic_program() {
+        let mut program = Program::new();
+
+        let main_sym = program.define_symbol("main");
+        let crunch_sym = program.define_symbol("crunch");
+
+        program
+            .define_function(
+                main_sym,
+                [
+                    OpCode::Push(Value::UInt(69000)),
+                    OpCode::Push(Value::UInt(420)),
+                    OpCode::CallImm(crunch_sym),
+                    OpCode::EqImm(Value::UInt(69420)),
+                    OpCode::Dbg(0),
+                    OpCode::Dbg(1),
+                    OpCode::Halt,
+                ],
+            )
+            .expect("failed to define `main` function");
+
+        program
+            .define_function(crunch_sym, [OpCode::Add, OpCode::Ret])
+            .expect("failed to define `crunch` function");
+
+        let mut vm = Vm::new(program).expect("failed to create VM");
+
+        vm.run().expect("failed to execute program");
+    }
+}
 
 // #[cfg(test)]
 // mod tests {

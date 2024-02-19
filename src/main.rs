@@ -20,6 +20,8 @@ mod utils;
 mod value;
 mod vm;
 
+// TODO: Local variables for functions inside CallFrame
+
 fn main() {
     let mut program = Program::new();
     let main_func = program.define_symbol("main");

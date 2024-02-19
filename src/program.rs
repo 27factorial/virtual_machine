@@ -43,6 +43,14 @@ impl Program {
         self.symbols.get_or_push(symbol.as_ref())
     }
 
+    pub fn define_symbol_iter<'a, I>(&mut self, iter: I) -> Symbol
+    where
+        I: IntoIterator<Item = &'a str>,
+        I::IntoIter: Clone,
+    {
+        self.symbols.get_or_push_iter(iter)
+    }
+
     pub fn define_constant(&mut self, v: Value) -> usize {
         let index = self.constants.len();
         self.constants.push(v);

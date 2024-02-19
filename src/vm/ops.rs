@@ -146,12 +146,8 @@ pub enum OpCode {
     /// Set the VM's current frame to the call frame popped from the call stack.
     Ret,
 
-    Init,
-
-    Index,
-
-    /// Print out the value at a memory location to stderr.
-    DbgMem(usize),
+    /// Print out the value at a memory location relative to the top of the stack to stderr.
+    Dbg(usize),
 }
 
 impl OpCode {
@@ -203,9 +199,7 @@ impl OpCode {
             Op::CallImm(symbol) => vm.op_call_imm(symbol),
             Op::CallNative(index) => vm.op_call_native(index),
             Op::Ret => vm.op_ret(),
-            Op::Init => vm.op_init_object(),
-            Op::Index => vm.op_index_object(),
-            Op::DbgMem(address) => vm.op_dbg(address),
+            Op::Dbg(address) => vm.op_dbg(address),
         }
     }
 }
@@ -932,12 +926,10 @@ mod imp {
         #[inline]
         pub(super) fn op_call_imm(&mut self, symbol: Symbol) -> OpResult {
             let called_func = self.resolve_function(symbol)?;
-            // TODO: FOR TESTING
-            let name = self.program.symbols.get(symbol).unwrap();
 
             let caller = mem::replace(
                 &mut self.frame,
-                CallFrame::new(Arc::from(name), called_func, 0),
+                CallFrame::new(called_func, 0),
             );
 
             self.push_frame(caller)?;
@@ -967,63 +959,6 @@ mod imp {
             Ok(Transition::Continue)
         }
 
-        // init
-        pub(super) fn op_init_object(&mut self) -> OpResult {
-            let symbol = self.get_symbol(0)?;
-            let name = self
-                .program
-                .symbols
-                .get(symbol)
-                .ok_or_else(|| self.error(VmErrorKind::SymbolNotFound))?;
-
-            let ty = self
-                .program
-                .types
-                .get(name)
-                .ok_or_else(|| self.error(VmErrorKind::TypeNotFound))?;
-
-            let called_func = ty.operators.init.clone();
-
-            let caller = mem::replace(
-                &mut self.frame,
-                CallFrame::new(Arc::from(name), called_func, 0),
-            );
-
-            self.push_frame(caller)?;
-
-            Ok(Transition::Jump)
-        }
-
-        // idx
-        pub(super) fn op_index_object(&mut self) -> OpResult {
-            let symbol = self.get_symbol(0)?;
-            let name = self
-                .program
-                .symbols
-                .get(symbol)
-                .ok_or_else(|| self.error(VmErrorKind::SymbolNotFound))?;
-            let ty = self
-                .program
-                .types
-                .get(name)
-                .ok_or_else(|| self.error(VmErrorKind::TypeNotFound))?;
-
-            let called_func = ty
-                .operators
-                .index
-                .clone()
-                .ok_or_else(|| self.error(VmErrorKind::OperatorNotSupported))?;
-
-            let caller = mem::replace(
-                &mut self.frame,
-                CallFrame::new(Arc::from("name"), called_func, 0),
-            );
-
-            self.push_frame(caller)?;
-
-            Ok(Transition::Continue)
-        }
-
         // // DebugRegister
         // #[inline]
         // pub(super) fn op_dbg_reg(&self, register: Register) -> OpResult {
@@ -1036,9 +971,9 @@ mod imp {
         // dbg
         #[inline]
         pub(super) fn op_dbg(&self, index: usize) -> OpResult {
-            let value = self.memory.get(index);
+            let value = self.get_value(index).ok();
 
-            eprintln!("Address {index:#x}: {value:?}");
+            eprintln!("*(sp - {index:#x}): {value:?}");
             Ok(Transition::Continue)
         }
 
