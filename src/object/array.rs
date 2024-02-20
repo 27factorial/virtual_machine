@@ -20,20 +20,20 @@ impl Array {
     }
 
     fn vm_new(vm: &mut Vm) -> Result<Value, VmError> {
-        let object = vm.alloc(Self::new())?;
+        let this_ref = vm.alloc(Self::new())?;
 
-        Ok(Value::Object(object))
+        Ok(Value::Object(this_ref))
     }
 
     fn vm_index(vm: &mut Vm) -> Result<Value, VmError> {
-        let this = vm.pop_object_ref()?;
+        let this_ref = vm.pop_object_ref()?;
         let index: usize = vm
             .pop_uint()?
             .try_into()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
 
         let value = vm
-            .get_object::<Self>(this)?
+            .get_object::<Self>(this_ref)?
             .get(index)
             .copied()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
@@ -42,30 +42,93 @@ impl Array {
     }
 
     fn vm_length(vm: &mut Vm) -> Result<Value, VmError> {
-        let this = vm.pop_object_ref()?;
-        let len = vm.get_object::<Self>(this)?.len();
+        let this_ref = vm.pop_object_ref()?;
+        let len = vm.get_object::<Self>(this_ref)?.len();
 
         Ok(Value::UInt(len as u64))
     }
 
     fn vm_push(vm: &mut Vm) -> Result<Value, VmError> {
-        let this = vm.pop_object_ref()?;
+        let this_ref = vm.pop_object_ref()?;
         let value = vm.pop_value()?;
 
-        vm.get_object_mut::<Self>(this)?.push(value);
+        vm.get_object_mut::<Self>(this_ref)?.push(value);
 
         Ok(Value::Null)
     }
 
     fn vm_pop(vm: &mut Vm) -> Result<Value, VmError> {
-        let obj = vm.pop_object_ref()?;
+        let this_ref = vm.pop_object_ref()?;
 
         let value = vm
-            .get_object_mut::<Self>(obj)?
+            .get_object_mut::<Self>(this_ref)?
             .pop()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
 
         Ok(value)
+    }
+
+    fn vm_insert(vm: &mut Vm) -> Result<Value, VmError> {
+        let this_ref = vm.pop_object_ref()?;
+        let idx: usize = vm
+            .pop_uint()?
+            .try_into()
+            .vm_err(VmErrorKind::OutOfBounds, vm)?;
+        let value = vm.pop_value()?;
+
+        let this = vm.get_object_mut::<Self>(this_ref)?;
+
+        if idx <= this.len() {
+            this.insert(idx, value);
+            Ok(Value::Null)
+        } else {
+            Err(vm.error(VmErrorKind::OutOfBounds))
+        }
+    }
+
+    fn vm_remove(vm: &mut Vm) -> Result<Value, VmError> {
+        let this_ref = vm.pop_object_ref()?;
+        let idx: usize = vm
+            .pop_uint()?
+            .try_into()
+            .vm_err(VmErrorKind::OutOfBounds, vm)?;
+
+        let this = vm.get_object_mut::<Self>(this_ref)?;
+
+        if idx < this.len() {
+            let value = this.remove(idx);
+            Ok(value)
+        } else {
+            Err(vm.error(VmErrorKind::OutOfBounds))
+        }
+    }
+
+    fn vm_swap_remove(vm: &mut Vm) -> Result<Value, VmError> {
+        let this_ref = vm.pop_object_ref()?;
+        let idx: usize = vm
+            .pop_uint()?
+            .try_into()
+            .vm_err(VmErrorKind::OutOfBounds, vm)?;
+
+        let this = vm.get_object_mut::<Self>(this_ref)?;
+
+        if idx < this.len() {
+            let value = this.swap_remove(idx);
+            Ok(value)
+        } else {
+            Err(vm.error(VmErrorKind::OutOfBounds))
+        }
+    }
+
+    fn vm_reserve(vm: &mut Vm) -> Result<Value, VmError> {
+        let this = vm.pop_object_ref()?;
+        let additional: usize = vm
+            .pop_uint()?
+            .try_into()
+            .vm_err(VmErrorKind::OutOfBounds, vm)?;
+
+        vm.get_object_mut::<Self>(this)?.reserve(additional);
+        Ok(Value::Null)
     }
 }
 
@@ -98,6 +161,10 @@ impl VmObject for Array {
             ("length", Array::vm_length),
             ("push", Array::vm_push),
             ("pop", Array::vm_pop),
+            ("insert", Array::vm_insert),
+            ("remove", Array::vm_remove),
+            ("swap_remove", Array::vm_swap_remove),
+            ("reserve", Array::vm_reserve),
         ];
 
         for (name, func) in native_funcs {

@@ -140,4 +140,5 @@ impl Heap {
 #[derive(
     Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize, Deserialize,
 )]
+#[repr(transparent)]
 pub struct ObjectRef(usize);
