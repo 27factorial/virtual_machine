@@ -294,7 +294,7 @@ mod imp {
     use crate::{string::Symbol, vm::CallFrame};
     use std::mem;
     use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Sub};
-    use std::sync::Arc;
+    
 
     macro_rules! bin_arithmetic {
         (

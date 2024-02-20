@@ -10,7 +10,7 @@ use crate::{
     value::Value,
 };
 use ops::{Function, OpCode, Transition, VmError, VmErrorKind};
-use std::{mem, sync::Arc};
+use std::{sync::Arc};
 
 pub mod gc;
 pub mod heap;

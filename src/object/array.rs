@@ -2,11 +2,9 @@ use std::ops::{Deref, DerefMut};
 
 use crate::{
     program::Program,
-    string::Symbol,
     utils::VmResult,
     value::Value,
     vm::{
-        heap::ObjectRef,
         ops::{OpCode, VmError, VmErrorKind},
         Vm,
     },

@@ -4,11 +4,11 @@ use std::{
     slice::SliceIndex,
 };
 
-use serde::{Deserialize, Serialize};
+
 
 use crate::value::Value;
 
-use super::{heap::ObjectRef, CallFrame};
+use super::{CallFrame};
 
 #[derive(Clone, PartialEq, PartialOrd, Debug, Default)]
 pub struct DataStack {
