@@ -34,7 +34,8 @@ impl Array {
             .try_into()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
 
-        let value = vm.get_object::<Self>(this)?
+        let value = vm
+            .get_object::<Self>(this)?
             .get(index)
             .copied()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
@@ -61,7 +62,8 @@ impl Array {
     fn vm_pop(vm: &mut Vm) -> Result<Value, VmError> {
         let obj = vm.pop_object_ref()?;
 
-        let value = vm.get_object_mut::<Self>(obj)?
+        let value = vm
+            .get_object_mut::<Self>(obj)?
             .pop()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
 

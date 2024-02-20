@@ -144,4 +144,3 @@ impl CallStack {
         self.data.into_iter()
     }
 }
-
