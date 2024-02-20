@@ -22,7 +22,7 @@ pub mod ops;
 pub struct Vm {
     frame: CallFrame,
     call_stack: CallStack,
-    memory: DataStack,
+    data_stack: DataStack,
     heap: Heap,
     program: Program,
 }
@@ -38,7 +38,7 @@ impl Vm {
         Ok(Self {
             frame: CallFrame::new(main, 0),
             call_stack: CallStack::new(64),
-            memory: DataStack::new(128),
+            data_stack: DataStack::new(128),
             heap: Heap::new(1024),
             program,
         })
@@ -69,21 +69,23 @@ impl Vm {
     }
 
     pub fn push_value(&mut self, value: Value) -> Result<(), VmError> {
-        self.memory
+        self.data_stack
             .push(value)
             .map_err(|_| self.error(VmErrorKind::StackOverflow))
     }
 
     pub fn pop_value(&mut self) -> Result<Value, VmError> {
-        self.memory.pop().vm_err(VmErrorKind::StackUnderflow, self)
+        self.data_stack
+            .pop()
+            .vm_err(VmErrorKind::StackUnderflow, self)
     }
 
     pub fn get_value(&self, index: usize) -> Result<Value, VmError> {
-        let index = (self.memory.len().checked_sub(1))
+        let index = (self.data_stack.len().checked_sub(1))
             .and_then(|last| last.checked_sub(index))
             .vm_err(VmErrorKind::OutOfBounds, self)?;
 
-        self.memory
+        self.data_stack
             .get(index)
             .cloned()
             .vm_err(VmErrorKind::OutOfBounds, self)
@@ -193,6 +195,14 @@ impl Vm {
         self.frame.func.get(self.ip()).copied()
     }
 
+    pub fn locals(&self) -> &[Value] {
+        &self.frame.locals
+    }
+
+    pub fn locals_mut(&mut self) -> &mut Vec<Value> {
+        &mut self.frame.locals
+    }
+
     pub fn ip(&self) -> usize {
         self.frame.ip
     }
@@ -209,21 +219,31 @@ impl Vm {
         &mut self.heap
     }
 
-    // Allocates a
-    pub fn alloc<T: VmObject>(&mut self, value: T) -> ObjectRef {
+    pub fn alloc<T: VmObject>(&mut self, value: T) -> Result<ObjectRef, VmError> {
         match self.heap.alloc(value) {
-            Ok(object) => object,
+            Ok(object) => Ok(object),
             Err(value) => {
-                let iter = self.memory.iter().copied().filter_map(Value::object);
+                // Current roots:
+                // all CallFrame locals
+                // self.data_stack
+                // I would like to use a convenience method here, but partial borrows strike again.
+                let stack_values = self.data_stack.iter();
+                let locals = self
+                    .frame
+                    .locals
+                    .iter()
+                    .chain(self.call_stack.iter().flat_map(|frame| frame.locals.iter()));
 
-                self.heap.collect(iter);
+                let roots = stack_values
+                    .chain(locals)
+                    .copied()
+                    .filter_map(Value::object);
 
-                self.heap.alloc(value).unwrap_or_else(|_| {
-                    panic!(
-                        "VM heap out of memory, failed to allocate {} bytes",
-                        mem::size_of::<T>()
-                    );
-                })
+                self.heap.collect(roots);
+
+                self.heap
+                    .alloc(value)
+                    .vm_err(VmErrorKind::OutOfMemory, self)
             }
         }
     }
@@ -289,7 +309,7 @@ impl Vm {
 
         self.frame = CallFrame::new(main, 0);
         self.call_stack.clear();
-        self.memory.clear();
+        self.data_stack.clear();
         self.heap = Heap::new(1024);
 
         Ok(())
@@ -300,20 +320,18 @@ impl Vm {
 pub struct CallFrame {
     pub(crate) func: Function,
     pub(crate) ip: usize,
+    pub(crate) locals: Vec<Value>,
 }
 
 impl CallFrame {
     pub fn new(func: Function, ip: usize) -> Self {
-        Self { func, ip }
+        Self {
+            func,
+            ip,
+            locals: Vec::new(),
+        }
     }
 }
-
-pub struct MemoryHandle<'a> {
-    pub(crate) values: &'a mut DataStack,
-    pub(crate) heap: &'a mut Heap,
-}
-
-// TODO: Rewrite tests to be up to date with current VM architecture
 
 #[cfg(test)]
 mod test {

@@ -6,6 +6,7 @@ use crate::{
     utils::VmResult,
     value::Value,
     vm::{
+        heap::ObjectRef,
         ops::{OpCode, VmError, VmErrorKind},
         Vm,
     },
@@ -21,61 +22,50 @@ impl Array {
     }
 
     fn vm_new(vm: &mut Vm) -> Result<Value, VmError> {
-        let object = vm.alloc(Self::new());
+        let object = vm.alloc(Self::new())?;
 
         Ok(Value::Object(object))
     }
 
     fn vm_index(vm: &mut Vm) -> Result<Value, VmError> {
-        let this = Self::get_array(vm)?;
-
+        let this = vm.pop_object_ref()?;
         let index: usize = vm
-            .get_uint(1)?
+            .pop_uint()?
             .try_into()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
 
-        let val = this
+        let value = vm.get_object::<Self>(this)?
             .get(index)
             .copied()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
 
-        Ok(val)
+        Ok(value)
     }
 
     fn vm_length(vm: &mut Vm) -> Result<Value, VmError> {
-        let this = Self::get_array(vm)?;
-
-        let len = this.len();
+        let this = vm.pop_object_ref()?;
+        let len = vm.get_object::<Self>(this)?.len();
 
         Ok(Value::UInt(len as u64))
     }
 
     fn vm_push(vm: &mut Vm) -> Result<Value, VmError> {
-        let value = vm.get_value(1)?;
+        let this = vm.pop_object_ref()?;
+        let value = vm.pop_value()?;
 
-        let this = Self::get_array_mut(vm)?;
-
-        this.push(value);
+        vm.get_object_mut::<Self>(this)?.push(value);
 
         Ok(Value::Null)
     }
 
     fn vm_pop(vm: &mut Vm) -> Result<Value, VmError> {
-        let this = Self::get_array_mut(vm)?;
+        let obj = vm.pop_object_ref()?;
 
-        let value = this.pop().vm_err(VmErrorKind::OutOfBounds, vm)?;
+        let value = vm.get_object_mut::<Self>(obj)?
+            .pop()
+            .vm_err(VmErrorKind::OutOfBounds, vm)?;
 
         Ok(value)
-    }
-
-    fn get_array(vm: &Vm) -> Result<&Self, VmError> {
-        vm.get_object_ref(0)
-            .and_then(|obj| vm.get_object::<Self>(obj))
-    }
-
-    fn get_array_mut(vm: &mut Vm) -> Result<&mut Self, VmError> {
-        vm.get_object_ref(0)
-            .and_then(|obj| vm.get_object_mut::<Self>(obj))
     }
 }
 

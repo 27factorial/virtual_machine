@@ -131,5 +131,17 @@ impl CallStack {
     pub fn clear(&mut self) {
         self.data.clear();
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = &CallFrame> {
+        self.data.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut CallFrame> {
+        self.data.iter_mut()
+    }
+
+    pub fn into_iter(self) -> impl Iterator<Item = CallFrame> {
+        self.data.into_iter()
+    }
 }
 

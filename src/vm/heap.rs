@@ -5,7 +5,7 @@ use strum::IntoEnumIterator;
 
 use crate::{gc_box, object::VmObject, value::Value, vm::gc::GcBox};
 
-use super::memory::DataStack;
+use super::{memory::DataStack, Vm};
 
 pub struct Heap {
     memory: Vec<Option<GcBox<dyn VmObject>>>,
