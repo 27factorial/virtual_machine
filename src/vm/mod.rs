@@ -9,15 +9,13 @@ use crate::{
     utils::VmResult,
     value::Value,
 };
-use ops::{Function, OpCode, Transition, VmError, VmErrorKind};
-use std::{sync::Arc};
+use ops::{Function, OpCode, Transition};
+use std::sync::Arc;
 
 pub mod gc;
 pub mod heap;
 pub mod memory;
 pub mod ops;
-
-// TODO: Reduce usage of ok_or_else and similar methods.
 
 pub struct Vm {
     frame: CallFrame,
@@ -171,7 +169,7 @@ impl Vm {
             .vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn get_object<T: VmObject>(&self, obj: ObjectRef) -> Result<&T, VmError> {
+    pub fn get_heap_object<T: VmObject>(&self, obj: ObjectRef) -> Result<&T, VmError> {
         self.heap
             .get(obj)
             .vm_err(VmErrorKind::InvalidObject, self)?
@@ -179,7 +177,7 @@ impl Vm {
             .vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn get_object_mut<T: VmObject>(&mut self, obj: ObjectRef) -> Result<&mut T, VmError> {
+    pub fn get_heap_object_mut<T: VmObject>(&mut self, obj: ObjectRef) -> Result<&mut T, VmError> {
         // match must be used here because the borrow checker doesn't fully understand partial
         // borrows.
         match self.heap.get_mut(obj) {
@@ -314,6 +312,35 @@ impl Vm {
 
         Ok(())
     }
+}
+
+#[derive(Clone, PartialEq, PartialOrd, Debug)]
+pub struct VmError {
+    kind: VmErrorKind,
+    frame: Option<CallFrame>,
+}
+
+impl VmError {
+    pub fn new<'a>(kind: VmErrorKind, frame: impl Into<Option<&'a CallFrame>>) -> Self {
+        Self {
+            kind,
+            frame: frame.into().cloned(),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub enum VmErrorKind {
+    Type,
+    Arithmetic,
+    StackOverflow,
+    StackUnderflow,
+    OutOfMemory,
+    FunctionNotFound,
+    SymbolNotFound,
+    TypeNotFound,
+    InvalidObject,
+    OutOfBounds,
 }
 
 #[derive(Clone, PartialEq, PartialOrd, Debug)]

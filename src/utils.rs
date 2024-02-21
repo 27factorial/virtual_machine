@@ -1,9 +1,7 @@
 use rustc_hash::FxHasher;
 use std::hash::BuildHasherDefault;
 
-use crate::vm::{
-    ops::{VmError, VmErrorKind}, Vm,
-};
+use crate::vm::{Vm, VmError, VmErrorKind};
 
 pub type HashMap<K, V> = hashbrown::HashMap<K, V, BuildHasherDefault<FxHasher>>;
 

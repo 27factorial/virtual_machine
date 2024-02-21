@@ -8,6 +8,8 @@ use crate::{
 
 use std::{ops::Index, slice::SliceIndex, sync::Arc};
 
+use super::VmError;
+
 pub type OpResult = Result<Transition, VmError>;
 
 /// Opcodes representing the virtual machine's instruction set.
@@ -222,35 +224,6 @@ pub enum Transition {
     Halt,
 }
 
-#[derive(Clone, PartialEq, PartialOrd, Debug)]
-pub struct VmError {
-    kind: VmErrorKind,
-    frame: Option<CallFrame>,
-}
-
-impl VmError {
-    pub fn new<'a>(kind: VmErrorKind, frame: impl Into<Option<&'a CallFrame>>) -> Self {
-        Self {
-            kind,
-            frame: frame.into().cloned(),
-        }
-    }
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum VmErrorKind {
-    Type,
-    Arithmetic,
-    StackOverflow,
-    StackUnderflow,
-    OutOfMemory,
-    FunctionNotFound,
-    SymbolNotFound,
-    TypeNotFound,
-    InvalidObject,
-    OutOfBounds,
-}
-
 #[derive(Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
 pub struct Function(pub(crate) Arc<[OpCode]>);
 
@@ -287,14 +260,13 @@ impl Default for Function {
 }
 
 mod imp {
-    use super::{OpResult, Transition, VmError, VmErrorKind};
+    use super::{OpResult, Transition};
     use crate::utils::VmResult;
     use crate::value::Value;
-    use crate::vm::Vm;
+    use crate::vm::{Vm, VmError, VmErrorKind};
     use crate::{string::Symbol, vm::CallFrame};
     use std::mem;
     use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Sub};
-    
 
     macro_rules! bin_arithmetic {
         (

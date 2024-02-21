@@ -4,10 +4,7 @@ use crate::{
     program::Program,
     utils::VmResult,
     value::Value,
-    vm::{
-        ops::{OpCode, VmError, VmErrorKind},
-        Vm,
-    },
+    vm::{ops::OpCode, Vm, VmError, VmErrorKind},
 };
 
 use super::{VmObject, VmType};
@@ -33,7 +30,7 @@ impl Array {
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
 
         let value = vm
-            .get_object::<Self>(this_ref)?
+            .get_heap_object::<Self>(this_ref)?
             .get(index)
             .copied()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
@@ -43,7 +40,7 @@ impl Array {
 
     fn vm_length(vm: &mut Vm) -> Result<Value, VmError> {
         let this_ref = vm.pop_object_ref()?;
-        let len = vm.get_object::<Self>(this_ref)?.len();
+        let len = vm.get_heap_object::<Self>(this_ref)?.len();
 
         Ok(Value::UInt(len as u64))
     }
@@ -52,7 +49,7 @@ impl Array {
         let this_ref = vm.pop_object_ref()?;
         let value = vm.pop_value()?;
 
-        vm.get_object_mut::<Self>(this_ref)?.push(value);
+        vm.get_heap_object_mut::<Self>(this_ref)?.push(value);
 
         Ok(Value::Null)
     }
@@ -61,7 +58,7 @@ impl Array {
         let this_ref = vm.pop_object_ref()?;
 
         let value = vm
-            .get_object_mut::<Self>(this_ref)?
+            .get_heap_object_mut::<Self>(this_ref)?
             .pop()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
 
@@ -76,7 +73,7 @@ impl Array {
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
         let value = vm.pop_value()?;
 
-        let this = vm.get_object_mut::<Self>(this_ref)?;
+        let this = vm.get_heap_object_mut::<Self>(this_ref)?;
 
         if idx <= this.len() {
             this.insert(idx, value);
@@ -93,7 +90,7 @@ impl Array {
             .try_into()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
 
-        let this = vm.get_object_mut::<Self>(this_ref)?;
+        let this = vm.get_heap_object_mut::<Self>(this_ref)?;
 
         if idx < this.len() {
             let value = this.remove(idx);
@@ -110,7 +107,7 @@ impl Array {
             .try_into()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
 
-        let this = vm.get_object_mut::<Self>(this_ref)?;
+        let this = vm.get_heap_object_mut::<Self>(this_ref)?;
 
         if idx < this.len() {
             let value = this.swap_remove(idx);
@@ -127,7 +124,7 @@ impl Array {
             .try_into()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
 
-        vm.get_object_mut::<Self>(this)?.reserve(additional);
+        vm.get_heap_object_mut::<Self>(this)?.reserve(additional);
         Ok(Value::Null)
     }
 }

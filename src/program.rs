@@ -9,8 +9,8 @@ use crate::{
     utils::HashMap,
     value::Value,
     vm::{
-        ops::{Function, OpCode, VmError},
-        Vm,
+        ops::{Function, OpCode},
+        Vm, VmError,
     },
 };
 
