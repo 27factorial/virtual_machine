@@ -1,17 +1,14 @@
 use std::{collections::VecDeque, mem};
 
 use serde::{Deserialize, Serialize};
-use strum::IntoEnumIterator;
 
 use crate::{gc_box, object::VmObject, value::Value, vm::gc::GcBox};
-
-
 
 pub struct Heap {
     memory: Vec<Option<GcBox<dyn VmObject>>>,
     free_indices: VecDeque<usize>,
     worklist: Vec<usize>,
-    current_children: Vec<ObjectRef>,
+    current_children: Vec<Reference>,
     byte_len: usize,
     byte_capacity: usize,
 }
@@ -28,7 +25,7 @@ impl Heap {
         }
     }
 
-    pub fn alloc<T: VmObject>(&mut self, value: T) -> Result<ObjectRef, T> {
+    pub fn alloc<T: VmObject>(&mut self, value: T) -> Result<Reference, T> {
         match self.free_indices.front().copied() {
             Some(idx) => {
                 // A previous Option was in the slot at self.memory[idx], so the size of the
@@ -44,7 +41,7 @@ impl Heap {
 
                     self.memory[idx] = Some(gc_box!(value));
 
-                    Ok(ObjectRef(idx))
+                    Ok(Reference(idx))
                 } else {
                     Err(value)
                 }
@@ -58,7 +55,7 @@ impl Heap {
                     let idx = self.memory.len();
                     self.memory.push(Some(gc_box!(value)));
                     self.byte_len = required_space;
-                    Ok(ObjectRef(idx))
+                    Ok(Reference(idx))
                 } else {
                     Err(value)
                 }
@@ -66,12 +63,12 @@ impl Heap {
         }
     }
 
-    pub fn collect(&mut self, roots: impl IntoIterator<Item = ObjectRef>) {
+    pub fn collect(&mut self, roots: impl IntoIterator<Item = Reference>) {
         self.mark_from_roots(roots);
         self.sweep();
     }
 
-    pub fn mark_from_roots(&mut self, roots: impl IntoIterator<Item = ObjectRef>) {
+    pub fn mark_from_roots(&mut self, roots: impl IntoIterator<Item = Reference>) {
         for root in roots {
             let Some(object) = self.memory.get_mut(root.0).and_then(|opt| opt.as_mut()) else {
                 continue;
@@ -101,11 +98,11 @@ impl Heap {
         }
     }
 
-    pub fn get(&self, object: ObjectRef) -> Option<&dyn VmObject> {
+    pub fn get(&self, object: Reference) -> Option<&dyn VmObject> {
         self.memory.get(object.0).and_then(|opt| opt.as_deref())
     }
 
-    pub fn get_mut(&mut self, object: ObjectRef) -> Option<&mut dyn VmObject> {
+    pub fn get_mut(&mut self, object: Reference) -> Option<&mut dyn VmObject> {
         self.memory
             .get_mut(object.0)
             .and_then(|opt| opt.as_deref_mut())
@@ -119,11 +116,11 @@ impl Heap {
                 .and_then(|opt| opt.as_ref())
                 .expect("object should exist");
 
-            let object_children = object.fields().iter().copied().filter_map(Value::object);
+            let object_children = object.data().iter().copied().filter_map(Value::reference);
 
             self.current_children.extend(object_children);
 
-            for ObjectRef(child_idx) in self.current_children.drain(..) {
+            for Reference(child_idx) in self.current_children.drain(..) {
                 let object_opt = self.memory.get_mut(child_idx).and_then(|opt| opt.as_mut());
 
                 if let Some(child_object) = object_opt {
@@ -141,4 +138,4 @@ impl Heap {
     Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize, Deserialize,
 )]
 #[repr(transparent)]
-pub struct ObjectRef(usize);
+pub struct Reference(pub(crate) usize);

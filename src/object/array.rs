@@ -1,5 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
     program::Program,
     utils::VmResult,
@@ -9,6 +11,7 @@ use crate::{
 
 use super::{VmObject, VmType};
 
+#[derive(Clone, PartialEq, PartialOrd, Debug, Default, Serialize, Deserialize)]
 pub struct Array(pub Vec<Value>);
 
 impl Array {
@@ -19,18 +22,18 @@ impl Array {
     fn vm_new(vm: &mut Vm) -> Result<Value, VmError> {
         let this_ref = vm.alloc(Self::new())?;
 
-        Ok(Value::Object(this_ref))
+        Ok(Value::Reference(this_ref))
     }
 
     fn vm_index(vm: &mut Vm) -> Result<Value, VmError> {
-        let this_ref = vm.pop_object_ref()?;
+        let this_ref = vm.pop_reference()?;
         let index: usize = vm
             .pop_uint()?
             .try_into()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
 
         let value = vm
-            .get_heap_object::<Self>(this_ref)?
+            .heap_object::<Self>(this_ref)?
             .get(index)
             .copied()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
@@ -39,26 +42,26 @@ impl Array {
     }
 
     fn vm_length(vm: &mut Vm) -> Result<Value, VmError> {
-        let this_ref = vm.pop_object_ref()?;
-        let len = vm.get_heap_object::<Self>(this_ref)?.len();
+        let this_ref = vm.pop_reference()?;
+        let len = vm.heap_object::<Self>(this_ref)?.len();
 
         Ok(Value::UInt(len as u64))
     }
 
     fn vm_push(vm: &mut Vm) -> Result<Value, VmError> {
-        let this_ref = vm.pop_object_ref()?;
+        let this_ref = vm.pop_reference()?;
         let value = vm.pop_value()?;
 
-        vm.get_heap_object_mut::<Self>(this_ref)?.push(value);
+        vm.heap_object_mut::<Self>(this_ref)?.push(value);
 
         Ok(Value::Null)
     }
 
     fn vm_pop(vm: &mut Vm) -> Result<Value, VmError> {
-        let this_ref = vm.pop_object_ref()?;
+        let this_ref = vm.pop_reference()?;
 
         let value = vm
-            .get_heap_object_mut::<Self>(this_ref)?
+            .heap_object_mut::<Self>(this_ref)?
             .pop()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
 
@@ -66,14 +69,14 @@ impl Array {
     }
 
     fn vm_insert(vm: &mut Vm) -> Result<Value, VmError> {
-        let this_ref = vm.pop_object_ref()?;
+        let this_ref = vm.pop_reference()?;
         let idx: usize = vm
             .pop_uint()?
             .try_into()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
         let value = vm.pop_value()?;
 
-        let this = vm.get_heap_object_mut::<Self>(this_ref)?;
+        let this = vm.heap_object_mut::<Self>(this_ref)?;
 
         if idx <= this.len() {
             this.insert(idx, value);
@@ -84,13 +87,13 @@ impl Array {
     }
 
     fn vm_remove(vm: &mut Vm) -> Result<Value, VmError> {
-        let this_ref = vm.pop_object_ref()?;
+        let this_ref = vm.pop_reference()?;
         let idx: usize = vm
             .pop_uint()?
             .try_into()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
 
-        let this = vm.get_heap_object_mut::<Self>(this_ref)?;
+        let this = vm.heap_object_mut::<Self>(this_ref)?;
 
         if idx < this.len() {
             let value = this.remove(idx);
@@ -101,13 +104,13 @@ impl Array {
     }
 
     fn vm_swap_remove(vm: &mut Vm) -> Result<Value, VmError> {
-        let this_ref = vm.pop_object_ref()?;
+        let this_ref = vm.pop_reference()?;
         let idx: usize = vm
             .pop_uint()?
             .try_into()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
 
-        let this = vm.get_heap_object_mut::<Self>(this_ref)?;
+        let this = vm.heap_object_mut::<Self>(this_ref)?;
 
         if idx < this.len() {
             let value = this.swap_remove(idx);
@@ -118,13 +121,13 @@ impl Array {
     }
 
     fn vm_reserve(vm: &mut Vm) -> Result<Value, VmError> {
-        let this = vm.pop_object_ref()?;
+        let this = vm.pop_reference()?;
         let additional: usize = vm
             .pop_uint()?
             .try_into()
             .vm_err(VmErrorKind::OutOfBounds, vm)?;
 
-        vm.get_heap_object_mut::<Self>(this)?.reserve(additional);
+        vm.heap_object_mut::<Self>(this)?.reserve(additional);
         Ok(Value::Null)
     }
 }
@@ -185,15 +188,15 @@ impl VmObject for Array {
         program.register_type(ty)
     }
 
-    fn field(&self, name: &str) -> Option<&Value> {
-        todo!()
+    fn field(&self, _: &str) -> Option<&Value> {
+        None
     }
 
-    fn field_mut(&mut self, name: &str) -> Option<&mut Value> {
-        todo!()
+    fn field_mut(&mut self, _: &str) -> Option<&mut Value> {
+        None
     }
 
-    fn fields(&self) -> &[Value] {
-        todo!()
+    fn data(&self) -> &[Value] {
+        &self.0
     }
 }

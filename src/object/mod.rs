@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::{
-    any::{Any, TypeId},
-    sync::Arc,
+    any::{Any, TypeId}, fmt::Debug, sync::Arc
 };
 
 use crate::{
@@ -13,15 +12,20 @@ use crate::{
 };
 
 pub mod array;
+pub mod dict;
 mod std_impls;
 
-pub trait VmObject: Any + Send + Sync {
+pub trait VmObject: Any + Debug + Send + Sync + sealed::AsDebug {
     fn register_type(program: &mut Program) -> &VmType
     where
         Self: Sized;
     fn field(&self, name: &str) -> Option<&Value>;
     fn field_mut(&mut self, name: &str) -> Option<&mut Value>;
-    fn fields(&self) -> &[Value];
+    fn data(&self) -> &[Value];
+
+    fn as_debug(&self) -> &dyn Debug {
+        sealed::AsDebug::upcast_debug(self)
+    }
 }
 
 impl dyn VmObject {
@@ -99,4 +103,21 @@ pub struct Operators {
     pub(crate) init: Function,
     pub(crate) deinit: Option<Function>,
     pub(crate) index: Option<Function>,
+}
+
+mod sealed {
+    use std::fmt::Debug;
+
+    use super::VmObject;
+
+    #[doc(hidden)]
+    pub trait AsDebug {
+        fn upcast_debug(&self) -> &dyn Debug;
+    }
+
+    impl<T: VmObject> AsDebug for T {
+        fn upcast_debug(&self) -> &dyn Debug {
+            self
+        }
+    }
 }

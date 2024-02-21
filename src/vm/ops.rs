@@ -157,6 +157,11 @@ pub enum OpCode {
     /// Set the VM's current frame to the call frame popped from the call stack.
     Ret,
 
+    CastUint,
+    CastSint,
+    CastFloat,
+    CastBool,
+
     /// Print out the value at a memory location relative to the top of the stack to stderr.
     Dbg(usize),
 }
@@ -212,6 +217,10 @@ impl OpCode {
             Op::CallImm(symbol) => vm.op_call_imm(symbol),
             Op::CallNative(index) => vm.op_call_native(index),
             Op::Ret => vm.op_ret(),
+            Op::CastUint => vm.op_cast_uint(),
+            Op::CastSint => vm.op_cast_sint(),
+            Op::CastFloat => vm.op_cast_float(),
+            Op::CastBool => vm.op_cast_bool(),
             Op::Dbg(address) => vm.op_dbg(address),
         }
     }
@@ -265,7 +274,7 @@ mod imp {
     use crate::value::Value;
     use crate::vm::{Vm, VmError, VmErrorKind};
     use crate::{string::Symbol, vm::CallFrame};
-    use std::mem;
+    use std::{mem, ptr};
     use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Sub};
 
     macro_rules! bin_arithmetic {
@@ -434,7 +443,7 @@ mod imp {
                 (Value::Address(a), Value::Address(b)) => {
                     $self.push_value(Value::Bool($op(&a, &b)))?;
                 }
-                (Value::Object(a), Value::Object(b)) => {
+                (Value::Reference(a), Value::Reference(b)) => {
                     $self.push_value(Value::Bool($op(&a, &b)))?;
                 }
                 _ => return Err(VmError::new(VmErrorKind::Type, &$self.frame)),
@@ -486,7 +495,7 @@ mod imp {
 
             let locals = self.locals_mut();
 
-            if index > locals.len() {
+            if index >= locals.len() {
                 locals.resize(index + 1, Value::Null);
             }
 
@@ -967,21 +976,91 @@ mod imp {
             Ok(Transition::Continue)
         }
 
-        // // DebugRegister
-        // #[inline]
-        // pub(super) fn op_dbg_reg(&self, register: Register) -> OpResult {
-        //     let value = self.registers[register];
+        pub(super) fn op_cast_uint(&mut self) -> OpResult {
+            let cast = match self.pop_value()? {
+                Value::UInt(v) => Value::UInt(v),
+                Value::SInt(v) => Value::UInt(v as u64),
+                Value::Float(v) => Value::UInt(v as u64),
+                Value::Bool(v) => Value::UInt(v as u64),
+                Value::Char(v) => Value::UInt(v as u64),
+                _ => return Err(self.error(VmErrorKind::Type)),
+            };
 
-        //     eprintln!("Register {register:?}: {value:?}");
-        //     Ok(Transition::Continue)
-        // }
+            self.push_value(cast)?;
+
+            Ok(Transition::Continue)
+        }
+
+        pub(super) fn op_cast_sint(&mut self) -> OpResult {
+            let cast = match self.pop_value()? {
+                Value::UInt(v) => Value::SInt(v as i64),
+                Value::SInt(v) => Value::SInt(v),
+                Value::Float(v) => Value::SInt(v as i64),
+                Value::Bool(v) => Value::SInt(v as i64),
+                Value::Char(v) => Value::SInt(v as i64),
+                _ => return Err(self.error(VmErrorKind::Type)),
+            };
+
+            self.push_value(cast)?;
+
+            Ok(Transition::Continue)
+        }
+
+        pub(super) fn op_cast_float(&mut self) -> OpResult {
+            let cast = match self.pop_value()? {
+                Value::UInt(v) => Value::Float(v as f64),
+                Value::SInt(v) => Value::Float(v as f64),
+                Value::Float(v) => Value::Float(v),
+                Value::Bool(v) => Value::Float(v as u64 as f64),
+                Value::Char(v) => Value::Float(v as u64 as f64),
+                _ => return Err(self.error(VmErrorKind::Type)),
+            };
+
+            self.push_value(cast)?;
+
+            Ok(Transition::Continue)
+        }
+
+        pub(super) fn op_cast_bool(&mut self) -> OpResult {
+            let cast = match self.pop_value()? {
+                Value::UInt(v) => Value::Bool(v != 0),
+                Value::SInt(v) => Value::Bool(v != 0),
+                Value::Float(v) => Value::Bool(v != 0.0),
+                Value::Bool(v) => Value::Bool(v),
+                Value::Char(v) => Value::Bool(v != '\0'),
+                _ => return Err(self.error(VmErrorKind::Type)),
+            };
+
+            self.push_value(cast)?;
+
+            Ok(Transition::Continue)
+        }
 
         // dbg
         #[inline]
         pub(super) fn op_dbg(&self, index: usize) -> OpResult {
-            let value = self.get_value(index).ok();
+            let value = self.get_value(index).unwrap_or(Value::Null);
 
-            eprintln!("*(sp - {index:#x}): {value:?}");
+            match value {
+                reference @ Value::Reference(v) => {
+                    eprint!("stack[{index:#x}]: {reference:?} => ");
+
+                    let obj_debug = self
+                        .heap
+                        .get(v)
+                        .map(|obj| obj.as_debug());
+
+                        match obj_debug {
+                            Some(debug) => {
+                                let address = ptr::from_ref(debug).addr();
+
+                                eprintln!("{debug:#?} @ {address:#x}")
+                            }
+                            None => eprintln!("<invalid>")
+                        }
+                }
+                value => eprintln!("*(sp - {index:#x}): {value:?}"),
+            }
             Ok(Transition::Continue)
         }
 

@@ -1,5 +1,5 @@
 use self::{
-    heap::{Heap, ObjectRef},
+    heap::{Heap, Reference},
     memory::{CallStack, DataStack},
 };
 use crate::{
@@ -159,17 +159,19 @@ impl Vm {
             .vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn pop_object_ref(&mut self) -> Result<ObjectRef, VmError> {
-        self.pop_value()?.object().vm_err(VmErrorKind::Type, self)
-    }
-
-    pub fn get_object_ref(&self, index: usize) -> Result<ObjectRef, VmError> {
-        self.get_value(index)?
-            .object()
+    pub fn pop_reference(&mut self) -> Result<Reference, VmError> {
+        self.pop_value()?
+            .reference()
             .vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn get_heap_object<T: VmObject>(&self, obj: ObjectRef) -> Result<&T, VmError> {
+    pub fn get_reference(&self, index: usize) -> Result<Reference, VmError> {
+        self.get_value(index)?
+            .reference()
+            .vm_err(VmErrorKind::Type, self)
+    }
+
+    pub fn heap_object<T: VmObject>(&self, obj: Reference) -> Result<&T, VmError> {
         self.heap
             .get(obj)
             .vm_err(VmErrorKind::InvalidObject, self)?
@@ -177,7 +179,7 @@ impl Vm {
             .vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn get_heap_object_mut<T: VmObject>(&mut self, obj: ObjectRef) -> Result<&mut T, VmError> {
+    pub fn heap_object_mut<T: VmObject>(&mut self, obj: Reference) -> Result<&mut T, VmError> {
         // match must be used here because the borrow checker doesn't fully understand partial
         // borrows.
         match self.heap.get_mut(obj) {
@@ -217,7 +219,7 @@ impl Vm {
         &mut self.heap
     }
 
-    pub fn alloc<T: VmObject>(&mut self, value: T) -> Result<ObjectRef, VmError> {
+    pub fn alloc<T: VmObject>(&mut self, value: T) -> Result<Reference, VmError> {
         match self.heap.alloc(value) {
             Ok(object) => Ok(object),
             Err(value) => {
@@ -235,7 +237,7 @@ impl Vm {
                 let roots = stack_values
                     .chain(locals)
                     .copied()
-                    .filter_map(Value::object);
+                    .filter_map(Value::reference);
 
                 self.heap.collect(roots);
 
@@ -362,9 +364,11 @@ impl CallFrame {
 
 #[cfg(test)]
 mod test {
-    use crate::{program::Program, value::Value};
+    use crate::{
+        object::{array::Array, VmObject}, program::Program, string::Symbol, value::Value
+    };
 
-    use super::{ops::OpCode, Vm};
+    use super::{heap::Reference, ops::OpCode, Vm};
 
     #[test]
     fn basic_program() {
@@ -396,141 +400,46 @@ mod test {
 
         vm.run().expect("failed to execute program");
     }
+
+    #[test]
+    fn array_object() {
+        let mut program = Program::new();
+
+        Array::register_type(&mut program);
+
+        let main_sym = program.define_symbol("main");
+        let array_new = program.define_symbol("Array::new");
+        let array_push = program.define_symbol("Array::push");
+
+        program
+            .define_function(main_sym, [
+                // Push uints 1-4 to stack
+                OpCode::Push(Value::UInt(4)),
+                OpCode::Push(Value::UInt(3)),
+                OpCode::Push(Value::UInt(2)),
+                OpCode::Push(Value::UInt(1)),
+                // Create a new array and save a copy of the reference to the first local variable
+                OpCode::CallImm(array_new),
+                OpCode::Copy,
+                OpCode::Store(0),
+                // Call the Array::push method four times
+                OpCode::CallImm(array_push),
+                OpCode::Load(0),
+                OpCode::CallImm(array_push),
+                OpCode::Load(0),
+                OpCode::CallImm(array_push),
+                OpCode::Load(0),
+                OpCode::CallImm(array_push),
+                OpCode::Load(0),
+                // print out the current state of the array
+                OpCode::Dbg(0),
+                // halt, we're done.
+                OpCode::Halt
+                ])
+            .expect("failed to define `main` function");
+
+        let mut vm = Vm::new(program).expect("failed to create VM");
+
+        vm.run().expect("failed to execute program");
+    }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use std::sync::Arc;
-
-//     use crate::object::{Operators, VmObject, VmType};
-
-//     use super::*;
-
-//     #[test]
-//     fn basic_program() {
-//         use crate::ops::OpCode::*;
-
-//         let mut program = Program::new();
-
-//         let crunch = program.define_symbol("crunch");
-//         let main = program.define_symbol("main");
-
-//         program
-//             .define_function(
-//                 main,
-//                 [
-//                     LoadImm(Value::Bool(false), Register::R0),
-//                     Not(Register::R0),
-//                     LoadImm(Value::Symbol(crunch), Register::R0),
-//                     Call(Register::R0),
-//                 ],
-//             )
-//             .unwrap();
-
-//         program
-//             .define_function(
-//                 crunch,
-//                 [
-//                     LoadImm(Value::Float(42.0), Register::R1),
-//                     LoadImm(Value::Float(2.0), Register::R2),
-//                     Div(Register::R1, Register::R2),
-//                     Ret,
-//                 ],
-//             )
-//             .unwrap();
-
-//         let mut vm = Vm::new(program).unwrap();
-
-//         vm.run().unwrap();
-//     }
-
-//     #[test]
-//     fn object_fn() {
-//         use crate::ops::OpCode::*;
-
-//         struct Test;
-
-//         impl VmObject for Test {
-//             fn register_type(program: &mut Program) -> &VmType
-//             where
-//                 Self: Sized,
-//             {
-//                 let methods = [(
-//                     Arc::from("test"),
-//                     Function::new([
-//                         LoadImm(Value::UInt(1), Register::R0),
-//                         AddImm(Register::R0, Value::UInt(1)),
-//                         Ret,
-//                     ]),
-//                 )]
-//                 .into_iter()
-//                 .collect();
-
-//                 let operators = Operators {
-//                     init: Function::new([Ret]),
-//                     deinit: None,
-//                     index: None,
-//                 };
-
-//                 program.register_type(VmType {
-//                     name: Arc::from("Test"),
-//                     operators,
-//                     fields: Default::default(),
-//                     methods,
-//                 })
-//             }
-
-//             fn field(&self, name: &str) -> Option<&Value> {
-//                 None
-//             }
-
-//             fn field_mut(&mut self, name: &str) -> Option<&mut Value> {
-//                 None
-//             }
-
-//             fn fields(&self) -> &[Value] {
-//                 &[]
-//             }
-//         }
-
-//         let mut program = Program::new();
-
-//         let test = program.define_symbol("Test::test");
-//         let main = program.define_symbol("main");
-
-//         Test::register_type(&mut program);
-
-//         program.define_function(main, [CallImm(test)]).unwrap();
-
-//         let mut vm = Vm::new(program).unwrap();
-
-//         vm.run().unwrap();
-//     }
-
-//     #[test]
-//     fn native() {
-//         let mut program = Program::new();
-
-//         String::register_type(&mut program);
-
-//         let main = program.define_symbol("main");
-//         let string_ty = program.define_symbol("String");
-//         let print = program.define_symbol("String::print");
-
-//         program
-//             .define_function(
-//                 main,
-//                 [
-//                     OpCode::LoadImm(Value::Symbol(string_ty), Register::R0),
-//                     OpCode::Init(Register::R0),
-//                     OpCode::CallImm(print),
-//                     OpCode::Halt,
-//                 ],
-//             )
-//             .unwrap();
-
-//         let mut vm = Vm::new(program).unwrap();
-
-//         vm.run().unwrap();
-//     }
-// }
