@@ -943,7 +943,8 @@ mod imp {
         pub(super) fn op_call_imm(&mut self, symbol: Symbol) -> OpResult {
             let called_func = self.resolve_function(symbol)?;
 
-            let caller = mem::replace(&mut self.frame, CallFrame::new(called_func, 0));
+            let locals = self.make_locals();
+            let caller = mem::replace(&mut self.frame, CallFrame::new(called_func, 0, locals));
 
             self.push_frame(caller)?;
 
@@ -967,7 +968,12 @@ mod imp {
         // ret
         #[inline(never)]
         pub(super) fn op_ret(&mut self) -> OpResult {
-            self.frame = self.pop_frame()?;
+            let new_frame = self.pop_frame()?;
+            let mut old_frame = mem::replace(&mut self.frame, new_frame);
+
+            let locals = mem::take(&mut old_frame.locals);
+
+            self.cache_locals(locals);
 
             Ok(Transition::Continue)
         }

@@ -14,5 +14,7 @@ Cargo.lock
 # MSVC Windows builds of rustc generate these, which store debugging information
 *.pdb
 
-# Flamegraphs, used for performance testing.
+# Flamegraphs and perf data, used for performance testing.
 flamegraph/
+perf.*
+perf.*.*

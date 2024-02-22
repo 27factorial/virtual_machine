@@ -1,17 +1,23 @@
 use crate::object::VmObject;
 use crate::program::{NativeFn, Path, Program};
 use crate::string::Symbol;
-use crate::utils::{IntHashMap, IntoVmResult};
+use crate::utils::{IntEntry, IntoVmResult};
 use crate::value::Value;
 use heap::{Heap, Reference};
 use memory::{CallStack, DataStack};
 use ops::{Function, OpCode, Transition};
+use std::cell::RefCell;
 use std::sync::Arc;
 
+use self::cache::Cache;
+
+pub mod cache;
 pub mod gc;
 pub mod heap;
 pub mod memory;
 pub mod ops;
+
+const DEFAULT_LOCALS_LEN: usize = 4;
 
 pub type Result<T> = std::result::Result<T, VmError>;
 
@@ -20,7 +26,7 @@ pub struct Vm {
     call_stack: CallStack,
     data_stack: DataStack,
     heap: Heap,
-    function_cache: IntHashMap<Symbol, Function>,
+    cache: RefCell<Cache>,
     program: Program,
 }
 
@@ -33,11 +39,11 @@ impl Vm {
             .ok_or_else(|| VmError::new(VmErrorKind::FunctionNotFound, None))?;
 
         Ok(Self {
-            frame: CallFrame::new(main, 0),
+            frame: CallFrame::new(main, 0, Vec::with_capacity(DEFAULT_LOCALS_LEN)),
             call_stack: CallStack::new(64),
             data_stack: DataStack::new(128),
             heap: Heap::new(1024),
-            function_cache: IntHashMap::default(),
+            cache: RefCell::new(Cache::new()),
             program,
         })
     }
@@ -248,56 +254,79 @@ impl Vm {
         }
     }
 
-    pub fn resolve_native_function(&self, symbol: Symbol) -> Result<Arc<NativeFn>> {
-        let name = self
-            .program
-            .symbols
-            .get(symbol)
-            .vm_err(VmErrorKind::SymbolNotFound, self)?;
+    pub fn resolve_function(&self, symbol: Symbol) -> Result<Function> {
+        let mut cache = self.cache.borrow_mut();
 
-        let function = self
-            .program
-            .native_functions
-            .get(name)
-            .cloned()
-            .vm_err(VmErrorKind::FunctionNotFound, self)?;
+        match cache.function_entry(symbol) {
+            IntEntry::Occupied(entry) => Ok(entry.get().clone()),
+            IntEntry::Vacant(entry) => {
+                let name = self
+                    .program
+                    .symbols
+                    .get(symbol)
+                    .vm_err(VmErrorKind::SymbolNotFound, self)?;
 
-        Ok(function)
+                let path = Path::new(name).vm_err(VmErrorKind::FunctionNotFound, self)?;
+
+                let functions = match path.object {
+                    Some(name) => {
+                        let ty = self
+                            .program
+                            .types
+                            .get(name)
+                            .vm_err(VmErrorKind::TypeNotFound, self)?;
+                        &ty.methods
+                    }
+                    None => &self.program.functions,
+                };
+
+                let function = functions
+                    .get(path.member)
+                    .cloned()
+                    .vm_err(VmErrorKind::FunctionNotFound, self)?;
+
+                let function = entry.insert(function);
+
+                Ok(function.clone())
+            }
+        }
     }
 
-    pub fn resolve_function(&mut self, symbol: Symbol) -> Result<Function> {
-        if let Some(function) = self.function_cache.get(&symbol) {
-            Ok(function.clone())
-        } else {
-            let name = self
-                .program
-                .symbols
-                .get(symbol)
-                .vm_err(VmErrorKind::SymbolNotFound, self)?;
+    pub fn resolve_native_function(&self, symbol: Symbol) -> Result<Arc<NativeFn>> {
+        let mut cache = self.cache.borrow_mut();
 
-            let path = Path::new(name).vm_err(VmErrorKind::FunctionNotFound, self)?;
+        match cache.native_function_entry(symbol) {
+            IntEntry::Occupied(entry) => Ok(entry.get().clone()),
+            IntEntry::Vacant(entry) => {
+                let name = self
+                    .program
+                    .symbols
+                    .get(symbol)
+                    .vm_err(VmErrorKind::SymbolNotFound, self)?;
 
-            let functions = match path.object {
-                Some(name) => {
-                    let ty = self
-                        .program
-                        .types
-                        .get(name)
-                        .vm_err(VmErrorKind::TypeNotFound, self)?;
-                    &ty.methods
-                }
-                None => &self.program.functions,
-            };
+                let function = self
+                    .program
+                    .native_functions
+                    .get(name)
+                    .cloned()
+                    .vm_err(VmErrorKind::FunctionNotFound, self)?;
 
-            let function = functions
-                .get(path.member)
-                .cloned()
-                .vm_err(VmErrorKind::FunctionNotFound, self)?;
+                let function = entry.insert(function);
 
-            self.function_cache.insert(symbol, function.clone());
-
-            Ok(function)
+                Ok(function.clone())
+            }
         }
+    }
+
+    pub fn cache_locals(&self, locals: Vec<Value>) {
+        self.cache.borrow_mut().cache_locals(locals)
+    }
+
+    pub fn make_locals(&self) -> Vec<Value> {
+        self.cache
+            .borrow_mut()
+            .take_locals()
+            .unwrap_or_else(|| Vec::with_capacity(DEFAULT_LOCALS_LEN))
     }
 
     #[inline(always)]
@@ -314,7 +343,7 @@ impl Vm {
             .cloned()
             .vm_err(VmErrorKind::FunctionNotFound, self)?;
 
-        self.frame = CallFrame::new(main, 0);
+        self.frame = CallFrame::new(main, 0, Vec::with_capacity(DEFAULT_LOCALS_LEN));
         self.call_stack.clear();
         self.data_stack.clear();
         self.heap = Heap::new(1024);
@@ -360,12 +389,8 @@ pub struct CallFrame {
 }
 
 impl CallFrame {
-    pub fn new(func: Function, ip: usize) -> Self {
-        Self {
-            func,
-            ip,
-            locals: Vec::with_capacity(4),
-        }
+    pub fn new(func: Function, ip: usize, locals: Vec<Value>) -> Self {
+        Self { func, ip, locals }
     }
 }
 
