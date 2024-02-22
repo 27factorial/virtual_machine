@@ -12,7 +12,7 @@ use crate::vm::ops::{Function, OpCode};
 
 use crate::vm::Result as VmResult;
 
-const VALID_MAGIC: &[u8; 7] = b"27FCTRL";
+pub const VALID_MAGIC: &[u8; 7] = b"27FCTRL";
 
 pub type NativeFn = dyn Fn(&mut Vm) -> VmResult<Value> + 'static;
 

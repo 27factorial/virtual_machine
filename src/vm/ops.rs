@@ -1060,10 +1060,5 @@ mod imp {
             }
             Ok(Transition::Continue)
         }
-
-        // trap
-        pub(super) fn op_trap(&self) -> OpResult {
-            Ok(Transition::Continue)
-        }
     }
 }

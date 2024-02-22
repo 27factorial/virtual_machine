@@ -14,13 +14,13 @@ use value::Value;
 use vm::ops::OpCode;
 use vm::Vm;
 
-mod object;
-mod program;
-mod serde_impl;
-mod string;
-mod utils;
-mod value;
-mod vm;
+pub mod object;
+pub mod program;
+pub mod serde_impl;
+pub mod string;
+pub mod utils;
+pub mod value;
+pub mod vm;
 
 // TODO: Local variables for functions inside CallFrame
 

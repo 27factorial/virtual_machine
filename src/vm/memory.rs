@@ -66,10 +66,6 @@ impl DataStack {
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Value> {
         self.data.iter_mut()
     }
-
-    pub fn into_iter(self) -> impl Iterator<Item = Value> {
-        self.data.into_iter()
-    }
 }
 
 impl<I: SliceIndex<[Value]>> Index<I> for DataStack {
@@ -83,6 +79,16 @@ impl<I: SliceIndex<[Value]>> Index<I> for DataStack {
 impl<I: SliceIndex<[Value]>> IndexMut<I> for DataStack {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         self.data.index_mut(index)
+    }
+}
+
+impl IntoIterator for DataStack {
+    type Item = <Vec<Value> as IntoIterator>::Item;
+
+    type IntoIter = <Vec<Value> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.data.into_iter()
     }
 }
 
@@ -136,8 +142,14 @@ impl CallStack {
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut CallFrame> {
         self.data.iter_mut()
     }
+}
 
-    pub fn into_iter(self) -> impl Iterator<Item = CallFrame> {
+impl IntoIterator for CallStack {
+    type Item = <Vec<CallFrame> as IntoIterator>::Item;
+
+    type IntoIter = <Vec<CallFrame> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
         self.data.into_iter()
     }
 }
