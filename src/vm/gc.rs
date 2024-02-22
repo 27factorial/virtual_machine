@@ -444,10 +444,10 @@ impl<S: Seek + ?Sized> Seek for GcBox<S> {
 impl<T: ?Sized> Unpin for GcBox<T> {}
 
 // SAFETY: GcBox<T> is an owned pointer which will never alias its data.
-unsafe impl<T: Send> Send for GcBox<T> {}
+unsafe impl<T: Send + ?Sized> Send for GcBox<T> {}
 
 // SAFETY: GcBox is an owned pointer which will never alias its data.
-unsafe impl<T: Sync> Sync for GcBox<T> {}
+unsafe impl<T: Sync + ?Sized> Sync for GcBox<T> {}
 
 impl<T: ?Sized> Drop for GcBox<T> {
     fn drop(&mut self) {

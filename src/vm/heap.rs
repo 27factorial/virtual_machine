@@ -1,12 +1,10 @@
-use std::collections::VecDeque;
-use std::mem;
-
-use serde::{Deserialize, Serialize};
-
 use crate::gc_box;
 use crate::object::VmObject;
 use crate::value::Value;
 use crate::vm::gc::GcBox;
+use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
+use std::mem;
 
 pub struct Heap {
     memory: Vec<Option<GcBox<dyn VmObject>>>,

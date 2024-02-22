@@ -1,4 +1,5 @@
-use crate::utils::FxHashMap;
+use std::sync::Arc;
 use crate::value::Value;
+use hashbrown::HashMap;
 
-pub struct Dictionary(FxHashMap<Value, Value>);
+pub struct Dictionary(HashMap<Arc<str>, Value>);

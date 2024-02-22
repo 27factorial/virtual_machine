@@ -1,12 +1,10 @@
-use std::ops::{Deref, DerefMut};
-
-use serde::{Deserialize, Serialize};
-
 use crate::program::Program;
 use crate::utils::IntoVmResult;
 use crate::value::Value;
 use crate::vm::ops::OpCode;
 use crate::vm::{Result as VmResult, Vm, VmErrorKind};
+use serde::{Deserialize, Serialize};
+use std::ops::{Deref, DerefMut};
 
 use super::{VmObject, VmType};
 

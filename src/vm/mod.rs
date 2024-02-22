@@ -1,3 +1,4 @@
+use self::cache::Cache;
 use crate::object::VmObject;
 use crate::program::{NativeFn, Path, Program};
 use crate::string::Symbol;
@@ -8,8 +9,6 @@ use memory::{CallStack, DataStack};
 use ops::{Function, OpCode, Transition};
 use std::cell::RefCell;
 use std::sync::Arc;
-
-use self::cache::Cache;
 
 pub mod cache;
 pub mod gc;

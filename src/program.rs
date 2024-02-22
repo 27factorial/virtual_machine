@@ -1,16 +1,13 @@
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-
-use hashbrown::hash_map::RawEntryMut;
-
 use crate::object::VmType;
 use crate::string::{Symbol, Symbols};
 use crate::utils::FxHashMap;
 use crate::value::Value;
-use crate::vm::Vm;
 use crate::vm::ops::{Function, OpCode};
-
 use crate::vm::Result as VmResult;
+use crate::vm::Vm;
+use hashbrown::hash_map::RawEntryMut;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 pub const VALID_MAGIC: &[u8; 7] = b"27FCTRL";
 
