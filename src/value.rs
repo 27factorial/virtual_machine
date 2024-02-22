@@ -1,4 +1,5 @@
-use crate::{string::Symbol, vm::heap::Reference};
+use crate::string::Symbol;
+use crate::vm::heap::Reference;
 use paste::paste;
 use serde::{Deserialize, Serialize};
 

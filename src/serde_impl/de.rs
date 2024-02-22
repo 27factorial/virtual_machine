@@ -1,8 +1,7 @@
-use std::io;
-
 use super::error::{Error, Result};
 use paste::paste;
 use serde::de::{self, Deserializer as _};
+use std::io;
 
 /// Attempt to read some bytes (in little-endian order) from a deserializer's reader and parse them
 /// as a given type. This only works for the primitive integer types.

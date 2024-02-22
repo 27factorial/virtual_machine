@@ -3,16 +3,12 @@ use std::sync::Arc;
 
 use hashbrown::hash_map::RawEntryMut;
 
-use crate::{
-    object::VmType,
-    string::{Symbol, Symbols},
-    utils::FxHashMap,
-    value::Value,
-    vm::{
-        ops::{Function, OpCode},
-        Vm, VmError,
-    },
-};
+use crate::object::VmType;
+use crate::string::{Symbol, Symbols};
+use crate::utils::FxHashMap;
+use crate::value::Value;
+use crate::vm::Vm;
+use crate::vm::ops::{Function, OpCode};
 
 use crate::vm::Result as VmResult;
 

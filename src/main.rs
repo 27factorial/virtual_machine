@@ -11,7 +11,8 @@
 
 use program::Program;
 use value::Value;
-use vm::{ops::OpCode, Vm};
+use vm::ops::OpCode;
+use vm::Vm;
 
 mod object;
 mod program;

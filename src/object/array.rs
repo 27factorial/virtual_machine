@@ -2,12 +2,11 @@ use std::ops::{Deref, DerefMut};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    program::Program,
-    utils::IntoVmResult,
-    value::Value,
-    vm::{ops::OpCode, Vm, VmError, VmErrorKind, Result as VmResult},
-};
+use crate::program::Program;
+use crate::utils::IntoVmResult;
+use crate::value::Value;
+use crate::vm::ops::OpCode;
+use crate::vm::{Result as VmResult, Vm, VmErrorKind};
 
 use super::{VmObject, VmType};
 

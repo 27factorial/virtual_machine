@@ -1,6 +1,6 @@
-use std::{fmt, io};
-
 use serde::{de, ser};
+use std::fmt;
+use std::io;
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;

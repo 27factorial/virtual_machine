@@ -1,17 +1,14 @@
 use serde::{Deserialize, Serialize};
-use std::{
-    any::{Any, TypeId},
-    fmt::Debug,
-    sync::Arc,
-};
 
-use crate::{
-    program::Program,
-    utils::FxHashMap,
-    value::Value,
-    vm::gc::GcBox,
-    vm::ops::{Function, OpCode},
-};
+use std::any::{Any, TypeId};
+use std::fmt::Debug;
+use std::sync::Arc;
+
+use crate::program::Program;
+use crate::utils::FxHashMap;
+use crate::value::Value;
+use crate::vm::gc::GcBox;
+use crate::vm::ops::{Function, OpCode};
 
 pub mod array;
 pub mod dict;

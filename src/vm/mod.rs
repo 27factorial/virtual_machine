@@ -1,14 +1,10 @@
-use self::{
-    heap::{Heap, Reference},
-    memory::{CallStack, DataStack},
-};
-use crate::{
-    object::VmObject,
-    program::{NativeFn, Path, Program},
-    string::Symbol,
-    utils::{IntHashMap, IntoVmResult},
-    value::Value,
-};
+use crate::object::VmObject;
+use crate::program::{NativeFn, Path, Program};
+use crate::string::Symbol;
+use crate::utils::{IntHashMap, IntoVmResult};
+use crate::value::Value;
+use heap::{Heap, Reference};
+use memory::{CallStack, DataStack};
 use ops::{Function, OpCode, Transition};
 use std::sync::Arc;
 
@@ -375,14 +371,9 @@ impl CallFrame {
 
 #[cfg(test)]
 mod test {
-    use crate::{
-        object::{array::Array, VmObject},
-        program::Program,
-        string::Symbol,
-        value::Value,
-    };
+    use crate::{program::Program, value::Value};
 
-    use super::{heap::Reference, ops::OpCode, Vm};
+    use super::{ops::OpCode, Vm};
 
     #[test]
     fn basic_program() {

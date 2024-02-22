@@ -1,13 +1,11 @@
-use std::{
-    alloc::{alloc, dealloc, handle_alloc_error, Layout},
-    fmt::{self, Debug, Display, Pointer},
-    hash::{Hash, Hasher},
-    io::{self, Read, Seek, Write},
-    iter::FusedIterator,
-    mem::{self, MaybeUninit},
-    ops::{Deref, DerefMut},
-    ptr::{self, NonNull},
-};
+use std::alloc::{alloc, dealloc, handle_alloc_error, Layout};
+use std::fmt::{self, Debug, Display, Pointer};
+use std::hash::{Hash, Hasher};
+use std::io::{self, Read, Seek, Write};
+use std::iter::FusedIterator;
+use std::mem::{self, MaybeUninit};
+use std::ops::{Deref, DerefMut};
+use std::ptr::{self, NonNull};
 
 /// Constructs a new `GcBox<T>`, while also performing unsized coercions as necessary.
 ///

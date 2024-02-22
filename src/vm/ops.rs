@@ -1,10 +1,7 @@
+use crate::string::Symbol;
+use crate::value::Value;
+use crate::vm::{Result as VmResult, Vm};
 use serde::{Deserialize, Serialize};
-
-use crate::{
-    string::Symbol,
-    value::Value,
-    vm::{CallFrame, Vm, VmError, Result as VmResult},
-};
 
 use std::{ops::Index, slice::SliceIndex, sync::Arc};
 

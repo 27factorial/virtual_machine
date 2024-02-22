@@ -1,10 +1,7 @@
-use std::{
-    mem,
-    ops::{Index, IndexMut},
-    slice::SliceIndex,
-};
 
-
+use std::mem;
+use std::ops::{Index, IndexMut};
+use std::slice::SliceIndex;
 
 use crate::value::Value;
 
