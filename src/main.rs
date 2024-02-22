@@ -9,6 +9,8 @@
 // Forces #[must_use] return values to be used in *some* way.
 // #![deny(unused_must_use)]
 
+use std::time::Instant;
+
 use program::Program;
 use value::Value;
 use vm::ops::OpCode;
@@ -34,7 +36,7 @@ fn main() {
         .define_function(
             main_sym,
             [
-                // Initialize a counter to 10 million and store the counter in local variable 0
+                // Initialize a counter to 50 million and store the counter in local variable 0
                 OpCode::Push(Value::UInt(50_000_000)),
                 OpCode::Store(0),
                 // Load the counter from local variable 0, and if it's zero, jump to the end of
@@ -69,5 +71,8 @@ fn main() {
 
     let mut vm = Vm::new(program).expect("failed to create VM");
 
+    let start = Instant::now();
     vm.run().expect("failed to run vm");
+    let elapsed = start.elapsed();
+    eprintln!("{elapsed:?}")
 }
