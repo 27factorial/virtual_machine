@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     program::Program,
-    utils::VmResult,
+    utils::IntoVmResult,
     value::Value,
-    vm::{ops::OpCode, Vm, VmError, VmErrorKind},
+    vm::{ops::OpCode, Vm, VmError, VmErrorKind, Result as VmResult},
 };
 
 use super::{VmObject, VmType};
@@ -19,13 +19,13 @@ impl Array {
         Self(Vec::new())
     }
 
-    fn vm_new(vm: &mut Vm) -> Result<Value, VmError> {
+    fn vm_new(vm: &mut Vm) -> VmResult<Value> {
         let this_ref = vm.alloc(Self::new())?;
 
         Ok(Value::Reference(this_ref))
     }
 
-    fn vm_index(vm: &mut Vm) -> Result<Value, VmError> {
+    fn vm_index(vm: &mut Vm) -> VmResult<Value> {
         let this_ref = vm.pop_reference()?;
         let index: usize = vm
             .pop_uint()?
@@ -41,14 +41,14 @@ impl Array {
         Ok(value)
     }
 
-    fn vm_length(vm: &mut Vm) -> Result<Value, VmError> {
+    fn vm_length(vm: &mut Vm) -> VmResult<Value> {
         let this_ref = vm.pop_reference()?;
         let len = vm.heap_object::<Self>(this_ref)?.len();
 
         Ok(Value::UInt(len as u64))
     }
 
-    fn vm_push(vm: &mut Vm) -> Result<Value, VmError> {
+    fn vm_push(vm: &mut Vm) -> VmResult<Value> {
         let this_ref = vm.pop_reference()?;
         let value = vm.pop_value()?;
 
@@ -57,7 +57,7 @@ impl Array {
         Ok(Value::Null)
     }
 
-    fn vm_pop(vm: &mut Vm) -> Result<Value, VmError> {
+    fn vm_pop(vm: &mut Vm) -> VmResult<Value> {
         let this_ref = vm.pop_reference()?;
 
         let value = vm
@@ -68,7 +68,7 @@ impl Array {
         Ok(value)
     }
 
-    fn vm_insert(vm: &mut Vm) -> Result<Value, VmError> {
+    fn vm_insert(vm: &mut Vm) -> VmResult<Value> {
         let this_ref = vm.pop_reference()?;
         let idx: usize = vm
             .pop_uint()?
@@ -86,7 +86,7 @@ impl Array {
         }
     }
 
-    fn vm_remove(vm: &mut Vm) -> Result<Value, VmError> {
+    fn vm_remove(vm: &mut Vm) -> VmResult<Value> {
         let this_ref = vm.pop_reference()?;
         let idx: usize = vm
             .pop_uint()?
@@ -103,7 +103,7 @@ impl Array {
         }
     }
 
-    fn vm_swap_remove(vm: &mut Vm) -> Result<Value, VmError> {
+    fn vm_swap_remove(vm: &mut Vm) -> VmResult<Value> {
         let this_ref = vm.pop_reference()?;
         let idx: usize = vm
             .pop_uint()?
@@ -120,7 +120,7 @@ impl Array {
         }
     }
 
-    fn vm_reserve(vm: &mut Vm) -> Result<Value, VmError> {
+    fn vm_reserve(vm: &mut Vm) -> VmResult<Value> {
         let this = vm.pop_reference()?;
         let additional: usize = vm
             .pop_uint()?

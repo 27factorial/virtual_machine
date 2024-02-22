@@ -109,7 +109,7 @@ fn alloc_aligned<T>(value: T) -> NonNull<T> {
         // SAFETY: A pointer created from the layout's alignment will always be well-aligned for `T`
         // and non-null, as alignment cannot be 0. This is essentially equivalent to
         // `NonNull::dangling`, but also ensures that the pointer is valid for use in GcBox<T>.
-        unsafe { NonNull::new_unchecked(ptr::invalid_mut(layout.align())) }
+        unsafe { NonNull::new_unchecked(ptr::without_provenance_mut(layout.align())) }
     } else {
         // SAFETY: The size of the layout provided here was checked to be non-zero.
         let ptr = unsafe { alloc(layout).cast::<T>() };

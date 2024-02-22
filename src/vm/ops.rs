@@ -3,14 +3,12 @@ use serde::{Deserialize, Serialize};
 use crate::{
     string::Symbol,
     value::Value,
-    vm::{CallFrame, Vm},
+    vm::{CallFrame, Vm, VmError, Result as VmResult},
 };
 
 use std::{ops::Index, slice::SliceIndex, sync::Arc};
 
-use super::VmError;
-
-pub type OpResult = Result<Transition, VmError>;
+pub type OpResult = VmResult<Transition>;
 
 /// Opcodes representing the virtual machine's instruction set.
 ///
@@ -270,12 +268,12 @@ impl Default for Function {
 
 mod imp {
     use super::{OpResult, Transition};
-    use crate::utils::VmResult;
+    use crate::utils::IntoVmResult;
     use crate::value::Value;
     use crate::vm::{Vm, VmError, VmErrorKind};
     use crate::{string::Symbol, vm::CallFrame};
-    use std::{mem, ptr};
     use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Sub};
+    use std::{mem, ptr};
 
     macro_rules! bin_arithmetic {
         (
@@ -455,32 +453,33 @@ mod imp {
 
     impl Vm {
         // nop
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_nop(&self) -> OpResult {
             Ok(Transition::Continue)
         }
 
         // halt
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_halt(&self) -> OpResult {
             Ok(Transition::Halt)
         }
 
         // push
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_push(&mut self, value: Value) -> OpResult {
             self.push_value(value)?;
             Ok(Transition::Continue)
         }
 
         // pop
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_pop(&mut self) -> OpResult {
             let _ = self.pop_value()?;
 
             Ok(Transition::Continue)
         }
 
+        #[inline(never)]
         pub(super) fn op_load(&mut self, index: usize) -> OpResult {
             let value = self.locals().get(index).copied().unwrap_or(Value::Null);
 
@@ -489,7 +488,7 @@ mod imp {
             Ok(Transition::Continue)
         }
 
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_store(&mut self, index: usize) -> OpResult {
             let value = self.pop_value()?;
 
@@ -504,7 +503,7 @@ mod imp {
             Ok(Transition::Continue)
         }
 
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_copy(&mut self) -> OpResult {
             let value = self.get_value(0)?;
             self.push_value(value)?;
@@ -513,7 +512,7 @@ mod imp {
         }
 
         // add
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_add(&mut self) -> OpResult {
             bin_arithmetic! {
                 vm = self,
@@ -525,7 +524,7 @@ mod imp {
         }
 
         // addi
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_add_imm(&mut self, value: Value) -> OpResult {
             bin_arithmetic! {
                 vm = self,
@@ -537,7 +536,7 @@ mod imp {
         }
 
         // sub
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_sub(&mut self) -> OpResult {
             bin_arithmetic! {
                 vm = self,
@@ -549,7 +548,7 @@ mod imp {
         }
 
         // subi
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_sub_imm(&mut self, value: Value) -> OpResult {
             bin_arithmetic! {
                 vm = self,
@@ -561,7 +560,7 @@ mod imp {
         }
 
         // mul
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_mul(&mut self) -> OpResult {
             bin_arithmetic! {
                 vm = self,
@@ -573,7 +572,7 @@ mod imp {
         }
 
         // muli
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_mul_imm(&mut self, value: Value) -> OpResult {
             bin_arithmetic! {
                 vm = self,
@@ -585,7 +584,7 @@ mod imp {
         }
 
         // div
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_div(&mut self) -> OpResult {
             bin_arithmetic! {
                 vm = self,
@@ -597,7 +596,7 @@ mod imp {
         }
 
         // divi
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_div_imm(&mut self, value: Value) -> OpResult {
             bin_arithmetic! {
                 vm = self,
@@ -609,7 +608,7 @@ mod imp {
         }
 
         // rem
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_rem(&mut self) -> OpResult {
             bin_arithmetic! {
                 vm = self,
@@ -621,7 +620,7 @@ mod imp {
         }
 
         // remi
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_rem_imm(&mut self, value: Value) -> OpResult {
             bin_arithmetic! {
                 vm = self,
@@ -633,7 +632,7 @@ mod imp {
         }
 
         // and
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_and(&mut self) -> OpResult {
             bin_bitwise! {
                 vm = self,
@@ -644,7 +643,7 @@ mod imp {
         }
 
         // andi
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_and_imm(&mut self, value: Value) -> OpResult {
             bin_bitwise! {
                 vm = self,
@@ -655,7 +654,7 @@ mod imp {
         }
 
         // or
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_or(&mut self) -> OpResult {
             bin_bitwise! {
                 vm = self,
@@ -666,7 +665,7 @@ mod imp {
         }
 
         // ori
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_or_imm(&mut self, value: Value) -> OpResult {
             bin_bitwise! {
                 vm = self,
@@ -677,7 +676,7 @@ mod imp {
         }
 
         // xor
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_xor(&mut self) -> OpResult {
             bin_bitwise! {
                 vm = self,
@@ -688,7 +687,7 @@ mod imp {
         }
 
         // xori
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_xor_imm(&mut self, value: Value) -> OpResult {
             bin_bitwise! {
                 vm = self,
@@ -699,7 +698,7 @@ mod imp {
         }
 
         // not
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_not(&mut self) -> OpResult {
             let value = self.pop_value()?;
 
@@ -723,7 +722,7 @@ mod imp {
         }
 
         // shr
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_shr(&mut self) -> OpResult {
             bin_shift! {
                 vm = self,
@@ -734,7 +733,7 @@ mod imp {
         }
 
         // shri
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_shr_imm(&mut self, value: Value) -> OpResult {
             bin_shift! {
                 vm = self,
@@ -745,7 +744,7 @@ mod imp {
         }
 
         // shl
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_shl(&mut self) -> OpResult {
             bin_shift! {
                 vm = self,
@@ -756,7 +755,7 @@ mod imp {
         }
 
         // shli
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_shl_imm(&mut self, value: Value) -> OpResult {
             bin_shift! {
                 vm = self,
@@ -767,7 +766,7 @@ mod imp {
         }
 
         // eq
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_eq(&mut self) -> OpResult {
             bin_compare! {
                 vm = self,
@@ -779,7 +778,7 @@ mod imp {
         }
 
         // eqi
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_eq_imm(&mut self, value: Value) -> OpResult {
             bin_compare! {
                 vm = self,
@@ -791,7 +790,7 @@ mod imp {
         }
 
         // gt
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_gt(&mut self) -> OpResult {
             bin_compare! {
                 vm = self,
@@ -803,7 +802,7 @@ mod imp {
         }
 
         // gti
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_gt_imm(&mut self, value: Value) -> OpResult {
             bin_compare! {
                 vm = self,
@@ -815,7 +814,7 @@ mod imp {
         }
 
         // ge
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_ge(&mut self) -> OpResult {
             bin_compare! {
                 vm = self,
@@ -827,7 +826,7 @@ mod imp {
         }
 
         // gei
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_ge_imm(&mut self, value: Value) -> OpResult {
             bin_compare! {
                 vm = self,
@@ -839,7 +838,7 @@ mod imp {
         }
 
         // lt
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_lt(&mut self) -> OpResult {
             bin_compare! {
                 vm = self,
@@ -851,7 +850,7 @@ mod imp {
         }
 
         // lti
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_lt_imm(&mut self, value: Value) -> OpResult {
             bin_compare! {
                 vm = self,
@@ -863,7 +862,7 @@ mod imp {
         }
 
         // le
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_le(&mut self) -> OpResult {
             bin_compare! {
                 vm = self,
@@ -875,7 +874,7 @@ mod imp {
         }
 
         // lei
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_le_imm(&mut self, value: Value) -> OpResult {
             bin_compare! {
                 vm = self,
@@ -887,7 +886,7 @@ mod imp {
         }
 
         // jmp
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_jump(&mut self) -> OpResult {
             let address = self.pop_address()?;
 
@@ -895,7 +894,7 @@ mod imp {
         }
 
         // jmpi
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_jump_imm(&mut self, address: usize) -> OpResult {
             self.frame.ip = address;
 
@@ -903,7 +902,7 @@ mod imp {
         }
 
         // jmpc
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_jump_cond(&mut self) -> OpResult {
             if self.pop_bool()? {
                 self.op_jump()
@@ -919,7 +918,7 @@ mod imp {
         }
 
         // jmpci
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_jump_cond_imm(&mut self, address: usize) -> OpResult {
             if self.pop_bool()? {
                 self.op_jump_imm(address)
@@ -935,7 +934,7 @@ mod imp {
         }
 
         // call
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_call(&mut self) -> OpResult {
             let symbol = self.pop_symbol()?;
 
@@ -943,7 +942,7 @@ mod imp {
         }
 
         // calli
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_call_imm(&mut self, symbol: Symbol) -> OpResult {
             let called_func = self.resolve_function(symbol)?;
 
@@ -954,7 +953,7 @@ mod imp {
             Ok(Transition::Jump)
         }
 
-        #[inline]
+        #[inline(never)]
         // calln
         pub(super) fn op_call_native(&mut self, symbol: Symbol) -> OpResult {
             let native = self.resolve_native_function(symbol)?;
@@ -969,13 +968,14 @@ mod imp {
         }
 
         // ret
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_ret(&mut self) -> OpResult {
             self.frame = self.pop_frame()?;
 
             Ok(Transition::Continue)
         }
 
+        #[inline(never)]
         pub(super) fn op_cast_uint(&mut self) -> OpResult {
             let cast = match self.pop_value()? {
                 Value::UInt(v) => Value::UInt(v),
@@ -991,6 +991,7 @@ mod imp {
             Ok(Transition::Continue)
         }
 
+        #[inline(never)]
         pub(super) fn op_cast_sint(&mut self) -> OpResult {
             let cast = match self.pop_value()? {
                 Value::UInt(v) => Value::SInt(v as i64),
@@ -1006,6 +1007,7 @@ mod imp {
             Ok(Transition::Continue)
         }
 
+        #[inline(never)]
         pub(super) fn op_cast_float(&mut self) -> OpResult {
             let cast = match self.pop_value()? {
                 Value::UInt(v) => Value::Float(v as f64),
@@ -1021,6 +1023,7 @@ mod imp {
             Ok(Transition::Continue)
         }
 
+        #[inline(never)]
         pub(super) fn op_cast_bool(&mut self) -> OpResult {
             let cast = match self.pop_value()? {
                 Value::UInt(v) => Value::Bool(v != 0),
@@ -1037,7 +1040,7 @@ mod imp {
         }
 
         // dbg
-        #[inline]
+        #[inline(never)]
         pub(super) fn op_dbg(&self, index: usize) -> OpResult {
             let value = self.get_value(index).unwrap_or(Value::Null);
 
@@ -1045,19 +1048,16 @@ mod imp {
                 reference @ Value::Reference(v) => {
                     eprint!("stack[{index:#x}]: {reference:?} => ");
 
-                    let obj_debug = self
-                        .heap
-                        .get(v)
-                        .map(|obj| obj.as_debug());
+                    let obj_debug = self.heap.get(v).map(|obj| obj.as_debug());
 
-                        match obj_debug {
-                            Some(debug) => {
-                                let address = ptr::from_ref(debug).addr();
+                    match obj_debug {
+                        Some(debug) => {
+                            let address = ptr::from_ref(debug).addr();
 
-                                eprintln!("{debug:#?} @ {address:#x}")
-                            }
-                            None => eprintln!("<invalid>")
+                            eprintln!("{debug:#?} @ {address:#x}")
                         }
+                        None => eprintln!("<invalid>"),
+                    }
                 }
                 value => eprintln!("*(sp - {index:#x}): {value:?}"),
             }

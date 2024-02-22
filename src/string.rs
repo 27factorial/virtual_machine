@@ -97,9 +97,13 @@ impl Symbols {
     }
 
     pub fn get(&self, symbol: Symbol) -> Option<&str> {
-        self.indices
-            .get(symbol.0)
-            .and_then(|idx| self.data.get(idx.start..idx.start + idx.len))
+        self.indices.get(symbol.0).map(|span| {
+            // SAFETY: if this closure runs, the information in `span` corresponds to a valid
+            // substring inside of `self.data`, since a `SymbolSpan` can only be created from one of
+            // the methods above, which save the starting index and length of a previously pushed
+            // string.
+            unsafe { self.data.get_unchecked(span.start..span.start + span.len) }
+        })
     }
 
     pub fn get_span(&self, index: usize) -> Option<SymbolSpan> {

@@ -1,11 +1,13 @@
 use serde::{Deserialize, Serialize};
 use std::{
-    any::{Any, TypeId}, fmt::Debug, sync::Arc
+    any::{Any, TypeId},
+    fmt::Debug,
+    sync::Arc,
 };
 
 use crate::{
     program::Program,
-    utils::HashMap,
+    utils::FxHashMap,
     value::Value,
     vm::gc::GcBox,
     vm::ops::{Function, OpCode},
@@ -66,8 +68,8 @@ impl GcBox<dyn VmObject> {
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct VmType {
     pub(crate) name: Arc<str>,
-    pub(crate) fields: HashMap<Arc<str>, usize>,
-    pub(crate) methods: HashMap<Arc<str>, Function>,
+    pub(crate) fields: FxHashMap<Arc<str>, usize>,
+    pub(crate) methods: FxHashMap<Arc<str>, Function>,
 }
 
 impl VmType {
@@ -89,7 +91,7 @@ impl VmType {
         name: impl Into<Arc<str>>,
         func: impl IntoIterator<Item = OpCode>,
     ) -> &mut Self {
-        fn inner(methods: &mut HashMap<Arc<str>, Function>, name: Arc<str>, func: Function) {
+        fn inner(methods: &mut FxHashMap<Arc<str>, Function>, name: Arc<str>, func: Function) {
             methods.insert(name, func);
         }
 

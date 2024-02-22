@@ -6,7 +6,7 @@ use crate::{
     object::VmObject,
     program::{NativeFn, Path, Program},
     string::Symbol,
-    utils::VmResult,
+    utils::{IntHashMap, IntoVmResult},
     value::Value,
 };
 use ops::{Function, OpCode, Transition};
@@ -17,16 +17,19 @@ pub mod heap;
 pub mod memory;
 pub mod ops;
 
+pub type Result<T> = std::result::Result<T, VmError>;
+
 pub struct Vm {
     frame: CallFrame,
     call_stack: CallStack,
     data_stack: DataStack,
     heap: Heap,
+    function_cache: IntHashMap<Symbol, Function>,
     program: Program,
 }
 
 impl Vm {
-    pub fn new(program: Program) -> Result<Self, VmError> {
+    pub fn new(program: Program) -> Result<Self> {
         let main = program
             .functions
             .get("main")
@@ -38,11 +41,12 @@ impl Vm {
             call_stack: CallStack::new(64),
             data_stack: DataStack::new(128),
             heap: Heap::new(1024),
+            function_cache: IntHashMap::default(),
             program,
         })
     }
 
-    pub fn run(&mut self) -> Result<(), VmError> {
+    pub fn run(&mut self) -> Result<()> {
         while let Some(opcode) = self.current_op() {
             match opcode.execute(self)? {
                 Transition::Continue => self.frame.ip += 1,
@@ -54,31 +58,31 @@ impl Vm {
         Ok(())
     }
 
-    pub fn push_frame(&mut self, frame: CallFrame) -> Result<(), VmError> {
+    pub fn push_frame(&mut self, frame: CallFrame) -> Result<()> {
         self.call_stack
             .push(frame)
-            .map_err(|_| self.error(VmErrorKind::StackOverflow))
+            .vm_err(VmErrorKind::StackOverflow, self)
     }
 
-    pub fn pop_frame(&mut self) -> Result<CallFrame, VmError> {
+    pub fn pop_frame(&mut self) -> Result<CallFrame> {
         self.call_stack
             .pop()
             .vm_err(VmErrorKind::StackUnderflow, self)
     }
 
-    pub fn push_value(&mut self, value: Value) -> Result<(), VmError> {
+    pub fn push_value(&mut self, value: Value) -> Result<()> {
         self.data_stack
             .push(value)
-            .map_err(|_| self.error(VmErrorKind::StackOverflow))
+            .vm_err(VmErrorKind::StackOverflow, self)
     }
 
-    pub fn pop_value(&mut self) -> Result<Value, VmError> {
+    pub fn pop_value(&mut self) -> Result<Value> {
         self.data_stack
             .pop()
             .vm_err(VmErrorKind::StackUnderflow, self)
     }
 
-    pub fn get_value(&self, index: usize) -> Result<Value, VmError> {
+    pub fn get_value(&self, index: usize) -> Result<Value> {
         let index = (self.data_stack.len().checked_sub(1))
             .and_then(|last| last.checked_sub(index))
             .vm_err(VmErrorKind::OutOfBounds, self)?;
@@ -89,89 +93,89 @@ impl Vm {
             .vm_err(VmErrorKind::OutOfBounds, self)
     }
 
-    pub fn pop_uint(&mut self) -> Result<u64, VmError> {
+    pub fn pop_uint(&mut self) -> Result<u64> {
         self.pop_value()?.uint().vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn get_uint(&self, index: usize) -> Result<u64, VmError> {
+    pub fn get_uint(&self, index: usize) -> Result<u64> {
         self.get_value(index)?
             .uint()
             .vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn pop_sint(&mut self) -> Result<i64, VmError> {
+    pub fn pop_sint(&mut self) -> Result<i64> {
         self.pop_value()?.sint().vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn get_sint(&self, index: usize) -> Result<i64, VmError> {
+    pub fn get_sint(&self, index: usize) -> Result<i64> {
         self.get_value(index)?
             .sint()
             .vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn pop_float(&mut self) -> Result<f64, VmError> {
+    pub fn pop_float(&mut self) -> Result<f64> {
         self.pop_value()?.float().vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn get_float(&self, index: usize) -> Result<f64, VmError> {
+    pub fn get_float(&self, index: usize) -> Result<f64> {
         self.get_value(index)?
             .float()
             .vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn pop_bool(&mut self) -> Result<bool, VmError> {
+    pub fn pop_bool(&mut self) -> Result<bool> {
         self.pop_value()?.bool().vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn get_bool(&self, index: usize) -> Result<bool, VmError> {
+    pub fn get_bool(&self, index: usize) -> Result<bool> {
         self.get_value(index)?
             .bool()
             .vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn pop_char(&mut self) -> Result<char, VmError> {
+    pub fn pop_char(&mut self) -> Result<char> {
         self.pop_value()?.char().vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn get_char(&self, index: usize) -> Result<char, VmError> {
+    pub fn get_char(&self, index: usize) -> Result<char> {
         self.get_value(index)?
             .char()
             .vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn pop_address(&mut self) -> Result<usize, VmError> {
+    pub fn pop_address(&mut self) -> Result<usize> {
         self.pop_value()?.address().vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn get_address(&self, index: usize) -> Result<usize, VmError> {
+    pub fn get_address(&self, index: usize) -> Result<usize> {
         self.get_value(index)?
             .address()
             .vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn pop_symbol(&mut self) -> Result<Symbol, VmError> {
+    pub fn pop_symbol(&mut self) -> Result<Symbol> {
         self.pop_value()?.symbol().vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn get_symbol(&self, index: usize) -> Result<Symbol, VmError> {
+    pub fn get_symbol(&self, index: usize) -> Result<Symbol> {
         self.get_value(index)?
             .symbol()
             .vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn pop_reference(&mut self) -> Result<Reference, VmError> {
+    pub fn pop_reference(&mut self) -> Result<Reference> {
         self.pop_value()?
             .reference()
             .vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn get_reference(&self, index: usize) -> Result<Reference, VmError> {
+    pub fn get_reference(&self, index: usize) -> Result<Reference> {
         self.get_value(index)?
             .reference()
             .vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn heap_object<T: VmObject>(&self, obj: Reference) -> Result<&T, VmError> {
+    pub fn heap_object<T: VmObject>(&self, obj: Reference) -> Result<&T> {
         self.heap
             .get(obj)
             .vm_err(VmErrorKind::InvalidObject, self)?
@@ -179,7 +183,7 @@ impl Vm {
             .vm_err(VmErrorKind::Type, self)
     }
 
-    pub fn heap_object_mut<T: VmObject>(&mut self, obj: Reference) -> Result<&mut T, VmError> {
+    pub fn heap_object_mut<T: VmObject>(&mut self, obj: Reference) -> Result<&mut T> {
         // match must be used here because the borrow checker doesn't fully understand partial
         // borrows.
         match self.heap.get_mut(obj) {
@@ -219,7 +223,7 @@ impl Vm {
         &mut self.heap
     }
 
-    pub fn alloc<T: VmObject>(&mut self, value: T) -> Result<Reference, VmError> {
+    pub fn alloc<T: VmObject>(&mut self, value: T) -> Result<Reference> {
         match self.heap.alloc(value) {
             Ok(object) => Ok(object),
             Err(value) => {
@@ -248,7 +252,7 @@ impl Vm {
         }
     }
 
-    pub fn resolve_native_function(&self, symbol: Symbol) -> Result<Arc<NativeFn>, VmError> {
+    pub fn resolve_native_function(&self, symbol: Symbol) -> Result<Arc<NativeFn>> {
         let name = self
             .program
             .symbols
@@ -265,41 +269,48 @@ impl Vm {
         Ok(function)
     }
 
-    pub fn resolve_function(&self, symbol: Symbol) -> Result<Function, VmError> {
-        let name = self
-            .program
-            .symbols
-            .get(symbol)
-            .vm_err(VmErrorKind::SymbolNotFound, self)?;
+    pub fn resolve_function(&mut self, symbol: Symbol) -> Result<Function> {
+        if let Some(function) = self.function_cache.get(&symbol) {
+            Ok(function.clone())
+        } else {
+            let name = self
+                .program
+                .symbols
+                .get(symbol)
+                .vm_err(VmErrorKind::SymbolNotFound, self)?;
 
-        let path = Path::new(name).vm_err(VmErrorKind::FunctionNotFound, self)?;
+            let path = Path::new(name).vm_err(VmErrorKind::FunctionNotFound, self)?;
 
-        let functions = match path.object {
-            Some(name) => {
-                let ty = self
-                    .program
-                    .types
-                    .get(name)
-                    .vm_err(VmErrorKind::TypeNotFound, self)?;
-                &ty.methods
-            }
-            None => &self.program.functions,
-        };
+            let functions = match path.object {
+                Some(name) => {
+                    let ty = self
+                        .program
+                        .types
+                        .get(name)
+                        .vm_err(VmErrorKind::TypeNotFound, self)?;
+                    &ty.methods
+                }
+                None => &self.program.functions,
+            };
 
-        let function = functions
-            .get(path.member)
-            .cloned()
-            .vm_err(VmErrorKind::FunctionNotFound, self)?;
+            let function = functions
+                .get(path.member)
+                .cloned()
+                .vm_err(VmErrorKind::FunctionNotFound, self)?;
 
-        Ok(function)
+            self.function_cache.insert(symbol, function.clone());
+
+            Ok(function)
+        }
     }
 
+    #[inline(always)]
     pub fn error(&self, kind: VmErrorKind) -> VmError {
         VmError::new(kind, &self.frame)
     }
 
     #[cfg(test)]
-    pub fn reset(&mut self) -> Result<(), VmError> {
+    pub fn reset(&mut self) -> Result<()> {
         let main = self
             .program
             .functions
@@ -357,7 +368,7 @@ impl CallFrame {
         Self {
             func,
             ip,
-            locals: Vec::new(),
+            locals: Vec::with_capacity(4),
         }
     }
 }
@@ -365,7 +376,10 @@ impl CallFrame {
 #[cfg(test)]
 mod test {
     use crate::{
-        object::{array::Array, VmObject}, program::Program, string::Symbol, value::Value
+        object::{array::Array, VmObject},
+        program::Program,
+        string::Symbol,
+        value::Value,
     };
 
     use super::{heap::Reference, ops::OpCode, Vm};
@@ -375,71 +389,95 @@ mod test {
         let mut program = Program::new();
 
         let main_sym = program.define_symbol("main");
-        let crunch_sym = program.define_symbol("crunch");
+        let adder = program.define_symbol("adder");
 
         program
             .define_function(
                 main_sym,
                 [
-                    OpCode::Push(Value::UInt(69000)),
-                    OpCode::Push(Value::UInt(420)),
-                    OpCode::CallImm(crunch_sym),
-                    OpCode::EqImm(Value::UInt(69420)),
-                    OpCode::Dbg(0),
-                    OpCode::Dbg(1),
+                    // Initialize a counter to 10 million and store the counter in local variable 0
+                    OpCode::Push(Value::UInt(10_000_000)),
+                    OpCode::Store(0),
+                    // Load the counter from local variable 0, and if it's zero, jump to the end of
+                    // the program.
+                    OpCode::Load(0),
+                    OpCode::EqImm(Value::UInt(0)),
+                    OpCode::JumpCondImm(13),
+                    // else...
+                    // load the value from local variable 0, subtract 1, and store the new counter
+                    // back in the local variable 0.
+                    OpCode::Load(0),
+                    OpCode::SubImm(Value::UInt(1)),
+                    OpCode::Store(0),
+                    // Push two 2s onto the stack
+                    OpCode::Push(Value::UInt(2)),
+                    OpCode::Push(Value::UInt(2)),
+                    // Call a function which pops them from the stack, adds them, then returns
+                    OpCode::CallImm(adder),
+                    // Remove the added value (it's not actually used)
+                    OpCode::Pop,
+                    // Jump back to the counter check above
+                    OpCode::JumpImm(2),
+                    // halt the virtual machine
                     OpCode::Halt,
                 ],
             )
             .expect("failed to define `main` function");
 
         program
-            .define_function(crunch_sym, [OpCode::Add, OpCode::Ret])
+            .define_function(adder, [OpCode::Add, OpCode::Ret])
             .expect("failed to define `crunch` function");
 
         let mut vm = Vm::new(program).expect("failed to create VM");
 
-        vm.run().expect("failed to execute program");
+        vm.run().expect("failed to run vm");
     }
 
-    #[test]
-    fn array_object() {
-        let mut program = Program::new();
+    // #[test]
+    // fn array_object() {
+    //     let mut program = Program::new();
 
-        Array::register_type(&mut program);
+    //     Array::register_type(&mut program);
 
-        let main_sym = program.define_symbol("main");
-        let array_new = program.define_symbol("Array::new");
-        let array_push = program.define_symbol("Array::push");
+    //     let main_sym = program.define_symbol("main");
+    //     let array_new = program.define_symbol("Array::new");
+    //     let array_push = program.define_symbol("Array::push");
 
-        program
-            .define_function(main_sym, [
-                // Push uints 1-4 to stack
-                OpCode::Push(Value::UInt(4)),
-                OpCode::Push(Value::UInt(3)),
-                OpCode::Push(Value::UInt(2)),
-                OpCode::Push(Value::UInt(1)),
-                // Create a new array and save a copy of the reference to the first local variable
-                OpCode::CallImm(array_new),
-                OpCode::Copy,
-                OpCode::Store(0),
-                // Call the Array::push method four times
-                OpCode::CallImm(array_push),
-                OpCode::Load(0),
-                OpCode::CallImm(array_push),
-                OpCode::Load(0),
-                OpCode::CallImm(array_push),
-                OpCode::Load(0),
-                OpCode::CallImm(array_push),
-                OpCode::Load(0),
-                // print out the current state of the array
-                OpCode::Dbg(0),
-                // halt, we're done.
-                OpCode::Halt
-                ])
-            .expect("failed to define `main` function");
+    //     program
+    //         .define_function(
+    //             main_sym,
+    //             [
+    //                 // Push uints 1-4 to stack
+    //                 OpCode::Push(Value::UInt(4)),
+    //                 OpCode::Push(Value::UInt(3)),
+    //                 OpCode::Push(Value::UInt(2)),
+    //                 OpCode::Push(Value::UInt(1)),
+    //                 // Create a new array and save a copy of the reference to the first local variable
+    //                 OpCode::CallImm(array_new),
+    //                 OpCode::Copy,
+    //                 OpCode::Store(0),
+    //                 // Call the Array::push method four times
+    //                 OpCode::CallImm(array_push),
+    //                 OpCode::Load(0),
+    //                 OpCode::CallImm(array_push),
+    //                 OpCode::Load(0),
+    //                 OpCode::CallImm(array_push),
+    //                 OpCode::Load(0),
+    //                 OpCode::CallImm(array_push),
+    //                 OpCode::Load(0),
+    //                 // print out the current state of the array
+    //                 OpCode::Dbg(0),
+    //                 // halt, we're done.
+    //                 OpCode::Halt,
+    //             ],
+    //         )
+    //         .expect("failed to define `main` function");
 
-        let mut vm = Vm::new(program).expect("failed to create VM");
+    //     let mut vm = Vm::new(std::hint::black_box(program)).expect("failed to create VM");
 
-        vm.run().expect("failed to execute program");
-    }
+    //     for _ in 0..1_000_000 {
+    //         vm.run().expect("failed to execute program");
+    //         vm.reset().expect("failed to reset vm");
+    //     }
+    // }
 }

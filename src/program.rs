@@ -6,7 +6,7 @@ use hashbrown::hash_map::RawEntryMut;
 use crate::{
     object::VmType,
     string::{Symbol, Symbols},
-    utils::HashMap,
+    utils::FxHashMap,
     value::Value,
     vm::{
         ops::{Function, OpCode},
@@ -14,17 +14,19 @@ use crate::{
     },
 };
 
+use crate::vm::Result as VmResult;
+
 const VALID_MAGIC: &[u8; 7] = b"27FCTRL";
 
-pub type NativeFn = dyn Fn(&mut Vm) -> Result<Value, VmError> + 'static;
+pub type NativeFn = dyn Fn(&mut Vm) -> VmResult<Value> + 'static;
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Program {
     pub(crate) constants: Vec<Value>,
-    pub(crate) functions: HashMap<Arc<str>, Function>,
+    pub(crate) functions: FxHashMap<Arc<str>, Function>,
     #[serde(skip)]
-    pub(crate) native_functions: HashMap<Arc<str>, Arc<NativeFn>>,
-    pub(crate) types: HashMap<Arc<str>, VmType>,
+    pub(crate) native_functions: FxHashMap<Arc<str>, Arc<NativeFn>>,
+    pub(crate) types: FxHashMap<Arc<str>, VmType>,
     pub(crate) symbols: Symbols,
 }
 
@@ -32,9 +34,9 @@ impl Program {
     pub fn new() -> Self {
         Self {
             constants: Vec::new(),
-            functions: HashMap::default(),
-            native_functions: HashMap::default(),
-            types: HashMap::default(),
+            functions: FxHashMap::default(),
+            native_functions: FxHashMap::default(),
+            types: FxHashMap::default(),
             symbols: Symbols::new(),
         }
     }
@@ -77,7 +79,7 @@ impl Program {
 
     pub fn define_native_function<F>(&mut self, symbol: Symbol, func: F) -> Result<(), F>
     where
-        F: Fn(&mut Vm) -> Result<Value, VmError> + 'static,
+        F: Fn(&mut Vm) -> VmResult<Value> + 'static,
     {
         if let Some(name) = self.symbols.get(symbol) {
             match self.native_functions.raw_entry_mut().from_key(name) {

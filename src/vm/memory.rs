@@ -8,7 +8,7 @@ use std::{
 
 use crate::value::Value;
 
-use super::{CallFrame};
+use super::CallFrame;
 
 #[derive(Clone, PartialEq, PartialOrd, Debug, Default)]
 pub struct DataStack {

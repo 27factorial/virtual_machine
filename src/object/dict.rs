@@ -1,3 +1,3 @@
-use crate::{utils::HashMap, value::Value};
+use crate::{utils::FxHashMap, value::Value};
 
-pub struct Dictionary(HashMap<Value, Value>);
+pub struct Dictionary(FxHashMap<Value, Value>);
