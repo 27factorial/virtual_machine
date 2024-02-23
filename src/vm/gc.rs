@@ -201,6 +201,8 @@ impl<T: ?Sized> GcBox<T> {
         ptr
     }
 
+    /// # Safety
+    // TODO: safety
     pub unsafe fn from_raw(ptr: *mut T) -> Self {
         let data = unsafe { NonNull::new_unchecked(ptr) };
 

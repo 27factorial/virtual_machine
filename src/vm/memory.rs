@@ -1,9 +1,8 @@
-
+use super::CallFrame;
+use crate::value::Value;
 use std::mem;
 use std::ops::{Index, IndexMut};
 use std::slice::SliceIndex;
-use crate::value::Value;
-use super::CallFrame;
 
 #[derive(Clone, PartialEq, PartialOrd, Debug, Default)]
 pub struct DataStack {

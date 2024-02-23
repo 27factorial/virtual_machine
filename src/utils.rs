@@ -17,7 +17,7 @@ pub trait IntoVmResult: sealed::Sealed {
 impl<T> IntoVmResult for Option<T> {
     type Ok = T;
 
-    #[inline(always)]
+    #[inline]
     fn vm_err(self, kind: VmErrorKind, vm: &Vm) -> VmResult<T> {
         match self {
             Some(t) => Ok(t),
@@ -29,7 +29,7 @@ impl<T> IntoVmResult for Option<T> {
 impl<T, E> IntoVmResult for Result<T, E> {
     type Ok = T;
 
-    #[inline(always)]
+    #[inline]
     fn vm_err(self, kind: VmErrorKind, vm: &Vm) -> VmResult<T> {
         match self {
             Ok(t) => Ok(t),
@@ -44,6 +44,7 @@ impl<T, E> IntoVmResult for Result<T, E> {
 pub struct IntHasher(u64, #[cfg(debug_assertions)] bool);
 
 impl Hasher for IntHasher {
+    #[inline(always)]
     fn finish(&self) -> u64 {
         self.0
     }

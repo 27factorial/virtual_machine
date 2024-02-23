@@ -328,8 +328,7 @@ impl Vm {
             .unwrap_or_else(|| Vec::with_capacity(DEFAULT_LOCALS_LEN))
     }
 
-    #[inline(always)]
-    pub fn error(&self, kind: VmErrorKind) -> VmError {
+    pub(crate) fn error(&self, kind: VmErrorKind) -> VmError {
         VmError::new(kind, &self.frame)
     }
 
