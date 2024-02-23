@@ -2,7 +2,7 @@ use crate::program::Program;
 use crate::utils::FxHashMap;
 use crate::value::Value;
 use crate::vm::gc::GcBox;
-use crate::vm::ops::{Function, OpCode};
+use crate::vm::ops::Function;
 use serde::{Deserialize, Serialize};
 use std::any::{Any, TypeId};
 use std::fmt::Debug;
@@ -84,13 +84,13 @@ impl VmType {
     pub fn with_method(
         &mut self,
         name: impl Into<Arc<str>>,
-        func: impl IntoIterator<Item = OpCode>,
+        func: impl Into<Function>,
     ) -> &mut Self {
         fn inner(methods: &mut FxHashMap<Arc<str>, Function>, name: Arc<str>, func: Function) {
             methods.insert(name, func);
         }
 
-        inner(&mut self.methods, name.into(), func.into_iter().collect());
+        inner(&mut self.methods, name.into(), func.into());
         self
     }
 }

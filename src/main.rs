@@ -35,33 +35,33 @@ fn main() {
     program
         .define_function(
             main_sym,
-            [
-                // Initialize a counter to 50 million and store the counter in local variable 0
-                OpCode::Push(Value::UInt(50_000_000)),
-                OpCode::Store(0),
-                // Load the counter from local variable 0, and if it's zero, jump to the end of
-                // the program.
-                OpCode::Load(0),
-                OpCode::EqImm(Value::UInt(0)),
-                OpCode::JumpCondImm(13),
-                // else...
-                // load the value from local variable 0, subtract 1, and store the new counter
-                // back in the local variable 0.
-                OpCode::Load(0),
-                OpCode::SubImm(Value::UInt(1)),
-                OpCode::Store(0),
-                // Push two 2s onto the stack
-                OpCode::Push(Value::UInt(2)),
-                OpCode::Push(Value::UInt(2)),
-                // Call a function which pops them from the stack, adds them, then returns
-                OpCode::CallImm(adder),
-                // Remove the added value (it's not actually used)
-                OpCode::Pop,
-                // Jump back to the counter check above
-                OpCode::JumpImm(2),
-                // halt the virtual machine
-                OpCode::Halt,
-            ],
+                [
+                    // Initialize a counter to 50 million and store the counter in local variable 0
+                    OpCode::Push(Value::UInt(50_000_000)),
+                    OpCode::Store(0),
+                    // Load the counter from local variable 0, and if it's zero, jump to the end of
+                    // the program.
+                    OpCode::Load(0),
+                    OpCode::EqImm(Value::UInt(0)),
+                    OpCode::JumpCondImm(13),
+                    // else...
+                    // load the value from local variable 0, subtract 1, and store the new counter
+                    // back in the local variable 0.
+                    OpCode::Load(0),
+                    OpCode::SubImm(Value::UInt(1)),
+                    OpCode::Store(0),
+                    // Push two 2s onto the stack
+                    OpCode::Push(Value::UInt(2)),
+                    OpCode::Push(Value::UInt(2)),
+                    // Call a function which pops them from the stack, adds them, then returns
+                    OpCode::CallImm(adder),
+                    // Remove the added value (it's not actually used)
+                    OpCode::Pop,
+                    // Jump back to the counter check above
+                    OpCode::JumpImm(2),
+                    // halt the virtual machine
+                    OpCode::Halt,
+                ],
         )
         .expect("failed to define `main` function");
 

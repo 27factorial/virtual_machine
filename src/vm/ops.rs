@@ -34,6 +34,12 @@ pub enum OpCode {
     /// Copies the valuea the top of the stack and pushes it to the stack.
     Copy,
 
+    /// Pops an integer from the stack representing the amount of local variables, and reserves the
+    /// that many values at the from the top of the stack as locals for the current function.
+    Reserve,
+    /// Reserve the nth first elements on the stack for use as locals for the current function.
+    ReserveImm(usize),
+
     /// Add the value in the first register to the value in the second register, putting the result
     /// into the accumulator register.
     Add,
@@ -173,6 +179,8 @@ impl OpCode {
             Op::Load(index) => vm.op_load(index),
             Op::Store(index) => vm.op_store(index),
             Op::Copy => vm.op_copy(),
+            Op::Reserve => vm.op_reserve(),
+            Op::ReserveImm(n) => vm.op_reserve_imm(n),
             Op::Add => vm.op_add(),
             Op::AddImm(value) => vm.op_add_imm(value),
             Op::Sub => vm.op_sub(),
@@ -499,6 +507,22 @@ mod imp {
             self.push_value(value)?;
 
             Ok(Transition::Continue)
+        }
+
+        // rsrv
+        pub(super) fn op_reserve(&mut self) -> OpResult {
+            let n: usize = match self.pop_value()? {
+                Value::UInt(n) => n.try_into().vm_err(VmErrorKind::OutOfBounds, self)?,
+                Value::SInt(n) => n.try_into().vm_err(VmErrorKind::OutOfBounds, self)?,
+                _ => return Err(self.error(VmErrorKind::Type)),
+            };
+
+            self.op_reserve_imm(n)
+        }
+
+        // rsrvi
+        pub(super) fn op_reserve_imm(&mut self, n: usize) -> OpResult {
+            todo!()
         }
 
         // add

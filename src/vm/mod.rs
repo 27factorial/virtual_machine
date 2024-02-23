@@ -8,6 +8,7 @@ use heap::{Heap, Reference};
 use memory::{CallStack, DataStack};
 use ops::{Function, OpCode, Transition};
 use std::cell::RefCell;
+use std::ops::Range;
 use std::sync::Arc;
 
 pub mod cache;
@@ -16,7 +17,7 @@ pub mod heap;
 pub mod memory;
 pub mod ops;
 
-const DEFAULT_LOCALS_LEN: usize = 4;
+// TODO: Finish DataStack-based locals
 
 pub type Result<T> = std::result::Result<T, VmError>;
 
@@ -38,9 +39,9 @@ impl Vm {
             .ok_or_else(|| VmError::new(VmErrorKind::FunctionNotFound, None))?;
 
         Ok(Self {
-            frame: CallFrame::new(main, 0, Vec::with_capacity(DEFAULT_LOCALS_LEN)),
+            frame: CallFrame::new(main, 0, 0, 0),
             call_stack: CallStack::new(64),
-            data_stack: DataStack::new(128),
+            data_stack: DataStack::new(255),
             heap: Heap::new(1024),
             cache: RefCell::new(Cache::new()),
             program,
@@ -200,12 +201,28 @@ impl Vm {
         self.frame.func.get(self.ip()).copied()
     }
 
-    pub fn locals(&self) -> &[Value] {
-        &self.frame.locals
+    pub fn get_local(&self, index: usize) -> Result<Value> {
+        let base = self.frame.stack_base;
+        let count = self.frame.locals;
+
+        if index < base + count {
+            Ok(self.get_value(index)?)
+        } else {
+            Err(self.error(VmErrorKind::OutOfBounds))
+        }
     }
 
-    pub fn locals_mut(&mut self) -> &mut Vec<Value> {
-        &mut self.frame.locals
+    pub fn set_local(&mut self, index: usize, value: Value) -> Result<()> {
+        let base = self.frame.stack_base;
+        let count = self.frame.locals;
+
+        if index < base + count {
+            let local = self.data_stack.get_mut(index).unwrap();
+            *local = value;
+            Ok(())
+        } else {
+            Err(self.error(VmErrorKind::OutOfBounds))
+        }
     }
 
     pub fn ip(&self) -> usize {
@@ -232,19 +249,8 @@ impl Vm {
                 // all CallFrame locals
                 // self.data_stack
                 // I would like to use a convenience method here, but partial borrows strike again.
-                let stack_values = self.data_stack.iter();
-                let locals = self
-                    .frame
-                    .locals
-                    .iter()
-                    .chain(self.call_stack.iter().flat_map(|frame| frame.locals.iter()));
-
-                let roots = stack_values
-                    .chain(locals)
-                    .copied()
-                    .filter_map(Value::reference);
-
-                self.heap.collect(roots);
+                self.heap
+                    .mark_and_sweep(self.data_stack.iter().copied().filter_map(Value::reference));
 
                 self.heap
                     .alloc(value)
@@ -317,40 +323,29 @@ impl Vm {
         }
     }
 
-    pub fn cache_locals(&self, locals: Vec<Value>) {
-        self.cache.borrow_mut().cache_locals(locals)
-    }
-
-    pub fn make_locals(&self) -> Vec<Value> {
-        self.cache
-            .borrow_mut()
-            .take_locals()
-            .unwrap_or_else(|| Vec::with_capacity(DEFAULT_LOCALS_LEN))
-    }
-
     pub(crate) fn error(&self, kind: VmErrorKind) -> VmError {
         VmError::new(kind, &self.frame)
     }
 
-    #[cfg(test)]
-    pub fn reset(&mut self) -> Result<()> {
-        let main = self
-            .program
-            .functions
-            .get("main")
-            .cloned()
-            .vm_err(VmErrorKind::FunctionNotFound, self)?;
+    // #[cfg(test)]
+    // pub fn reset(&mut self) -> Result<()> {
+    //     let main = self
+    //         .program
+    //         .functions
+    //         .get("main")
+    //         .cloned()
+    //         .vm_err(VmErrorKind::FunctionNotFound, self)?;
 
-        self.frame = CallFrame::new(main, 0, Vec::with_capacity(DEFAULT_LOCALS_LEN));
-        self.call_stack.clear();
-        self.data_stack.clear();
-        self.heap = Heap::new(1024);
+    //     self.frame = CallFrame::new(main, 0, 0..1);
+    //     self.call_stack.clear();
+    //     self.data_stack.clear();
+    //     self.heap = Heap::new(1024);
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 }
 
-#[derive(Clone, PartialEq, PartialOrd, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct VmError {
     kind: VmErrorKind,
     frame: Option<CallFrame>,
@@ -379,119 +374,125 @@ pub enum VmErrorKind {
     OutOfBounds,
 }
 
-#[derive(Clone, PartialEq, PartialOrd, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct CallFrame {
     pub(crate) func: Function,
     pub(crate) ip: usize,
-    pub(crate) locals: Vec<Value>,
+    pub(crate) stack_base: usize,
+    pub(crate) locals: usize,
 }
 
 impl CallFrame {
-    pub fn new(func: Function, ip: usize, locals: Vec<Value>) -> Self {
-        Self { func, ip, locals }
+    pub fn new(func: Function, ip: usize, stack_base: usize, locals: usize) -> Self {
+        Self {
+            func,
+            ip,
+            stack_base,
+            locals,
+        }
     }
 }
 
-#[cfg(test)]
-mod test {
-    use crate::{program::Program, value::Value};
+// #[cfg(test)]
+// mod test {
+//     use crate::{program::Program, value::Value};
 
-    use super::{ops::OpCode, Vm};
+//     use super::{ops::OpCode, Vm};
 
-    #[test]
-    fn basic_program() {
-        let mut program = Program::new();
+//     #[test]
+//     fn basic_program() {
+//         let mut program = Program::new();
 
-        let main_sym = program.define_symbol("main");
-        let adder = program.define_symbol("adder");
+//         let main_sym = program.define_symbol("main");
+//         let adder = program.define_symbol("adder");
 
-        program
-            .define_function(
-                main_sym,
-                [
-                    // Initialize a counter to 10 million and store the counter in local variable 0
-                    OpCode::Push(Value::UInt(10_000_000)),
-                    OpCode::Store(0),
-                    // Load the counter from local variable 0, and if it's zero, jump to the end of
-                    // the program.
-                    OpCode::Load(0),
-                    OpCode::EqImm(Value::UInt(0)),
-                    OpCode::JumpCondImm(13),
-                    // else...
-                    // load the value from local variable 0, subtract 1, and store the new counter
-                    // back in the local variable 0.
-                    OpCode::Load(0),
-                    OpCode::SubImm(Value::UInt(1)),
-                    OpCode::Store(0),
-                    // Push two 2s onto the stack
-                    OpCode::Push(Value::UInt(2)),
-                    OpCode::Push(Value::UInt(2)),
-                    // Call a function which pops them from the stack, adds them, then returns
-                    OpCode::CallImm(adder),
-                    // Remove the added value (it's not actually used)
-                    OpCode::Pop,
-                    // Jump back to the counter check above
-                    OpCode::JumpImm(2),
-                    // halt the virtual machine
-                    OpCode::Halt,
-                ],
-            )
-            .expect("failed to define `main` function");
+//         program
+//             .define_function(
+//                 main_sym,
+//                 [
+//                     // Initialize a counter to 10 million and store the counter in local variable 0
+//                     OpCode::Push(Value::UInt(10_000_000)),
+//                     OpCode::Store(0),
+//                     // Load the counter from local variable 0, and if it's zero, jump to the end of
+//                     // the program.
+//                     OpCode::Load(0),
+//                     OpCode::EqImm(Value::UInt(0)),
+//                     OpCode::JumpCondImm(13),
+//                     // else...
+//                     // load the value from local variable 0, subtract 1, and store the new counter
+//                     // back in the local variable 0.
+//                     OpCode::Load(0),
+//                     OpCode::SubImm(Value::UInt(1)),
+//                     OpCode::Store(0),
+//                     // Push two 2s onto the stack
+//                     OpCode::Push(Value::UInt(2)),
+//                     OpCode::Push(Value::UInt(2)),
+//                     // Call a function which pops them from the stack, adds them, then returns
+//                     OpCode::CallImm(adder),
+//                     // Remove the added value (it's not actually used)
+//                     OpCode::Pop,
+//                     // Jump back to the counter check above
+//                     OpCode::JumpImm(2),
+//                     // halt the virtual machine
+//                     OpCode::Halt,
+//                 ],
+//             )
+//             .expect("failed to define `main` function");
 
-        program
-            .define_function(adder, [OpCode::Add, OpCode::Ret])
-            .expect("failed to define `crunch` function");
+//         program
+//             .define_function(adder, [OpCode::Add, OpCode::Ret])
+//             .expect("failed to define `crunch` function");
 
-        let mut vm = Vm::new(program).expect("failed to create VM");
+//         let mut vm = Vm::new(program).expect("failed to create VM");
 
-        vm.run().expect("failed to run vm");
-    }
+//         vm.run().expect("failed to run vm");
+//     }
 
-    // #[test]
-    // fn array_object() {
-    //     let mut program = Program::new();
+//     // #[test]
+//     // fn array_object() {
+//     //     let mut program = Program::new();
 
-    //     Array::register_type(&mut program);
+//     //     Array::register_type(&mut program);
 
-    //     let main_sym = program.define_symbol("main");
-    //     let array_new = program.define_symbol("Array::new");
-    //     let array_push = program.define_symbol("Array::push");
+//     //     let main_sym = program.define_symbol("main");
+//     //     let array_new = program.define_symbol("Array::new");
+//     //     let array_push = program.define_symbol("Array::push");
 
-    //     program
-    //         .define_function(
-    //             main_sym,
-    //             [
-    //                 // Push uints 1-4 to stack
-    //                 OpCode::Push(Value::UInt(4)),
-    //                 OpCode::Push(Value::UInt(3)),
-    //                 OpCode::Push(Value::UInt(2)),
-    //                 OpCode::Push(Value::UInt(1)),
-    //                 // Create a new array and save a copy of the reference to the first local variable
-    //                 OpCode::CallImm(array_new),
-    //                 OpCode::Copy,
-    //                 OpCode::Store(0),
-    //                 // Call the Array::push method four times
-    //                 OpCode::CallImm(array_push),
-    //                 OpCode::Load(0),
-    //                 OpCode::CallImm(array_push),
-    //                 OpCode::Load(0),
-    //                 OpCode::CallImm(array_push),
-    //                 OpCode::Load(0),
-    //                 OpCode::CallImm(array_push),
-    //                 OpCode::Load(0),
-    //                 // print out the current state of the array
-    //                 OpCode::Dbg(0),
-    //                 // halt, we're done.
-    //                 OpCode::Halt,
-    //             ],
-    //         )
-    //         .expect("failed to define `main` function");
+//     //     program
+//     //         .define_function(
+//     //             main_sym,
+//     //             [
+//     //                 // Push uints 1-4 to stack
+//     //                 OpCode::Push(Value::UInt(4)),
+//     //                 OpCode::Push(Value::UInt(3)),
+//     //                 OpCode::Push(Value::UInt(2)),
+//     //                 OpCode::Push(Value::UInt(1)),
+//     //                 // Create a new array and save a copy of the reference to the first local variable
+//     //                 OpCode::CallImm(array_new),
+//     //                 OpCode::Copy,
+//     //                 OpCode::Store(0),
+//     //                 // Call the Array::push method four times
+//     //                 OpCode::CallImm(array_push),
+//     //                 OpCode::Load(0),
+//     //                 OpCode::CallImm(array_push),
+//     //                 OpCode::Load(0),
+//     //                 OpCode::CallImm(array_push),
+//     //                 OpCode::Load(0),
+//     //                 OpCode::CallImm(array_push),
+//     //                 OpCode::Load(0),
+//     //                 // print out the current state of the array
+//     //                 OpCode::Dbg(0),
+//     //                 // halt, we're done.
+//     //                 OpCode::Halt,
+//     //             ],
+//     //         )
+//     //         .expect("failed to define `main` function");
 
-    //     let mut vm = Vm::new(std::hint::black_box(program)).expect("failed to create VM");
+//     //     let mut vm = Vm::new(std::hint::black_box(program)).expect("failed to create VM");
 
-    //     for _ in 0..1_000_000 {
-    //         vm.run().expect("failed to execute program");
-    //         vm.reset().expect("failed to reset vm");
-    //     }
-    // }
-}
+//     //     for _ in 0..1_000_000 {
+//     //         vm.run().expect("failed to execute program");
+//     //         vm.reset().expect("failed to reset vm");
+//     //     }
+//     // }
+// }

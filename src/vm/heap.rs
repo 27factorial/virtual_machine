@@ -65,7 +65,7 @@ impl Heap {
         }
     }
 
-    pub fn collect(&mut self, roots: impl IntoIterator<Item = Reference>) {
+    pub fn mark_and_sweep(&mut self, roots: impl IntoIterator<Item = Reference>) {
         self.mark_from_roots(roots);
         self.sweep();
     }
