@@ -2,7 +2,7 @@ use crate::program::Program;
 use crate::utils::FxHashMap;
 use crate::value::Value;
 use crate::vm::gc::GcBox;
-use crate::vm::ops::Function;
+use crate::vm::ops::{Function, OpCode};
 use serde::{Deserialize, Serialize};
 use std::any::{Any, TypeId};
 use std::fmt::Debug;
@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 pub mod array;
 pub mod dict;
-mod std_impls;
+pub mod string;
 
 pub trait VmObject: Any + Debug + Send + Sync + sealed::Upcast {
     fn register_type(program: &mut Program) -> &VmType
@@ -62,8 +62,8 @@ impl GcBox<dyn VmObject> {
         // Must be implemented manually because `Any` doesn't support downcasting
         // in a GcBox
         // NOTE: This should match the implementation of <dyn Any>::downcast, except replacing the
-        // Box<T> with a GcBox<T>. https://doc.rust-lang.org/src/alloc/boxed.rs.html#1744 
-        // (note that downcast_unchecked is essentially inlined, since it's not implemented here, 
+        // Box<T> with a GcBox<T>. https://doc.rust-lang.org/src/alloc/boxed.rs.html#1744
+        // (note that downcast_unchecked is essentially inlined, since it's not implemented here,
         // and GcBox only supports the global allocator.)
         if (*self).type_id() == TypeId::of::<T>() {
             let raw = GcBox::into_raw(self);
@@ -99,13 +99,13 @@ impl VmType {
     pub fn with_method(
         &mut self,
         name: impl Into<Arc<str>>,
-        func: impl Into<Function>,
+        func: impl IntoIterator<Item = OpCode>,
     ) -> &mut Self {
         fn inner(methods: &mut FxHashMap<Arc<str>, Function>, name: Arc<str>, func: Function) {
             methods.insert(name, func);
         }
 
-        inner(&mut self.methods, name.into(), func.into());
+        inner(&mut self.methods, name.into(), func.into_iter().collect());
         self
     }
 }
