@@ -2,7 +2,7 @@ use std::{fmt::Debug, sync::Arc};
 
 use crate::{
     program::NativeFn,
-    string::Symbol,
+    symbol::Symbol,
     utils::{IntEntry, IntHashMap},
 };
 

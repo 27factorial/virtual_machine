@@ -1,7 +1,7 @@
 use self::cache::Cache;
 use crate::object::VmObject;
 use crate::program::{NativeFn, Path, Program};
-use crate::string::Symbol;
+use crate::symbol::Symbol;
 use crate::utils::{IntEntry, IntoVmResult};
 use crate::value::Value;
 use heap::{Heap, Reference};
@@ -89,7 +89,10 @@ impl Vm {
     }
 
     pub fn get_value(&self, index: usize) -> Result<Value> {
-        let index = (self.data_stack.len().checked_sub(1))
+        let index = self
+            .data_stack
+            .len()
+            .checked_sub(1)
             .and_then(|last| last.checked_sub(index))
             .vm_err(VmErrorKind::OutOfBounds, self)?;
 
@@ -209,7 +212,9 @@ impl Vm {
         let base = self.frame.stack_base;
         let count = self.frame.locals;
 
-        if index < base + count {
+        let valid_range = base..base + count;
+
+        if valid_range.contains(&index) {
             Ok(self.get_value(index)?)
         } else {
             Err(self.error(VmErrorKind::OutOfBounds))
@@ -220,7 +225,9 @@ impl Vm {
         let base = self.frame.stack_base;
         let count = self.frame.locals;
 
-        if index < base + count {
+        let valid_range = base..base + count;
+
+        if valid_range.contains(&index) {
             let local = self.data_stack.get_mut(index).unwrap();
             *local = value;
             Ok(())

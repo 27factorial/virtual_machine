@@ -1,4 +1,4 @@
-use crate::string::Symbol;
+use crate::symbol::Symbol;
 use crate::value::Value;
 use crate::vm::{Result as VmResult, Vm};
 use serde::{Deserialize, Serialize};
@@ -280,7 +280,7 @@ mod imp {
     use crate::utils::IntoVmResult;
     use crate::value::Value;
     use crate::vm::{Vm, VmError, VmErrorKind};
-    use crate::{string::Symbol, vm::CallFrame};
+    use crate::{symbol::Symbol, vm::CallFrame};
     use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Sub};
     use std::{mem, ptr};
 

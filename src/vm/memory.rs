@@ -32,11 +32,11 @@ impl DataStack {
     }
 
     pub fn push(&mut self, value: Value) -> Result<(), Value> {
-        if self.data.len() == self.capacity {
-            Err(value)
-        } else {
+        if self.data.len() != self.capacity {
             self.data.push(value);
             Ok(())
+        } else {
+            Err(value)
         }
     }
 
@@ -46,10 +46,6 @@ impl DataStack {
 
     pub fn clear(&mut self) {
         self.data.clear();
-    }
-
-    pub fn last(&self) -> Option<Value> {
-        self.data.last().copied()
     }
 
     pub fn get<I: SliceIndex<[Value]>>(&self, index: I) -> Option<&I::Output> {
@@ -135,10 +131,6 @@ impl CallStack {
 
     pub fn clear(&mut self) {
         self.data.clear();
-    }
-
-    pub fn last(&self) -> Option<&CallFrame> {
-        self.data.last()
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &CallFrame> {

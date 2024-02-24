@@ -1,5 +1,5 @@
 use crate::object::VmType;
-use crate::string::{Symbol, Symbols};
+use crate::symbol::{Symbol, Symbols};
 use crate::utils::FxHashMap;
 use crate::value::Value;
 use crate::vm::ops::{Function, OpCode};
