@@ -32,7 +32,7 @@ pub enum OpCode {
     Store(usize),
 
     /// Copies the valuea the top of the stack and pushes it to the stack.
-    Copy,
+    Dup,
 
     /// Pops an integer from the stack representing the amount of local variables, and reserves the
     /// that many values at the from the top of the stack as locals for the current function.
@@ -181,7 +181,7 @@ impl OpCode {
             Op::Pop => vm.op_pop(),
             Op::Load(index) => vm.op_load(index),
             Op::Store(index) => vm.op_store(index),
-            Op::Copy => vm.op_copy(),
+            Op::Dup => vm.op_dup(),
             Op::Reserve => vm.op_reserve(),
             Op::ReserveImm(n) => vm.op_reserve_imm(n),
             Op::Add => vm.op_add(),
@@ -500,7 +500,7 @@ mod imp {
             Ok(Transition::Continue)
         }
 
-        pub(super) fn op_copy(&mut self) -> OpResult {
+        pub(super) fn op_dup(&mut self) -> OpResult {
             let value = self.get_value(0)?;
             self.push_value(value)?;
 
@@ -520,12 +520,9 @@ mod imp {
 
         // rsrvi
         pub(super) fn op_reserve_imm(&mut self, n: usize) -> OpResult {
-            if self.data_stack.len() >= self.frame.stack_base + n {
-                self.frame.locals = n;
-                Ok(Transition::Continue)
-            } else {
-                Err(self.error(VmErrorKind::OutOfBounds))
-            }
+            self.set_reserved(n)?;
+
+            Ok(Transition::Continue)
         }
 
         // add
@@ -949,12 +946,16 @@ mod imp {
 
         // ret
         pub(super) fn op_ret(&mut self) -> OpResult {
+            let new_stack_len = self.frame.stack_base + self.frame.locals + 1;
             let new_frame = self.pop_frame()?;
             self.frame = new_frame;
+
+            self.data_stack.truncate(new_stack_len);
 
             Ok(Transition::Continue)
         }
 
+        // castu
         pub(super) fn op_cast_uint(&mut self) -> OpResult {
             let cast = match self.pop_value()? {
                 Value::UInt(v) => Value::UInt(v),
@@ -970,6 +971,7 @@ mod imp {
             Ok(Transition::Continue)
         }
 
+        // casts
         pub(super) fn op_cast_sint(&mut self) -> OpResult {
             let cast = match self.pop_value()? {
                 Value::UInt(v) => Value::SInt(v as i64),
@@ -985,6 +987,7 @@ mod imp {
             Ok(Transition::Continue)
         }
 
+        // castf
         pub(super) fn op_cast_float(&mut self) -> OpResult {
             let cast = match self.pop_value()? {
                 Value::UInt(v) => Value::Float(v as f64),
@@ -1000,6 +1003,7 @@ mod imp {
             Ok(Transition::Continue)
         }
 
+        // castb
         pub(super) fn op_cast_bool(&mut self) -> OpResult {
             let cast = match self.pop_value()? {
                 Value::UInt(v) => Value::Bool(v != 0),

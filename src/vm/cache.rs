@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::{self, Debug}, sync::Arc};
 
 use crate::{
     program::NativeFn,
@@ -32,11 +32,11 @@ impl Cache {
 }
 
 impl Debug for Cache {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         struct NativeFnsDebug<'a>(&'a IntHashMap<Symbol, Arc<NativeFn>>);
 
         impl Debug for NativeFnsDebug<'_> {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 f.debug_map()
                     .entries(
                         self.0

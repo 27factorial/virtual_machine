@@ -236,6 +236,15 @@ impl Vm {
         }
     }
 
+    pub fn set_reserved(&mut self, n: usize) -> Result<()> {
+        if self.data_stack.len() >= self.frame.stack_base + n {
+            self.frame.locals = n;
+            Ok(())
+        } else {
+            Err(self.error(VmErrorKind::OutOfBounds))
+        }
+    }
+
     pub fn ip(&self) -> usize {
         self.frame.ip
     }

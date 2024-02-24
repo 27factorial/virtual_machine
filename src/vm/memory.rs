@@ -44,6 +44,12 @@ impl DataStack {
         self.data.pop()
     }
 
+    pub fn truncate(&mut self, new_len: usize) {
+        // Since Value doesn't have an explicit Drop impl, this should just be equivalent to 
+        // Vec::set_len when new_len < self.len()
+        self.data.truncate(new_len)
+    }
+
     pub fn clear(&mut self) {
         self.data.clear();
     }
