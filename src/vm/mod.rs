@@ -8,7 +8,6 @@ use heap::{Heap, Reference};
 use memory::{CallStack, DataStack};
 use ops::{Function, OpCode, Transition};
 use std::cell::RefCell;
-use std::ops::Range;
 use std::sync::Arc;
 
 pub mod cache;
@@ -21,6 +20,7 @@ pub mod ops;
 
 pub type Result<T> = std::result::Result<T, VmError>;
 
+#[derive(Debug)]
 pub struct Vm {
     frame: CallFrame,
     call_stack: CallStack,
@@ -79,9 +79,13 @@ impl Vm {
     }
 
     pub fn pop_value(&mut self) -> Result<Value> {
-        self.data_stack
-            .pop()
-            .vm_err(VmErrorKind::StackUnderflow, self)
+        if self.data_stack.len() != self.frame.stack_base + self.frame.locals {
+            self.data_stack
+                .pop()
+                .vm_err(VmErrorKind::StackUnderflow, self)
+        } else {
+            Err(self.error(VmErrorKind::StackUnderflow))
+        }
     }
 
     pub fn get_value(&self, index: usize) -> Result<Value> {

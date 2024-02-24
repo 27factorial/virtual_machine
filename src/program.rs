@@ -7,6 +7,7 @@ use crate::vm::Result as VmResult;
 use crate::vm::Vm;
 use hashbrown::hash_map::RawEntryMut;
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 use std::sync::Arc;
 
 pub const VALID_MAGIC: &[u8; 7] = b"27FCTRL";
@@ -97,6 +98,32 @@ impl Program {
             .or_insert_with(|| (Arc::clone(&ty.name), ty));
 
         vm_type
+    }
+}
+
+impl Debug for Program {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        struct NativeFnsDebug<'a>(&'a FxHashMap<Arc<str>, Arc<NativeFn>>);
+
+        impl Debug for NativeFnsDebug<'_> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.debug_map()
+                    .entries(
+                        self.0
+                            .iter()
+                            .map(|(k, v)| (&**k, format!("<native fn @ {:p}>", &**v))),
+                    )
+                    .finish()
+            }
+        }
+
+        f.debug_struct("Program")
+            .field("constants", &self.constants)
+            .field("functions", &self.functions)
+            .field("native_functions", &NativeFnsDebug(&self.native_functions))
+            .field("types", &self.types)
+            .field("symbols", &self.symbols)
+            .finish()
     }
 }
 

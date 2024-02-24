@@ -3,7 +3,7 @@
 // Used to ensure GcBox follows the upcoming pointer provenance rules.
 #![feature(strict_provenance)]
 // To allow trait upcasting for VmObject. Should be mostly complete and stable soon.
-#![feature(trait_upcasting)]
+// #![feature(trait_upcasting)]
 // Enforces strict pointer provenenance for the above feature.
 #![deny(fuzzy_provenance_casts)]
 // Forces #[must_use] return values to be used in *some* way.
@@ -38,7 +38,7 @@ fn main() {
                 [
                     // Initialize a counter to 50 million and store the counter in local variable 0
                     OpCode::Push(Value::UInt(50_000_000)),
-                    OpCode::Store(0),
+                    OpCode::ReserveImm(1),
                     // Load the counter from local variable 0, and if it's zero, jump to the end of
                     // the program.
                     OpCode::Load(0),
@@ -60,6 +60,7 @@ fn main() {
                     // Jump back to the counter check above
                     OpCode::JumpImm(2),
                     // halt the virtual machine
+                    OpCode::DbgVm,
                     OpCode::Halt,
                 ],
         )

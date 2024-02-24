@@ -93,6 +93,7 @@ impl IntoIterator for DataStack {
     }
 }
 
+#[derive(Clone, PartialEq, Debug, Default)]
 pub struct CallStack {
     data: Vec<CallFrame>,
     capacity: usize,

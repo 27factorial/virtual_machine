@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::mem;
 
+#[derive(Debug)]
 pub struct Heap {
     memory: Vec<Option<GcBox<dyn VmObject>>>,
     free_indices: VecDeque<usize>,

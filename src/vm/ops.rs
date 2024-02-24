@@ -165,6 +165,9 @@ pub enum OpCode {
 
     /// Print out the value at a memory location relative to the top of the stack to stderr.
     Dbg(usize),
+
+    /// Print out the debug representation of the VM.
+    DbgVm,
 }
 
 impl OpCode {
@@ -225,6 +228,7 @@ impl OpCode {
             Op::CastFloat => vm.op_cast_float(),
             Op::CastBool => vm.op_cast_bool(),
             Op::Dbg(address) => vm.op_dbg(address),
+            Op::DbgVm => vm.op_dbg_vm(),
         }
     }
 }
@@ -481,7 +485,7 @@ mod imp {
         }
 
         pub(super) fn op_load(&mut self, index: usize) -> OpResult {
-            let value = self.locals().get(index).copied().unwrap_or(Value::Null);
+            let value = self.get_local(index)?;
 
             self.push_value(value)?;
 
@@ -491,13 +495,7 @@ mod imp {
         pub(super) fn op_store(&mut self, index: usize) -> OpResult {
             let value = self.pop_value()?;
 
-            let locals = self.locals_mut();
-
-            if index >= locals.len() {
-                locals.resize(index + 1, Value::Null);
-            }
-
-            locals[index] = value;
+            self.set_local(index, value)?;
 
             Ok(Transition::Continue)
         }
@@ -522,7 +520,12 @@ mod imp {
 
         // rsrvi
         pub(super) fn op_reserve_imm(&mut self, n: usize) -> OpResult {
-            todo!()
+            if self.data_stack.len() >= self.frame.stack_base + n {
+                self.frame.locals = n;
+                Ok(Transition::Continue)
+            } else {
+                Err(self.error(VmErrorKind::OutOfBounds))
+            }
         }
 
         // add
@@ -922,9 +925,9 @@ mod imp {
         // calli
         pub(super) fn op_call_imm(&mut self, symbol: Symbol) -> OpResult {
             let called_func = self.resolve_function(symbol)?;
+            let new_base = self.frame.stack_base + self.frame.locals;
 
-            let locals = self.make_locals();
-            let caller = mem::replace(&mut self.frame, CallFrame::new(called_func, 0, locals));
+            let caller = mem::replace(&mut self.frame, CallFrame::new(called_func, 0, new_base, 0));
 
             self.push_frame(caller)?;
 
@@ -947,11 +950,7 @@ mod imp {
         // ret
         pub(super) fn op_ret(&mut self) -> OpResult {
             let new_frame = self.pop_frame()?;
-            let mut old_frame = mem::replace(&mut self.frame, new_frame);
-
-            let locals = mem::take(&mut old_frame.locals);
-
-            self.cache_locals(locals);
+            self.frame = new_frame;
 
             Ok(Transition::Continue)
         }
@@ -1037,6 +1036,13 @@ mod imp {
                 }
                 value => eprintln!("*(sp - {index:#x}): {value:?}"),
             }
+            Ok(Transition::Continue)
+        }
+
+        // dbgvm
+        pub(super) fn op_dbg_vm(&self) -> OpResult {
+            eprintln!("{self:#?}");
+
             Ok(Transition::Continue)
         }
     }
