@@ -1,4 +1,4 @@
-use crate::vm::{Result as VmResult, Vm, VmErrorKind};
+use crate::vm::{CallFrame, Result as VmResult, Vm, VmError, VmErrorKind};
 use rustc_hash::FxHasher;
 use serde::{Deserialize, Serialize};
 use std::hash::{BuildHasherDefault, Hasher};
@@ -11,17 +11,17 @@ pub type IntEntry<'a, K, V> = hashbrown::hash_map::Entry<'a, K, V, BuildHasherDe
 pub trait IntoVmResult: sealed::Sealed {
     type Ok;
 
-    fn vm_err(self, kind: VmErrorKind, vm: &Vm) -> VmResult<Self::Ok>;
+    fn vm_result<'a>(self, kind: VmErrorKind, frame: impl Into<Option<&'a CallFrame>>) -> VmResult<Self::Ok>;
 }
 
 impl<T> IntoVmResult for Option<T> {
     type Ok = T;
 
     #[inline]
-    fn vm_err(self, kind: VmErrorKind, vm: &Vm) -> VmResult<T> {
+    fn vm_result<'a>(self, kind: VmErrorKind, frame: impl Into<Option<&'a CallFrame>>) -> VmResult<T> {
         match self {
             Some(t) => Ok(t),
-            None => Err(vm.error(kind)),
+            None => Err(VmError::new(kind, frame)),
         }
     }
 }
@@ -30,10 +30,10 @@ impl<T, E> IntoVmResult for Result<T, E> {
     type Ok = T;
 
     #[inline]
-    fn vm_err(self, kind: VmErrorKind, vm: &Vm) -> VmResult<T> {
+    fn vm_result<'a>(self, kind: VmErrorKind, frame: impl Into<Option<&'a CallFrame>>) -> VmResult<T> {
         match self {
             Ok(t) => Ok(t),
-            Err(_) => Err(vm.error(kind)),
+            Err(_) => Err(VmError::new(kind, frame)),
         }
     }
 }

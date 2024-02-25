@@ -38,13 +38,13 @@ impl Array {
         let index: usize = vm
             .pop_uint()?
             .try_into()
-            .vm_err(VmErrorKind::OutOfBounds, vm)?;
+            .vm_result(VmErrorKind::OutOfBounds, vm.frame())?;
 
         let value = vm
             .heap_object::<Self>(this_ref)?
             .get(index)
             .copied()
-            .vm_err(VmErrorKind::OutOfBounds, vm)?;
+            .vm_result(VmErrorKind::OutOfBounds, vm.frame())?;
 
         Ok(value)
     }
@@ -71,7 +71,7 @@ impl Array {
         let additional: usize = vm
             .pop_uint()?
             .try_into()
-            .vm_err(VmErrorKind::OutOfBounds, vm)?;
+            .vm_result(VmErrorKind::OutOfBounds, vm.frame())?;
 
         vm.heap_object_mut::<Self>(this)?.reserve(additional);
         Ok(Value::Null)
@@ -107,7 +107,7 @@ impl Array {
         let idx: usize = vm
             .pop_uint()?
             .try_into()
-            .vm_err(VmErrorKind::OutOfBounds, vm)?;
+            .vm_result(VmErrorKind::OutOfBounds, vm.frame())?;
 
         let this = vm.heap_object_mut::<Self>(this_ref)?;
 
@@ -124,7 +124,7 @@ impl Array {
         let idx: usize = vm
             .pop_uint()?
             .try_into()
-            .vm_err(VmErrorKind::OutOfBounds, vm)?;
+            .vm_result(VmErrorKind::OutOfBounds, vm.frame())?;
         let value = vm.pop_value()?;
 
         let this = vm.heap_object_mut::<Self>(this_ref)?;
@@ -142,7 +142,7 @@ impl Array {
         let idx: usize = vm
             .pop_uint()?
             .try_into()
-            .vm_err(VmErrorKind::OutOfBounds, vm)?;
+            .vm_result(VmErrorKind::OutOfBounds, vm.frame())?;
 
         let this = vm.heap_object_mut::<Self>(this_ref)?;
 
@@ -169,7 +169,7 @@ impl Array {
         let value = vm
             .heap_object_mut::<Self>(this_ref)?
             .pop()
-            .vm_err(VmErrorKind::OutOfBounds, vm)?;
+            .vm_result(VmErrorKind::OutOfBounds, vm.frame())?;
 
         Ok(value)
     }
