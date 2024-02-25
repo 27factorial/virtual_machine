@@ -285,35 +285,77 @@ mod imp {
     use std::{mem, ptr};
 
     macro_rules! bin_arithmetic {
+        // Normal
         (
-        vm = $self:ident,
-        a = $a:expr,
-        b = $b:expr,
-        int_op = $int_op:ident,
-        float_op = $float_op:ident $(,)?
-    ) => {{
+            vm = $self:ident,
+            a = $a:expr,
+            b = $b:expr,
+            int_op = $int_op:ident,
+            float_op = $float_op:ident $(,)?
+        ) => {{
             match ($a, $b) {
                 (Value::UInt(a), Value::UInt(b)) => {
-                    let value =
-                        Value::UInt(u64::$int_op(a, b).vm_err(VmErrorKind::Arithmetic, &$self)?);
-
-                    $self.push_value(value)?;
+                    let new_value = match u64::$int_op(a, *b) {
+                        Some(v) => v,
+                        None => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
+                    *b = new_value;
                 }
                 (Value::SInt(a), Value::SInt(b)) => {
-                    let value =
-                        Value::SInt(i64::$int_op(a, b).vm_err(VmErrorKind::Arithmetic, &$self)?);
-
-                    $self.push_value(value)?;
+                    let new_value = match i64::$int_op(a, *b) {
+                        Some(v) => v,
+                        None => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
+                    *b = new_value;
                 }
                 (Value::Float(a), Value::Float(b)) => {
-                    $self.push_value(Value::Float(f64::$float_op(a, b)))?;
+                    *b = f64::$float_op(a, *b);
                 }
                 (Value::Address(a), Value::Address(b)) => {
-                    let value = Value::Address(
-                        usize::$int_op(a, b).vm_err(VmErrorKind::Arithmetic, &$self)?,
-                    );
+                    let new_value = match usize::$int_op(a, *b) {
+                        Some(v) => v,
+                        None => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
+                    *b = new_value;
+                }
+                _ => return Err(VmError::new(VmErrorKind::Type, &$self.frame)),
+            }
 
-                    $self.push_value(value)?;
+            Ok(Transition::Continue)
+        }};
+
+        // Immediate
+        (
+            vm = $self:ident,
+            a = $a:expr,
+            imm = $b:expr,
+            int_op = $int_op:ident,
+            float_op = $float_op:ident $(,)?
+        ) => {{
+            match ($a, $b) {
+                (Value::UInt(a), Value::UInt(b)) => {
+                    let new_value = match u64::$int_op(*a, b) {
+                        Some(v) => v,
+                        None => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
+                    *a = new_value;
+                }
+                (Value::SInt(a), Value::SInt(b)) => {
+                    let new_value = match i64::$int_op(*a, b) {
+                        Some(v) => v,
+                        None => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
+                    *a = new_value;
+                }
+                (Value::Float(a), Value::Float(b)) => {
+                    *a = f64::$float_op(*a, b);
+                }
+                (Value::Address(a), Value::Address(b)) => {
+                    let new_value = match usize::$int_op(*a, b) {
+                        Some(v) => v,
+                        None => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
+                    *a = new_value;
                 }
                 _ => return Err(VmError::new(VmErrorKind::Type, &$self.frame)),
             }
@@ -331,16 +373,48 @@ mod imp {
     ) => {{
             match ($a, $b) {
                 (Value::UInt(a), Value::UInt(b)) => {
-                    $self.push_value(Value::UInt($op(a, b)))?;
+                    let new_value = $op(a, *b);
+                    *b = new_value;
                 }
                 (Value::SInt(a), Value::SInt(b)) => {
-                    $self.push_value(Value::SInt($op(a, b)))?;
+                    let new_value = $op(a, *b);
+                    *b = new_value;
                 }
                 (Value::Bool(a), Value::Bool(b)) => {
-                    $self.push_value(Value::Bool($op(a, b)))?;
+                    let new_value = $op(a, *b);
+                    *b = new_value;
                 }
                 (Value::Address(a), Value::Address(b)) => {
-                    $self.push_value(Value::Address($op(a, b)))?;
+                    let new_value = $op(a, *b);
+                    *b = new_value;
+                }
+                _ => return Err($self.error(VmErrorKind::Type)),
+            }
+
+            Ok(Transition::Continue)
+        }};
+        (
+            vm = $self:ident,
+            a = $a:expr,
+            imm = $b:expr,
+            op = $op:path,$(,)?
+        ) => {{
+            match ($a, $b) {
+                (Value::UInt(a), Value::UInt(b)) => {
+                    let new_value = $op(*a, b);
+                    *a = new_value;
+                }
+                (Value::SInt(a), Value::SInt(b)) => {
+                    let new_value = $op(*a, b);
+                    *a = new_value;
+                }
+                (Value::Bool(a), Value::Bool(b)) => {
+                    let new_value = $op(*a, b);
+                    *a = new_value;
+                }
+                (Value::Address(a), Value::Address(b)) => {
+                    let new_value = $op(*a, b);
+                    *a = new_value;
                 }
                 _ => return Err($self.error(VmErrorKind::Type)),
             }
@@ -356,62 +430,166 @@ mod imp {
         b = $b:expr,
         op = $op:ident $(,)?
     ) => {{
+            // This one has to be different, since `top` might be a differnt variant than `$a`, so
+            // the variant has to be changed out when reassigning to it.
+            match ($a, $b) {
+                (Value::UInt(a), top) => {
+                    let operand_res: Result<u32, _> = match top {
+                        Value::UInt(v) => (*v).try_into(),
+                        Value::SInt(v) => (*v).try_into(),
+                        _ => return Err(VmError::new(VmErrorKind::Type, &$self.frame)),
+                    };
+
+                    let Ok(b) = operand_res else {
+                        return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame));
+                    };
+
+                    let new_value = match u64::$op(a, b) {
+                        Some(v) => v,
+                        None => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
+
+                    *top = Value::UInt(new_value);
+                }
+                (Value::SInt(a), top) => {
+                    let operand_res: Result<u32, _> = match top {
+                        Value::UInt(v) => (*v).try_into(),
+                        Value::SInt(v) => (*v).try_into(),
+                        _ => return Err(VmError::new(VmErrorKind::Type, &$self.frame)),
+                    };
+
+                    let Ok(b) = operand_res else {
+                        return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame));
+                    };
+
+                    let new_value = match i64::$op(a, b) {
+                        Some(v) => v,
+                        None => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
+
+                    *top = Value::SInt(new_value);
+                }
+                (Value::Address(a), top) => {
+                    let operand_res: Result<u32, _> = match top {
+                        Value::UInt(v) => (*v).try_into(),
+                        Value::SInt(v) => (*v).try_into(),
+                        _ => return Err(VmError::new(VmErrorKind::Type, &$self.frame)),
+                    };
+
+                    let Ok(b) = operand_res else {
+                        return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame));
+                    };
+
+                    let new_value = match usize::$op(a, b) {
+                        Some(v) => v,
+                        None => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
+
+                    *top = Value::Address(new_value);
+                }
+
+                _ => return Err(VmError::new(VmErrorKind::Type, &$self.frame)),
+            }
+
+            Ok(Transition::Continue)
+        }};
+        (
+            vm = $self:ident,
+            a = $a:expr,
+            imm = $b:expr,
+            op = $op:ident $(,)?
+        ) => {{
             match ($a, $b) {
                 (Value::UInt(a), Value::UInt(b)) => {
-                    let b = u32::try_from(b).vm_err(VmErrorKind::Arithmetic, &$self)?;
+                    let b = match u32::try_from(b) {
+                        Ok(v) => v,
+                        Err(_) => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
 
-                    let value =
-                        Value::UInt(u64::$op(a, b).vm_err(VmErrorKind::Arithmetic, &$self)?);
+                    let new_value = match u64::$op(*a, b) {
+                        Some(v) => v,
+                        None => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
 
-                    $self.push_value(value)?;
+                    *a = new_value;
                 }
                 (Value::UInt(a), Value::SInt(b)) => {
-                    let b = u32::try_from(b).vm_err(VmErrorKind::Arithmetic, &$self)?;
+                    let b = match u32::try_from(b) {
+                        Ok(v) => v,
+                        Err(_) => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
 
-                    let value =
-                        Value::UInt(u64::$op(a, b).vm_err(VmErrorKind::Arithmetic, &$self)?);
+                    let new_value = match u64::$op(*a, b) {
+                        Some(v) => v,
+                        None => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
 
-                    $self.push_value(value)?;
+                    *a = new_value;
                 }
                 (Value::SInt(a), Value::SInt(b)) => {
-                    let b = u32::try_from(b).vm_err(VmErrorKind::Arithmetic, &$self)?;
+                    let b = match u32::try_from(b) {
+                        Ok(v) => v,
+                        Err(_) => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
 
-                    let value =
-                        Value::SInt(i64::$op(a, b).vm_err(VmErrorKind::Arithmetic, &$self)?);
+                    let new_value = match i64::$op(*a, b) {
+                        Some(v) => v,
+                        None => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
 
-                    $self.push_value(value)?;
+                    *a = new_value;
                 }
                 (Value::SInt(a), Value::UInt(b)) => {
-                    let b = u32::try_from(b).vm_err(VmErrorKind::Arithmetic, &$self)?;
+                    let b = match u32::try_from(b) {
+                        Ok(v) => v,
+                        Err(_) => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
 
-                    let value =
-                        Value::SInt(i64::$op(a, b).vm_err(VmErrorKind::Arithmetic, &$self)?);
+                    let new_value = match i64::$op(*a, b) {
+                        Some(v) => v,
+                        None => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
 
-                    $self.push_value(value)?;
+                    *a = new_value;
                 }
                 (Value::Address(a), Value::Address(b)) => {
-                    let b = u32::try_from(b).vm_err(VmErrorKind::Arithmetic, &$self)?;
+                    let b = match u32::try_from(b) {
+                        Ok(v) => v,
+                        Err(_) => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
 
-                    let value =
-                        Value::Address(usize::$op(a, b).vm_err(VmErrorKind::Arithmetic, &$self)?);
+                    let new_value = match usize::$op(*a, b) {
+                        Some(v) => v,
+                        None => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
 
-                    $self.push_value(value)?;
+                    *a = new_value;
                 }
                 (Value::Address(a), Value::UInt(b)) => {
-                    let b = u32::try_from(b).vm_err(VmErrorKind::Arithmetic, &$self)?;
+                    let b = match u32::try_from(b) {
+                        Ok(v) => v,
+                        Err(_) => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
 
-                    let value =
-                        Value::Address(usize::$op(a, b).vm_err(VmErrorKind::Arithmetic, &$self)?);
+                    let new_value = match usize::$op(*a, b) {
+                        Some(v) => v,
+                        None => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
 
-                    $self.push_value(value)?;
+                    *a = new_value;
                 }
                 (Value::Address(a), Value::SInt(b)) => {
-                    let b = u32::try_from(b).vm_err(VmErrorKind::Arithmetic, &$self)?;
+                    let b = match u32::try_from(b) {
+                        Ok(v) => v,
+                        Err(_) => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
 
-                    let value =
-                        Value::Address(usize::$op(a, b).vm_err(VmErrorKind::Arithmetic, &$self)?);
+                    let new_value = match usize::$op(*a, b) {
+                        Some(v) => v,
+                        None => return Err(VmError::new(VmErrorKind::Arithmetic, &$self.frame)),
+                    };
 
-                    $self.push_value(value)?;
+                    *a = new_value;
                 }
                 _ => return Err(VmError::new(VmErrorKind::Type, &$self.frame)),
             }
@@ -428,33 +606,22 @@ mod imp {
         null = $null:literal,
         op = $op:path $(,)?
     ) => {{
-            match ($a, $b) {
-                (Value::Null, Value::Null) => {
-                    $self.push_value(Value::Bool($null))?;
-                }
-                (Value::UInt(a), Value::UInt(b)) => {
-                    $self.push_value(Value::Bool($op(&a, &b)))?;
-                }
-                (Value::SInt(a), Value::SInt(b)) => {
-                    $self.push_value(Value::Bool($op(&a, &b)))?;
-                }
-                (Value::Float(a), Value::Float(b)) => {
-                    $self.push_value(Value::Bool($op(&a, &b)))?;
-                }
-                (Value::Bool(a), Value::Bool(b)) => {
-                    $self.push_value(Value::Bool($op(&a, &b)))?;
-                }
-                (Value::Char(a), Value::Char(b)) => {
-                    $self.push_value(Value::Bool($op(&a, &b)))?;
-                }
-                (Value::Address(a), Value::Address(b)) => {
-                    $self.push_value(Value::Bool($op(&a, &b)))?;
-                }
-                (Value::Reference(a), Value::Reference(b)) => {
-                    $self.push_value(Value::Bool($op(&a, &b)))?;
-                }
-                _ => return Err(VmError::new(VmErrorKind::Type, &$self.frame)),
-            }
+            let result = $op(&$a, $b);
+
+            *$b = Value::Bool(result);
+
+            Ok(Transition::Continue)
+        }};
+        (
+            vm = $self:ident,
+            a = $a:expr,
+            imm = $b:expr,
+            null = $null:literal,
+            op = $op:path $(,)?
+        ) => {{
+            let result = $op(&*$a, &$b);
+
+            *$a = Value::Bool(result);
 
             Ok(Transition::Continue)
         }};
@@ -510,8 +677,8 @@ mod imp {
         // rsrv
         pub(super) fn op_reserve(&mut self) -> OpResult {
             let n: usize = match self.pop_value()? {
-                Value::UInt(n) => n.try_into().vm_err(VmErrorKind::OutOfBounds, self)?,
-                Value::SInt(n) => n.try_into().vm_err(VmErrorKind::OutOfBounds, self)?,
+                Value::UInt(n) => n.try_into().vm_result(VmErrorKind::OutOfBounds, &self.frame)?,
+                Value::SInt(n) => n.try_into().vm_result(VmErrorKind::OutOfBounds, &self.frame)?,
                 _ => return Err(self.error(VmErrorKind::Type)),
             };
 
@@ -530,7 +697,7 @@ mod imp {
             bin_arithmetic! {
                 vm = self,
                 a = self.pop_value()?,
-                b = self.pop_value()?,
+                b = self.top_value_mut()?,
                 int_op = checked_add,
                 float_op = add,
             }
@@ -540,8 +707,8 @@ mod imp {
         pub(super) fn op_add_imm(&mut self, value: Value) -> OpResult {
             bin_arithmetic! {
                 vm = self,
-                a = self.pop_value()?,
-                b = value,
+                a = self.top_value_mut()?,
+                imm = value,
                 int_op = checked_add,
                 float_op = add,
             }
@@ -552,7 +719,7 @@ mod imp {
             bin_arithmetic! {
                 vm = self,
                 a = self.pop_value()?,
-                b = self.pop_value()?,
+                b = self.top_value_mut()?,
                 int_op = checked_sub,
                 float_op = sub,
             }
@@ -562,8 +729,8 @@ mod imp {
         pub(super) fn op_sub_imm(&mut self, value: Value) -> OpResult {
             bin_arithmetic! {
                 vm = self,
-                a = self.pop_value()?,
-                b = value,
+                a = self.top_value_mut()?,
+                imm = value,
                 int_op = checked_sub,
                 float_op = sub,
             }
@@ -574,7 +741,7 @@ mod imp {
             bin_arithmetic! {
                 vm = self,
                 a = self.pop_value()?,
-                b = self.pop_value()?,
+                b = self.top_value_mut()?,
                 int_op = checked_mul,
                 float_op = mul,
             }
@@ -584,8 +751,8 @@ mod imp {
         pub(super) fn op_mul_imm(&mut self, value: Value) -> OpResult {
             bin_arithmetic! {
                 vm = self,
-                a = self.pop_value()?,
-                b = value,
+                a = self.top_value_mut()?,
+                imm = value,
                 int_op = checked_mul,
                 float_op = mul,
             }
@@ -596,7 +763,7 @@ mod imp {
             bin_arithmetic! {
                 vm = self,
                 a = self.pop_value()?,
-                b = self.pop_value()?,
+                b = self.top_value_mut()?,
                 int_op = checked_div,
                 float_op = div,
             }
@@ -606,8 +773,8 @@ mod imp {
         pub(super) fn op_div_imm(&mut self, value: Value) -> OpResult {
             bin_arithmetic! {
                 vm = self,
-                a = self.pop_value()?,
-                b = value,
+                a = self.top_value_mut()?,
+                imm = value,
                 int_op = checked_div,
                 float_op = div,
             }
@@ -618,7 +785,7 @@ mod imp {
             bin_arithmetic! {
                 vm = self,
                 a = self.pop_value()?,
-                b = self.pop_value()?,
+                b = self.top_value_mut()?,
                 int_op = checked_rem,
                 float_op = rem,
             }
@@ -628,8 +795,8 @@ mod imp {
         pub(super) fn op_rem_imm(&mut self, value: Value) -> OpResult {
             bin_arithmetic! {
                 vm = self,
-                a = self.pop_value()?,
-                b = value,
+                a = self.top_value_mut()?,
+                imm = value,
                 int_op = checked_rem,
                 float_op = rem,
             }
@@ -640,7 +807,7 @@ mod imp {
             bin_bitwise! {
                 vm = self,
                 a = self.pop_value()?,
-                b = self.pop_value()?,
+                b = self.top_value_mut()?,
                 op = BitAnd::bitand,
             }
         }
@@ -649,8 +816,8 @@ mod imp {
         pub(super) fn op_and_imm(&mut self, value: Value) -> OpResult {
             bin_bitwise! {
                 vm = self,
-                a = self.pop_value()?,
-                b = value,
+                a = self.top_value_mut()?,
+                imm = value,
                 op = BitAnd::bitand,
             }
         }
@@ -660,7 +827,7 @@ mod imp {
             bin_bitwise! {
                 vm = self,
                 a = self.pop_value()?,
-                b = self.pop_value()?,
+                b = self.top_value_mut()?,
                 op = BitOr::bitor,
             }
         }
@@ -669,8 +836,8 @@ mod imp {
         pub(super) fn op_or_imm(&mut self, value: Value) -> OpResult {
             bin_bitwise! {
                 vm = self,
-                a = self.pop_value()?,
-                b = value,
+                a = self.top_value_mut()?,
+                imm = value,
                 op = BitOr::bitor,
             }
         }
@@ -680,7 +847,7 @@ mod imp {
             bin_bitwise! {
                 vm = self,
                 a = self.pop_value()?,
-                b = self.pop_value()?,
+                b = self.top_value_mut()?,
                 op = BitXor::bitxor,
             }
         }
@@ -689,28 +856,28 @@ mod imp {
         pub(super) fn op_xor_imm(&mut self, value: Value) -> OpResult {
             bin_bitwise! {
                 vm = self,
-                a = self.pop_value()?,
-                b = value,
+                a = self.top_value_mut()?,
+                imm = value,
                 op = BitXor::bitxor,
             }
         }
 
         // not
         pub(super) fn op_not(&mut self) -> OpResult {
-            let value = self.pop_value()?;
+            let value = self.top_value_mut()?;
 
             match value {
                 Value::UInt(val) => {
-                    self.push_value(Value::UInt(!val))?;
+                    *val = !*val;
                 }
                 Value::SInt(val) => {
-                    self.push_value(Value::SInt(!val))?;
+                    *val = !*val;
                 }
                 Value::Bool(val) => {
-                    self.push_value(Value::Bool(!val))?;
+                    *val = !*val;
                 }
                 Value::Address(val) => {
-                    self.push_value(Value::Address(!val))?;
+                    *val = !*val;
                 }
                 _ => return Err(self.error(VmErrorKind::Type)),
             }
@@ -723,7 +890,7 @@ mod imp {
             bin_shift! {
                 vm = self,
                 a = self.pop_value()?,
-                b = self.pop_value()?,
+                b = self.top_value_mut()?,
                 op = checked_shr,
             }
         }
@@ -732,8 +899,8 @@ mod imp {
         pub(super) fn op_shr_imm(&mut self, value: Value) -> OpResult {
             bin_shift! {
                 vm = self,
-                a = self.pop_value()?,
-                b = value,
+                a = self.top_value_mut()?,
+                imm = value,
                 op = checked_shr,
             }
         }
@@ -743,7 +910,7 @@ mod imp {
             bin_shift! {
                 vm = self,
                 a = self.pop_value()?,
-                b = self.pop_value()?,
+                b = self.top_value_mut()?,
                 op = checked_shl,
             }
         }
@@ -752,8 +919,8 @@ mod imp {
         pub(super) fn op_shl_imm(&mut self, value: Value) -> OpResult {
             bin_shift! {
                 vm = self,
-                a = self.pop_value()?,
-                b = value,
+                a = self.top_value_mut()?,
+                imm = value,
                 op = checked_shl,
             }
         }
@@ -763,7 +930,7 @@ mod imp {
             bin_compare! {
                 vm = self,
                 a = self.pop_value()?,
-                b = self.pop_value()?,
+                b = self.top_value_mut()?,
                 null = true,
                 op = PartialEq::eq,
             }
@@ -773,8 +940,8 @@ mod imp {
         pub(super) fn op_eq_imm(&mut self, value: Value) -> OpResult {
             bin_compare! {
                 vm = self,
-                a = self.pop_value()?,
-                b = value,
+                a = self.top_value_mut()?,
+                imm = value,
                 null = true,
                 op = PartialEq::eq,
             }
@@ -785,7 +952,7 @@ mod imp {
             bin_compare! {
                 vm = self,
                 a = self.pop_value()?,
-                b = self.pop_value()?,
+                b = self.top_value_mut()?,
                 null = false,
                 op = PartialOrd::gt,
             }
@@ -795,8 +962,8 @@ mod imp {
         pub(super) fn op_gt_imm(&mut self, value: Value) -> OpResult {
             bin_compare! {
                 vm = self,
-                a = self.pop_value()?,
-                b = value,
+                a = self.top_value_mut()?,
+                imm = value,
                 null = false,
                 op = PartialOrd::gt,
             }
@@ -807,7 +974,7 @@ mod imp {
             bin_compare! {
                 vm = self,
                 a = self.pop_value()?,
-                b = self.pop_value()?,
+                b = self.top_value_mut()?,
                 null = true,
                 op = PartialOrd::ge,
             }
@@ -817,8 +984,8 @@ mod imp {
         pub(super) fn op_ge_imm(&mut self, value: Value) -> OpResult {
             bin_compare! {
                 vm = self,
-                a = self.pop_value()?,
-                b = value,
+                a = self.top_value_mut()?,
+                imm = value,
                 null = true,
                 op = PartialOrd::ge,
             }
@@ -829,7 +996,7 @@ mod imp {
             bin_compare! {
                 vm = self,
                 a = self.pop_value()?,
-                b = self.pop_value()?,
+                b = self.top_value_mut()?,
                 null = false,
                 op = PartialOrd::lt,
             }
@@ -839,8 +1006,8 @@ mod imp {
         pub(super) fn op_lt_imm(&mut self, value: Value) -> OpResult {
             bin_compare! {
                 vm = self,
-                a = self.pop_value()?,
-                b = value,
+                a = self.top_value_mut()?,
+                imm = value,
                 null = false,
                 op = PartialOrd::lt,
             }
@@ -851,7 +1018,7 @@ mod imp {
             bin_compare! {
                 vm = self,
                 a = self.pop_value()?,
-                b = self.pop_value()?,
+                b = self.top_value_mut()?,
                 null = true,
                 op = PartialOrd::le,
             }
@@ -861,8 +1028,8 @@ mod imp {
         pub(super) fn op_le_imm(&mut self, value: Value) -> OpResult {
             bin_compare! {
                 vm = self,
-                a = self.pop_value()?,
-                b = value,
+                a = self.top_value_mut()?,
+                imm = value,
                 null = true,
                 op = PartialOrd::le,
             }
