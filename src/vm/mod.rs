@@ -184,6 +184,17 @@ impl Vm {
             .vm_err(VmErrorKind::Type, self)
     }
 
+    pub fn top_value(&self) -> Result<Value> {
+        self.data_stack.top().vm_err(VmErrorKind::OutOfBounds, self)
+    }
+
+    pub fn top_value_mut(&mut self) -> Result<&mut Value> {
+        match self.data_stack.top_mut() {
+            Some(top) => Ok(top),
+            None => Err(VmError::new(VmErrorKind::OutOfBounds, &self.frame)),
+        }
+    }
+
     pub fn heap_object<T: VmObject>(&self, obj: Reference) -> Result<&T> {
         self.heap
             .get(obj)

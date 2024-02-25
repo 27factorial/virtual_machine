@@ -54,6 +54,14 @@ impl DataStack {
         self.data.clear();
     }
 
+    pub fn top(&self) -> Option<Value> {
+        self.data.last().copied()
+    }
+
+    pub fn top_mut(&mut self) -> Option<&mut Value> {
+        self.data.last_mut()
+    }
+
     pub fn get<I: SliceIndex<[Value]>>(&self, index: I) -> Option<&I::Output> {
         self.data.get(index)
     }
