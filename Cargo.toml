@@ -18,3 +18,5 @@ thiserror = "1"
 [profile.release]
 strip = false
 debug = true
+lto = true
+codegen-units = 1

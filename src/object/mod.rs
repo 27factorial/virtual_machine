@@ -1,8 +1,9 @@
 use crate::program::Program;
 use crate::utils::FxHashMap;
 use crate::value::Value;
+use crate::vm::function::Function;
 use crate::vm::gc::GcBox;
-use crate::vm::ops::{Function, OpCode};
+use crate::vm::ops::OpCode;
 use serde::{Deserialize, Serialize};
 use std::any::{Any, TypeId};
 use std::fmt::Debug;

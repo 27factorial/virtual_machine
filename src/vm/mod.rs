@@ -6,7 +6,8 @@ use crate::utils::{IntEntry, IntoVmResult};
 use crate::value::Value;
 use heap::{Heap, Reference};
 use memory::{CallStack, DataStack};
-use ops::{Function, OpCode, Transition};
+use ops::{OpCode, Transition};
+use function::Function;
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -15,6 +16,7 @@ pub mod gc;
 pub mod heap;
 pub mod memory;
 pub mod ops;
+pub mod function;
 
 // TODO: Finish DataStack-based locals
 
@@ -237,7 +239,7 @@ impl Vm {
         let valid_range = base..base + count;
 
         if valid_range.contains(&index) {
-            Ok(self.get_value(index)?)
+            Ok(self.data_stack.get(index).copied().unwrap())
         } else {
             Err(self.error(VmErrorKind::OutOfBounds))
         }

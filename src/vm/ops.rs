@@ -240,41 +240,6 @@ pub enum Transition {
     Halt,
 }
 
-#[derive(Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
-pub struct Function(pub(crate) Arc<[OpCode]>);
-
-impl Function {
-    pub fn new(ops: impl IntoIterator<Item = OpCode>) -> Self {
-        let ops = ops.into_iter().collect();
-
-        Self(ops)
-    }
-
-    pub fn get<T: SliceIndex<[OpCode]>>(&self, index: T) -> Option<&T::Output> {
-        self.0.get(index)
-    }
-}
-
-impl FromIterator<OpCode> for Function {
-    fn from_iter<T: IntoIterator<Item = OpCode>>(ops: T) -> Self {
-        Self::new(ops)
-    }
-}
-
-impl<T: SliceIndex<[OpCode]>> Index<T> for Function {
-    type Output = T::Output;
-
-    fn index(&self, index: T) -> &Self::Output {
-        self.0.index(index)
-    }
-}
-
-impl Default for Function {
-    fn default() -> Self {
-        Self(Arc::from([]))
-    }
-}
-
 mod imp {
     use super::{OpResult, Transition};
     use crate::utils::IntoVmResult;
@@ -677,8 +642,12 @@ mod imp {
         // rsrv
         pub(super) fn op_reserve(&mut self) -> OpResult {
             let n: usize = match self.pop_value()? {
-                Value::UInt(n) => n.try_into().vm_result(VmErrorKind::OutOfBounds, &self.frame)?,
-                Value::SInt(n) => n.try_into().vm_result(VmErrorKind::OutOfBounds, &self.frame)?,
+                Value::UInt(n) => n
+                    .try_into()
+                    .vm_result(VmErrorKind::OutOfBounds, &self.frame)?,
+                Value::SInt(n) => n
+                    .try_into()
+                    .vm_result(VmErrorKind::OutOfBounds, &self.frame)?,
                 _ => return Err(self.error(VmErrorKind::Type)),
             };
 

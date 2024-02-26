@@ -6,7 +6,7 @@ use crate::{
     utils::{IntEntry, IntHashMap},
 };
 
-use super::ops::Function;
+use super::function::Function;
 
 #[derive(Clone, Default)]
 pub struct Cache {
