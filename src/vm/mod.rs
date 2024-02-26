@@ -4,19 +4,19 @@ use crate::program::{NativeFn, Path, Program};
 use crate::symbol::Symbol;
 use crate::utils::{IntEntry, IntoVmResult};
 use crate::value::Value;
+use function::Function;
 use heap::{Heap, Reference};
 use memory::{CallStack, DataStack};
 use ops::{OpCode, Transition};
-use function::Function;
 use std::cell::RefCell;
 use std::sync::Arc;
 
 pub mod cache;
+pub mod function;
 pub mod gc;
 pub mod heap;
 pub mod memory;
 pub mod ops;
-pub mod function;
 
 // TODO: Finish DataStack-based locals
 
@@ -228,6 +228,7 @@ impl Vm {
             .vm_result(VmErrorKind::Type, &self.frame)
     }
 
+    #[inline(always)]
     pub fn current_op(&self) -> Option<OpCode> {
         self.frame.func.get(self.ip()).copied()
     }
@@ -269,12 +270,9 @@ impl Vm {
         }
     }
 
+    #[inline(always)]
     pub fn ip(&self) -> usize {
         self.frame.ip
-    }
-
-    pub fn ip_mut(&mut self) -> &mut usize {
-        &mut self.frame.ip
     }
 
     pub fn heap(&self) -> &Heap {

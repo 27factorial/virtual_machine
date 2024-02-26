@@ -1040,12 +1040,6 @@ mod imp {
             } else {
                 Ok(Transition::Continue)
             }
-
-            // match self.get_value(0)? {
-            //     Value::Bool(true) => self.op_jump_imm(address),
-            //     Value::Bool(false) => Ok(Transition::Continue),
-            //     _ => Err(self.error(VmErrorKind::Type)),
-            // }
         }
 
         // call
