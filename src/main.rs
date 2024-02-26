@@ -24,7 +24,7 @@ pub mod utils;
 pub mod value;
 pub mod vm;
 
-// TODO: Local variables for functions inside CallFrame
+// TODO: Possibly unsafe optimizations, e.g. pointers instead of indexing
 
 fn main() {
     let mut program = Program::new();
@@ -52,7 +52,7 @@ fn main() {
                 OpCode::Store(0),
                 // Push two 2s onto the stack
                 OpCode::Push(Value::UInt(2)),
-                OpCode::Push(Value::UInt(2)),
+                OpCode::Dup,
                 // Call a function which pops them from the stack, adds them, then returns
                 OpCode::CallImm(adder),
                 // Remove the added value (it's not actually used)
