@@ -22,10 +22,12 @@ impl Cache {
         }
     }
 
+    #[inline(always)]
     pub fn function_entry(&mut self, symbol: Symbol) -> IntEntry<'_, Symbol, Function> {
         self.functions.entry(symbol)
     }
 
+    #[inline(always)]
     pub fn native_function_entry(&mut self, symbol: Symbol) -> IntEntry<'_, Symbol, Arc<NativeFn>> {
         self.native_functions.entry(symbol)
     }

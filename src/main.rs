@@ -6,12 +6,11 @@
 // #![feature(trait_upcasting)]
 // Enforces strict pointer provenenance for the above feature.
 #![deny(fuzzy_provenance_casts)]
-// Forces #[must_use] return values to be used in *some* way.
-// #![deny(unused_must_use)]
-
-use std::time::Instant;
+// Forces the use of unsafe blocks for unsafe operations, even when inside of an unsafe function.
+#![deny(unsafe_op_in_unsafe_fn)]
 
 use program::Program;
+use std::time::Instant;
 use value::Value;
 use vm::ops::OpCode;
 use vm::Vm;

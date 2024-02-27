@@ -1,4 +1,5 @@
 use self::cache::Cache;
+use self::memory::VmStack;
 use crate::object::VmObject;
 use crate::program::{NativeFn, Path, Program};
 use crate::symbol::Symbol;
@@ -25,8 +26,8 @@ pub type Result<T> = std::result::Result<T, VmError>;
 #[derive(Debug)]
 pub struct Vm {
     pub(crate) frame: CallFrame,
-    call_stack: CallStack,
-    data_stack: DataStack,
+    call_stack: VmStack<CallFrame>,
+    data_stack: VmStack<Value>,
     heap: Heap,
     cache: RefCell<Cache>,
     program: Program,
@@ -42,8 +43,8 @@ impl Vm {
 
         Ok(Self {
             frame: CallFrame::new(main, 0, 0, 0),
-            call_stack: CallStack::new(64),
-            data_stack: DataStack::new(255),
+            call_stack: VmStack::new(64),
+            data_stack: VmStack::new(255),
             heap: Heap::new(1024),
             cache: RefCell::new(Cache::new()),
             program,
@@ -203,6 +204,7 @@ impl Vm {
     pub fn top_value(&self) -> Result<Value> {
         self.data_stack
             .top()
+            .copied()
             .vm_result(VmErrorKind::OutOfBounds, &self.frame)
     }
 
