@@ -1,4 +1,4 @@
-use crate::vm::{CallFrame, Result as VmResult, Vm, VmError, VmErrorKind};
+use crate::vm::{CallFrame, Result as VmResult, VmError, VmErrorKind};
 use rustc_hash::FxHasher;
 use serde::{Deserialize, Serialize};
 use std::hash::{BuildHasherDefault, Hasher};

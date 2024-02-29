@@ -1,4 +1,9 @@
-use std::{fmt::{self, Debug}, sync::Arc};
+use std::{
+    fmt::{self, Debug},
+    sync::Arc,
+};
+
+use hashbrown::HashTable;
 
 use crate::{
     program::NativeFn,
@@ -6,25 +11,45 @@ use crate::{
     utils::{IntEntry, IntHashMap},
 };
 
-use super::function::Function;
+use super::{function::Function, Result as VmResult};
 
 #[derive(Clone, Default)]
 pub struct Cache {
-    functions: IntHashMap<Symbol, Function>,
+    functions: HashTable<Function>,
     native_functions: IntHashMap<Symbol, Arc<NativeFn>>,
 }
 
 impl Cache {
     pub fn new() -> Self {
         Self {
-            functions: IntHashMap::default(),
+            functions: HashTable::new(),
             native_functions: IntHashMap::default(),
         }
     }
 
-    #[inline(always)]
-    pub fn function_entry(&mut self, symbol: Symbol) -> IntEntry<'_, Symbol, Function> {
-        self.functions.entry(symbol)
+    pub fn get_or_insert_function_2<F>(&mut self, symbol: Symbol, f: F) -> VmResult<Function>
+    where
+        F: FnOnce() -> VmResult<Function>,
+    {
+        // integers that are <= 64 bits are guaranteed to be unique, so there's no need to do any
+        // work to determine if any hash collisions have different keys, since that will never be
+        // any hash collisions guarantee that the keys are equivalent.
+        // TODO: Do this for native functions too.
+        let hash = symbol.0 as u64;
+        let func_opt = self.functions.find(hash, |_| true);
+
+        match func_opt {
+            Some(func) => Ok(func.clone()),
+            None => {
+                let func = f()?;
+
+                Ok(self
+                    .functions
+                    .insert_unique(hash, func, |_| hash)
+                    .get()
+                    .clone())
+            }
+        }
     }
 
     #[inline(always)]

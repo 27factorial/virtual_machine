@@ -7,7 +7,6 @@ use crate::utils::{IntEntry, IntoVmResult};
 use crate::value::Value;
 use function::Function;
 use heap::{Heap, Reference};
-use memory::{CallStack, DataStack};
 use ops::{OpCode, Transition};
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -231,8 +230,8 @@ impl Vm {
     }
 
     #[inline(always)]
-    pub fn current_op(&self) -> Option<OpCode> {
-        self.frame.func.get(self.ip()).copied()
+    pub fn current_op(&self) -> Option<&OpCode> {
+        self.frame.func.get(self.ip())
     }
 
     pub fn get_local(&self, index: usize) -> Result<Value> {
@@ -294,7 +293,6 @@ impl Vm {
             Ok(object) => Ok(object),
             Err(value) => {
                 // Current roots:
-                // all CallFrame locals
                 // self.data_stack
                 // I would like to use a convenience method here, but partial borrows strike again.
                 self.heap
@@ -307,45 +305,38 @@ impl Vm {
         }
     }
 
-    pub fn resolve_function(&self, symbol: Symbol) -> Result<Function> {
-        let mut cache = self.cache.borrow_mut();
+    pub fn resolve_function(&mut self, symbol: Symbol) -> Result<Function> {
+        self.cache.get_mut().get_or_insert_function_2(symbol, || {
+            let name = self
+                .program
+                .symbols
+                .get(symbol)
+                .vm_result(VmErrorKind::SymbolNotFound, &self.frame)?;
 
-        match cache.function_entry(symbol) {
-            IntEntry::Occupied(entry) => Ok(entry.get().clone()),
-            IntEntry::Vacant(entry) => {
-                let name = self
-                    .program
-                    .symbols
-                    .get(symbol)
-                    .vm_result(VmErrorKind::SymbolNotFound, &self.frame)?;
+            let path = Path::new(name).vm_result(VmErrorKind::FunctionNotFound, &self.frame)?;
 
-                let path = Path::new(name).vm_result(VmErrorKind::FunctionNotFound, &self.frame)?;
+            let functions = match path.object {
+                Some(name) => {
+                    let ty = self
+                        .program
+                        .types
+                        .get(name)
+                        .vm_result(VmErrorKind::TypeNotFound, &self.frame)?;
+                    &ty.methods
+                }
+                None => &self.program.functions,
+            };
 
-                let functions = match path.object {
-                    Some(name) => {
-                        let ty = self
-                            .program
-                            .types
-                            .get(name)
-                            .vm_result(VmErrorKind::TypeNotFound, &self.frame)?;
-                        &ty.methods
-                    }
-                    None => &self.program.functions,
-                };
+            let function = functions
+                .get(path.member)
+                .cloned()
+                .vm_result(VmErrorKind::FunctionNotFound, &self.frame)?;
 
-                let function = functions
-                    .get(path.member)
-                    .cloned()
-                    .vm_result(VmErrorKind::FunctionNotFound, &self.frame)?;
-
-                let function = entry.insert(function);
-
-                Ok(function.clone())
-            }
-        }
+            Ok(function.clone())
+        })
     }
 
-    pub fn resolve_native_function(&self, symbol: Symbol) -> Result<Arc<NativeFn>> {
+    pub fn resolve_native_function(&mut self, symbol: Symbol) -> Result<Arc<NativeFn>> {
         let mut cache = self.cache.borrow_mut();
 
         match cache.native_function_entry(symbol) {

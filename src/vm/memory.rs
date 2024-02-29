@@ -1,6 +1,7 @@
 use super::CallFrame;
 use crate::value::Value;
 use std::alloc::{self, Layout};
+use std::cmp;
 use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 use std::iter::FusedIterator;
@@ -11,109 +12,14 @@ use std::slice::{self, SliceIndex};
 
 #[cold]
 #[inline(never)]
+#[track_caller]
 fn bounds_check_failed(len: usize, index: usize) -> ! {
     panic!("index out of bounds: the len is {len} but the index is {index}")
 }
 
-#[derive(Clone, PartialEq, PartialOrd, Debug, Default)]
-pub struct DataStack {
-    data: Vec<Value>,
-    capacity: usize,
-}
-
-impl DataStack {
-    pub fn new(capacity: usize) -> Self {
-        Self {
-            data: Vec::with_capacity(capacity),
-            capacity,
-        }
-    }
-
-    pub fn with_byte_capacity(capacity: usize) -> Self {
-        let value_capacity = capacity / mem::size_of::<Value>();
-        Self::new(value_capacity)
-    }
-
-    pub fn len(&self) -> usize {
-        self.data.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.data.is_empty()
-    }
-
-    pub fn push(&mut self, value: Value) -> Result<(), Value> {
-        if self.data.len() != self.capacity {
-            self.data.push(value);
-            Ok(())
-        } else {
-            Err(value)
-        }
-    }
-
-    pub fn pop(&mut self) -> Option<Value> {
-        self.data.pop()
-    }
-
-    pub fn truncate(&mut self, new_len: usize) {
-        // Since Value doesn't have an explicit Drop impl, this should just be equivalent to
-        // Vec::set_len when new_len < self.len()
-        self.data.truncate(new_len)
-    }
-
-    pub fn clear(&mut self) {
-        self.data.clear();
-    }
-
-    pub fn top(&self) -> Option<Value> {
-        self.data.last().copied()
-    }
-
-    pub fn top_mut(&mut self) -> Option<&mut Value> {
-        self.data.last_mut()
-    }
-
-    pub fn get<I: SliceIndex<[Value]>>(&self, index: I) -> Option<&I::Output> {
-        self.data.get(index)
-    }
-
-    pub fn get_mut<I: SliceIndex<[Value]>>(&mut self, index: I) -> Option<&mut I::Output> {
-        self.data.get_mut(index)
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &Value> {
-        self.data.iter()
-    }
-
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Value> {
-        self.data.iter_mut()
-    }
-}
-
-impl<I: SliceIndex<[Value]>> Index<I> for DataStack {
-    type Output = I::Output;
-
-    fn index(&self, index: I) -> &Self::Output {
-        self.data.index(index)
-    }
-}
-
-impl<I: SliceIndex<[Value]>> IndexMut<I> for DataStack {
-    fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        self.data.index_mut(index)
-    }
-}
-
-impl IntoIterator for DataStack {
-    type Item = <Vec<Value> as IntoIterator>::Item;
-
-    type IntoIter = <Vec<Value> as IntoIterator>::IntoIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.data.into_iter()
-    }
-}
-
+#[cold]
+#[inline(never)]
+#[track_caller]
 fn capacity_overflow() -> ! {
     panic!("capacity overflow");
 }
@@ -132,14 +38,21 @@ impl<T> VmStack<T> {
             };
 
             // SAFETY: the condition above checks that more than 0 bytes are being allocated.
-            unsafe { alloc::alloc(layout).cast::<MaybeUninit<T>>() }
+            let ptr = unsafe { alloc::alloc(layout).cast::<MaybeUninit<T>>() };
+
+            if ptr.is_null() {
+                alloc::handle_alloc_error(layout);
+            }
+
+            ptr
         } else {
             NonNull::dangling().as_ptr()
         };
 
         // SAFETY: The pointer supplied to slice_from_raw_parts_mut comes from a pointer that was
         // allocated for `capacity` elements, and was also created from GlobalAlloc, meaning a Box
-        // can be constructed from the slice pointer.
+        // can be constructed from the slice pointer. The pointer is also checked above to make sure
+        // it's not null.
         let data = unsafe { Box::from_raw(ptr::slice_from_raw_parts_mut(ptr, capacity)) };
 
         Self { data, len: 0 }
@@ -173,10 +86,7 @@ impl<T> VmStack<T> {
 
     pub fn pop(&mut self) -> Option<T> {
         if !self.is_empty() {
-            unsafe {
-                self.len -= 1;
-                Some(ptr::read(self.get_unchecked(self.len)))
-            }
+            unsafe { Some(self.pop_unchecked()) }
         } else {
             None
         }
@@ -282,41 +192,54 @@ impl<T> VmStack<T> {
             .rev()
     }
 
-    fn from_boxed_slice(slice: Box<[T]>) -> Self {
-        let len = slice.len();
-
-        let data = unsafe { Box::from_raw(Box::into_raw(slice) as *mut _) };
-
-        Self { data, len }
-    }
-
-    unsafe fn get_uninit_unchecked(&self, index: usize) -> &MaybeUninit<T> {
+    #[inline(always)]
+    pub unsafe fn get_uninit_unchecked(&self, index: usize) -> &MaybeUninit<T> {
         unsafe {
             let ptr = self.data.as_ptr().add(index);
             &*ptr
         }
     }
 
-    unsafe fn get_uninit_unchecked_mut(&mut self, index: usize) -> &mut MaybeUninit<T> {
+    #[inline(always)]
+    pub unsafe fn get_uninit_unchecked_mut(&mut self, index: usize) -> &mut MaybeUninit<T> {
         unsafe {
             let ptr = self.data.as_mut_ptr().add(index);
             &mut *ptr
         }
     }
 
-    unsafe fn get_unchecked(&self, index: usize) -> &T {
+    #[inline(always)]
+    pub unsafe fn get_unchecked(&self, index: usize) -> &T {
         unsafe { self.get_uninit_unchecked(index).assume_init_ref() }
     }
 
-    unsafe fn get_unchecked_mut(&mut self, index: usize) -> &mut T {
+    #[inline(always)]
+    pub unsafe fn get_unchecked_mut(&mut self, index: usize) -> &mut T {
         unsafe { self.get_uninit_unchecked_mut(index).assume_init_mut() }
     }
 
-    unsafe fn push_unchecked(&mut self, value: T) {
+    #[inline(always)]
+    pub unsafe fn push_unchecked(&mut self, value: T) {
         unsafe {
             self.data.get_unchecked_mut(self.len).write(value);
+            self.len += 1;
         }
-        self.len += 1;
+    }
+
+    #[inline(always)]
+    pub unsafe fn pop_unchecked(&mut self) -> T {
+        unsafe {
+            self.len -= 1;
+            ptr::read(self.get_unchecked(self.len))
+        }
+    }
+
+    fn from_boxed_slice(slice: Box<[T]>) -> Self {
+        let len = slice.len();
+
+        let data = unsafe { Box::from_raw(Box::into_raw(slice) as *mut _) };
+
+        Self { data, len }
     }
 }
 
@@ -370,20 +293,20 @@ where
 }
 
 impl<T: Ord> Ord for VmStack<T> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
         self.as_slice().cmp(other.as_slice())
     }
 }
 
 impl<T: PartialOrd> PartialOrd for VmStack<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
         self.as_slice().partial_cmp(other.as_slice())
     }
 }
 
 impl<T: Hash> Hash for VmStack<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        Hash::hash_slice(self.as_slice(), state);
+        self.as_slice().hash(state);
     }
 }
 
@@ -452,71 +375,10 @@ impl<T> ExactSizeIterator for IntoIter<T> {}
 
 impl<T> FusedIterator for IntoIter<T> {}
 
-#[derive(Clone, PartialEq, Debug, Default)]
-pub struct CallStack {
-    data: Vec<CallFrame>,
-    capacity: usize,
-}
-
-impl CallStack {
-    pub fn new(capacity: usize) -> Self {
-        Self {
-            data: Vec::with_capacity(capacity),
-            capacity,
-        }
-    }
-
-    pub fn with_byte_capacity(capacity: usize) -> Self {
-        let value_capacity = capacity / mem::size_of::<CallFrame>();
-        Self::new(value_capacity)
-    }
-
-    pub fn len(&self) -> usize {
-        self.data.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.data.is_empty()
-    }
-
-    pub fn push(&mut self, frame: CallFrame) -> Result<(), CallFrame> {
-        if self.data.len() == self.capacity {
-            Err(frame)
-        } else {
-            self.data.push(frame);
-            Ok(())
-        }
-    }
-
-    pub fn pop(&mut self) -> Option<CallFrame> {
-        self.data.pop()
-    }
-
-    pub fn clear(&mut self) {
-        self.data.clear();
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &CallFrame> {
-        self.data.iter()
-    }
-
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut CallFrame> {
-        self.data.iter_mut()
-    }
-}
-
-impl IntoIterator for CallStack {
-    type Item = <Vec<CallFrame> as IntoIterator>::Item;
-
-    type IntoIter = <Vec<CallFrame> as IntoIterator>::IntoIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.data.into_iter()
-    }
-}
-
 #[cfg(test)]
 mod test {
+    use std::rc::Rc;
+
     use super::VmStack;
 
     #[test]
@@ -530,6 +392,9 @@ mod test {
         }
 
         assert!(stack.push(0).is_err());
+
+        let popped = stack.pop().unwrap();
+        stack.push(popped).unwrap();
 
         while let Some(v) = stack.pop() {
             assert_eq!(v, 0);
@@ -598,6 +463,83 @@ mod test {
         let mut stack: VmStack<u8> = VmStack::new(0);
 
         assert_eq!(stack.capacity(), 0);
-        assert!(stack.push(1).is_err())
+        assert!(stack.push(1).is_err());
+        assert!(stack.pop().is_none());
     }
+
+    #[test]
+    fn cloning() {
+        let stack = VmStack::from([0u8, 1, 2, 3, 4]);
+        let cloned = stack.clone();
+
+        assert_eq!(stack, cloned)
+    }
+
+    #[test]
+    fn iteration() {
+        let array = [0u8, 1, 2, 3, 4, 5, 6, 7];
+        let forty_two = [42; 8];
+        let mut stack = VmStack::from(array);
+
+        assert!(stack.iter().eq(array.iter().rev()));
+
+        stack.iter_mut().for_each(|val| *val = 42);
+
+        assert!(stack.into_iter().eq(forty_two.into_iter().rev()));
+    }
+
+    #[test]
+    fn drops() {
+        struct DropCheck(i32);
+
+        impl Drop for DropCheck {
+            fn drop(&mut self) {
+                eprintln!("dropped {}", self.0)
+            }
+        }
+
+        let stack = VmStack::from([DropCheck(0), DropCheck(1), DropCheck(2)]);
+        drop(stack);
+
+        let rc = Rc::new(1i32);
+        let rc_clone = Rc::clone(&rc);
+
+        drop(VmStack::from(vec![vec![rc; 16]; 16]));
+
+        assert_eq!(Rc::strong_count(&rc_clone), 1)
+    }
+
+    #[test]
+    fn refs() {
+        let mut x = 42;
+        let mut y = 69;
+        let mut z = 420;
+        let mut w = 42069;
+
+        let mut stack = VmStack::from([&mut x, &mut y, &mut z]);
+
+        {
+            let borrow = &mut w;
+            *stack.top_mut().unwrap() = borrow;
+        }
+
+        // This line should fail to compile:
+        // z = 100;
+        *stack.pop().unwrap() = 1;
+        *stack.pop().unwrap() = 2;
+        *stack.pop().unwrap() = 3;
+
+        drop(stack);
+
+        assert_eq!(w, 1);
+        assert_eq!(y, 2);
+        assert_eq!(x, 3);
+    }
+
+    // SAFETY: it's not lol.
+    // #[test]
+    // fn triggers_undefined_behavior_only_use_this_for_testing_miri_out_please_i_beg_you() {
+    //     let mut stack = VmStack::new(0);
+    //     unsafe { stack.push_unchecked(1); }
+    // }
 }
