@@ -1,4 +1,5 @@
 use self::cache::Cache;
+use self::function::NewFunction;
 use self::memory::VmStack;
 use crate::object::VmObject;
 use crate::program::{NativeFn, Path, Program};
@@ -18,8 +19,6 @@ pub mod heap;
 pub mod memory;
 pub mod ops;
 
-// TODO: Finish DataStack-based locals
-
 pub type Result<T> = std::result::Result<T, VmError>;
 
 #[derive(Debug)]
@@ -35,13 +34,13 @@ pub struct Vm {
 impl Vm {
     pub fn new(program: Program) -> Result<Self> {
         let main = program
-            .functions
+            .functions_2
             .get("main")
             .cloned()
             .ok_or_else(|| VmError::new(VmErrorKind::FunctionNotFound, None))?;
 
         Ok(Self {
-            frame: CallFrame::new(main, 0, 0, 0),
+            frame: CallFrame::new(main, 0, 0),
             call_stack: VmStack::new(64),
             data_stack: VmStack::new(255),
             heap: Heap::new(1024),
@@ -231,7 +230,7 @@ impl Vm {
 
     #[inline(always)]
     pub fn current_op(&self) -> Option<&OpCode> {
-        self.frame.func.get(self.ip())
+        self.program.code.get(self.ip())
     }
 
     pub fn get_local(&self, index: usize) -> Result<Value> {
@@ -306,7 +305,7 @@ impl Vm {
     }
 
     pub fn resolve_function(&mut self, symbol: Symbol) -> Result<Function> {
-        self.cache.get_mut().get_or_insert_function_2(symbol, || {
+        self.cache.get_mut().get_or_insert_function(symbol, || {
             let name = self
                 .program
                 .symbols
@@ -333,6 +332,38 @@ impl Vm {
                 .vm_result(VmErrorKind::FunctionNotFound, &self.frame)?;
 
             Ok(function.clone())
+        })
+    }
+
+    pub fn resolve_function_2(&mut self, symbol: Symbol) -> Result<NewFunction> {
+        self.cache.get_mut().get_or_insert_new_function(symbol, || {
+            let name = self
+                .program
+                .symbols
+                .get(symbol)
+                .vm_result(VmErrorKind::SymbolNotFound, &self.frame)?;
+
+            let path = Path::new(name).vm_result(VmErrorKind::FunctionNotFound, &self.frame)?;
+
+            let functions = match path.object {
+                Some(_name) => {
+                    todo!("type methods")
+                    // let ty = self
+                    //     .program
+                    //     .types
+                    //     .get(name)
+                    //     .vm_result(VmErrorKind::TypeNotFound, &self.frame)?;
+                    // &ty.methods
+                }
+                None => &self.program.functions_2,
+            };
+
+            let function = functions
+                .get(path.member)
+                .copied()
+                .vm_result(VmErrorKind::FunctionNotFound, &self.frame)?;
+
+            Ok(function)
         })
     }
 
@@ -413,19 +444,17 @@ pub enum VmErrorKind {
     OutOfBounds,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct CallFrame {
-    pub(crate) func: Function,
     pub(crate) ip: usize,
     pub(crate) stack_base: usize,
     pub(crate) locals: usize,
 }
 
 impl CallFrame {
-    pub fn new(func: Function, ip: usize, stack_base: usize, locals: usize) -> Self {
+    pub fn new(func: NewFunction, stack_base: usize, locals: usize) -> Self {
         Self {
-            func,
-            ip,
+            ip: func.0,
             stack_base,
             locals,
         }

@@ -1,4 +1,8 @@
-use std::{ops::Index, slice::SliceIndex, sync::Arc};
+use std::{
+    ops::{Index, Range},
+    slice::SliceIndex,
+    sync::Arc,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -23,10 +27,7 @@ impl Function {
     pub(super) fn make_start(program: &mut Program) -> Self {
         let main_sym = program.define_symbol("main");
 
-        Self::new([
-            OpCode::CallImm(main_sym),
-            OpCode::Halt,
-        ])
+        Self::new([OpCode::CallImm(main_sym), OpCode::Halt])
     }
 }
 
@@ -47,5 +48,17 @@ impl<T: SliceIndex<[OpCode]>> Index<T> for Function {
 impl Default for Function {
     fn default() -> Self {
         Self(Arc::from([]))
+    }
+}
+
+#[derive(
+    Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize, Deserialize,
+)]
+pub struct NewFunction(pub(crate) usize);
+
+impl NewFunction {
+    #[inline(always)]
+    pub fn new(start: usize) -> Self {
+        Self(start)
     }
 }

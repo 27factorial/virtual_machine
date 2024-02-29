@@ -11,11 +11,16 @@ use crate::{
     utils::{IntEntry, IntHashMap},
 };
 
-use super::{function::Function, Result as VmResult};
+use super::{
+    function::{Function, NewFunction},
+    ops::OpCode,
+    Result as VmResult,
+};
 
 #[derive(Clone, Default)]
 pub struct Cache {
     functions: HashTable<Function>,
+    new_functions: HashTable<NewFunction>,
     native_functions: IntHashMap<Symbol, Arc<NativeFn>>,
 }
 
@@ -23,17 +28,18 @@ impl Cache {
     pub fn new() -> Self {
         Self {
             functions: HashTable::new(),
+            new_functions: HashTable::new(),
             native_functions: IntHashMap::default(),
         }
     }
 
-    pub fn get_or_insert_function_2<F>(&mut self, symbol: Symbol, f: F) -> VmResult<Function>
+    pub fn get_or_insert_function<F>(&mut self, symbol: Symbol, f: F) -> VmResult<Function>
     where
         F: FnOnce() -> VmResult<Function>,
     {
-        // integers that are <= 64 bits are guaranteed to be unique, so there's no need to do any
-        // work to determine if any hash collisions have different keys, since that will never be
-        // any hash collisions guarantee that the keys are equivalent.
+        // Integers that are <= 64 bits are guaranteed to be unique, so there's no need to do any
+        // work to determine if any hash collisions have different keys. Any hash collisions that
+        // occur are guaranteed to be because the keys are equivalent.
         // TODO: Do this for native functions too.
         let hash = symbol.0 as u64;
         let func_opt = self.functions.find(hash, |_| true);
@@ -48,6 +54,27 @@ impl Cache {
                     .insert_unique(hash, func, |_| hash)
                     .get()
                     .clone())
+            }
+        }
+    }
+
+    pub fn get_or_insert_new_function<F>(&mut self, symbol: Symbol, f: F) -> VmResult<NewFunction>
+    where
+        F: FnOnce() -> VmResult<NewFunction>,
+    {
+        // Integers that are <= 64 bits are guaranteed to be unique, so there's no need to do any
+        // work to determine if any hash collisions have different keys. Any hash collisions that
+        // occur are guaranteed to be because the keys are equivalent.
+        // TODO: Do this for native functions too.
+        let hash = symbol.0 as u64;
+        let func_opt = self.new_functions.find(hash, |_| true);
+
+        match func_opt {
+            Some(func) => Ok(*func),
+            None => {
+                let func = f()?;
+
+                Ok(*self.new_functions.insert_unique(hash, func, |_| hash).get())
             }
         }
     }

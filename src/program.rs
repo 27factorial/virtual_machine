@@ -2,13 +2,14 @@ use crate::object::VmType;
 use crate::symbol::{Symbol, Symbols};
 use crate::utils::FxHashMap;
 use crate::value::Value;
-use crate::vm::function::Function;
+use crate::vm::function::{Function, NewFunction};
 use crate::vm::ops::OpCode;
 use crate::vm::Result as VmResult;
 use crate::vm::Vm;
 use hashbrown::hash_map::RawEntryMut;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
+use std::iter;
 use std::sync::Arc;
 
 pub const VALID_MAGIC: &[u8; 7] = b"27FCTRL";
@@ -19,6 +20,8 @@ pub type NativeFn = dyn Fn(&mut Vm) -> VmResult<Value> + 'static;
 pub struct Program {
     pub(crate) constants: Vec<Value>,
     pub(crate) functions: FxHashMap<Arc<str>, Function>,
+    pub(crate) functions_2: FxHashMap<Arc<str>, NewFunction>,
+    pub(crate) code: Vec<OpCode>,
     #[serde(skip)]
     pub(crate) native_functions: FxHashMap<Arc<str>, Arc<NativeFn>>,
     pub(crate) types: FxHashMap<Arc<str>, VmType>,
@@ -30,6 +33,8 @@ impl Program {
         Self {
             constants: Vec::new(),
             functions: FxHashMap::default(),
+            functions_2: FxHashMap::default(),
+            code: Vec::new(),
             native_functions: FxHashMap::default(),
             types: FxHashMap::default(),
             symbols: Symbols::new(),
@@ -64,6 +69,28 @@ impl Program {
                 RawEntryMut::Vacant(entry) => {
                     entry.insert(Arc::from(name), func.into_iter().collect());
                     Ok(())
+                }
+                RawEntryMut::Occupied(_) => Err(func),
+            }
+        } else {
+            Err(func)
+        }
+    }
+
+    pub fn define_function_2<F: IntoIterator<Item = OpCode>>(
+        &mut self,
+        symbol: Symbol,
+        func: F,
+    ) -> Result<NewFunction, F> {
+        if let Some(name) = self.symbols.get(symbol) {
+            match self.functions_2.raw_entry_mut().from_key(name) {
+                RawEntryMut::Vacant(entry) => {
+                    let start = self.code.len();
+                    self.code.extend(func);
+                    let func = NewFunction::new(start);
+
+                    entry.insert(Arc::from(name), func);
+                    Ok(func)
                 }
                 RawEntryMut::Occupied(_) => Err(func),
             }
@@ -121,6 +148,8 @@ impl Debug for Program {
         f.debug_struct("Program")
             .field("constants", &self.constants)
             .field("functions", &self.functions)
+            .field("functions_2", &self.functions_2)
+            .field("code", &self.code)
             .field("native_functions", &NativeFnsDebug(&self.native_functions))
             .field("types", &self.types)
             .field("symbols", &self.symbols)

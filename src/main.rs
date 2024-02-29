@@ -23,8 +23,6 @@ pub mod utils;
 pub mod value;
 pub mod vm;
 
-// TODO: Possibly unsafe optimizations, e.g. pointers instead of indexing
-
 fn main() {
     let mut program = Program::new();
 
@@ -32,7 +30,7 @@ fn main() {
     let adder = program.define_symbol("adder");
 
     program
-        .define_function(
+        .define_function_2(
             main_sym,
             [
                 // Initialize a counter to 50 million and store the counter in local variable 0
@@ -65,7 +63,7 @@ fn main() {
         .expect("failed to define `main` function");
 
     program
-        .define_function(adder, [OpCode::Add, OpCode::Ret])
+        .define_function_2(adder, [OpCode::Add, OpCode::Ret])
         .expect("failed to define `crunch` function");
 
     let mut vm = Vm::new(program).expect("failed to create VM");

@@ -633,7 +633,7 @@ mod imp {
         }
 
         pub(super) fn op_dup(&mut self) -> OpResult {
-            let value = self.get_value(0)?;
+            let value = self.top_value()?;
             self.push_value(value)?;
 
             Ok(Transition::Continue)
@@ -1051,10 +1051,11 @@ mod imp {
 
         // calli
         pub(super) fn op_call_imm(&mut self, symbol: Symbol) -> OpResult {
-            let called_func = self.resolve_function(symbol)?;
+            let called_func = self.resolve_function_2(symbol)?;
             let new_base = self.frame.stack_base + self.frame.locals;
 
-            let caller = mem::replace(&mut self.frame, CallFrame::new(called_func, 0, new_base, 0));
+            let caller = self.frame;
+            self.frame = CallFrame::new(called_func, new_base, 0);
 
             self.push_frame(caller)?;
 
