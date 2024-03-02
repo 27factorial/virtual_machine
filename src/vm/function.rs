@@ -23,12 +23,6 @@ impl Function {
     pub fn get<T: SliceIndex<[OpCode]>>(&self, index: T) -> Option<&T::Output> {
         self.0.get(index)
     }
-
-    pub(super) fn make_start(program: &mut Program) -> Self {
-        let main_sym = program.define_symbol("main");
-
-        Self::new([OpCode::CallImm(main_sym), OpCode::Halt])
-    }
 }
 
 impl FromIterator<OpCode> for Function {

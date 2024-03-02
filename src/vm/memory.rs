@@ -221,8 +221,7 @@ impl<T> VmStack<T> {
     #[inline(always)]
     pub unsafe fn push_unchecked(&mut self, value: T) {
         unsafe {
-            self.data.as_mut_ptr().add(self.len).write(MaybeUninit::new(value));
-            // self.data.get_unchecked_mut(self.len).write(value);
+            self.data.get_unchecked_mut(self.len).write(value);
             self.len += 1;
         }
     }

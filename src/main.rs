@@ -29,7 +29,11 @@ fn main() {
     let mut program = Program::new();
 
     let main_sym = program.define_symbol("main");
-    let adder = program.define_symbol("adder");
+    let adder_sym = program.define_symbol("adder");
+    
+    let adder = program
+        .define_function_2(adder_sym, [OpCode::Add, OpCode::Ret])
+        .expect("failed to define `adder` function");
 
     program
         .define_function_2(
@@ -63,10 +67,6 @@ fn main() {
             ],
         )
         .expect("failed to define `main` function");
-
-    program
-        .define_function_2(adder, [OpCode::Add, OpCode::Ret])
-        .expect("failed to define `crunch` function");
 
     let mut vm = Vm::new(program).expect("failed to create VM");
 

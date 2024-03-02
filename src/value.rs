@@ -70,6 +70,7 @@ pub enum Value {
     Address(usize),
     /// The index of a symbol.
     Symbol(Symbol),
+    // Function(Function),
     /// An object reference, referring to some data in the object heap.
     Reference(Reference),
 }
@@ -88,5 +89,6 @@ variant_methods! {
     Char(char), "a";
     Address(usize), "an";
     Symbol(Symbol), "a";
+    // Function(Function), "a";
     Reference(Reference), "a";
 }

@@ -85,6 +85,7 @@ impl Vm {
             .vm_result(VmErrorKind::StackOverflow, &self.frame)
     }
 
+
     pub fn pop_value(&mut self) -> Result<Value> {
         if self.data_stack.len() != self.frame.stack_base + self.frame.locals {
             self.data_stack
@@ -179,6 +180,20 @@ impl Vm {
         self.get_value(index)?
             .address()
             .vm_result(VmErrorKind::Type, &self.frame)
+    }
+
+    pub fn pop_function(&mut self) -> Result<NewFunction> {
+        todo!("pop_function");
+        // self.pop_value()?
+        //     .function()
+        //     .vm_result(VmErrorKind::Type, &self.frame)
+    }
+
+    pub fn get_function(&self, index: usize) -> Result<NewFunction> {
+        todo!("get_function");
+        // self.get_value(index)?
+        //     .function()
+        //     .vm_result(VmErrorKind::Type, &self.frame)
     }
 
     pub fn pop_symbol(&mut self) -> Result<Symbol> {
@@ -452,6 +467,7 @@ pub enum VmErrorKind {
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct CallFrame {
+    pub(crate) start: usize,
     pub(crate) ip: usize,
     pub(crate) stack_base: usize,
     pub(crate) locals: usize,
@@ -460,113 +476,10 @@ pub struct CallFrame {
 impl CallFrame {
     pub fn new(func: NewFunction, stack_base: usize, locals: usize) -> Self {
         Self {
+            start: func.0,
             ip: func.0,
             stack_base,
             locals,
         }
     }
 }
-
-// #[cfg(test)]
-// mod test {
-//     use crate::{program::Program, value::Value};
-
-//     use super::{ops::OpCode, Vm};
-
-//     #[test]
-//     fn basic_program() {
-//         let mut program = Program::new();
-
-//         let main_sym = program.define_symbol("main");
-//         let adder = program.define_symbol("adder");
-
-//         program
-//             .define_function(
-//                 main_sym,
-//                 [
-//                     // Initialize a counter to 10 million and store the counter in local variable 0
-//                     OpCode::Push(Value::UInt(10_000_000)),
-//                     OpCode::Store(0),
-//                     // Load the counter from local variable 0, and if it's zero, jump to the end of
-//                     // the program.
-//                     OpCode::Load(0),
-//                     OpCode::EqImm(Value::UInt(0)),
-//                     OpCode::JumpCondImm(13),
-//                     // else...
-//                     // load the value from local variable 0, subtract 1, and store the new counter
-//                     // back in the local variable 0.
-//                     OpCode::Load(0),
-//                     OpCode::SubImm(Value::UInt(1)),
-//                     OpCode::Store(0),
-//                     // Push two 2s onto the stack
-//                     OpCode::Push(Value::UInt(2)),
-//                     OpCode::Push(Value::UInt(2)),
-//                     // Call a function which pops them from the stack, adds them, then returns
-//                     OpCode::CallImm(adder),
-//                     // Remove the added value (it's not actually used)
-//                     OpCode::Pop,
-//                     // Jump back to the counter check above
-//                     OpCode::JumpImm(2),
-//                     // halt the virtual machine
-//                     OpCode::Halt,
-//                 ],
-//             )
-//             .expect("failed to define `main` function");
-
-//         program
-//             .define_function(adder, [OpCode::Add, OpCode::Ret])
-//             .expect("failed to define `crunch` function");
-
-//         let mut vm = Vm::new(program).expect("failed to create VM");
-
-//         vm.run().expect("failed to run vm");
-//     }
-
-//     // #[test]
-//     // fn array_object() {
-//     //     let mut program = Program::new();
-
-//     //     Array::register_type(&mut program);
-
-//     //     let main_sym = program.define_symbol("main");
-//     //     let array_new = program.define_symbol("Array::new");
-//     //     let array_push = program.define_symbol("Array::push");
-
-//     //     program
-//     //         .define_function(
-//     //             main_sym,
-//     //             [
-//     //                 // Push uints 1-4 to stack
-//     //                 OpCode::Push(Value::UInt(4)),
-//     //                 OpCode::Push(Value::UInt(3)),
-//     //                 OpCode::Push(Value::UInt(2)),
-//     //                 OpCode::Push(Value::UInt(1)),
-//     //                 // Create a new array and save a copy of the reference to the first local variable
-//     //                 OpCode::CallImm(array_new),
-//     //                 OpCode::Copy,
-//     //                 OpCode::Store(0),
-//     //                 // Call the Array::push method four times
-//     //                 OpCode::CallImm(array_push),
-//     //                 OpCode::Load(0),
-//     //                 OpCode::CallImm(array_push),
-//     //                 OpCode::Load(0),
-//     //                 OpCode::CallImm(array_push),
-//     //                 OpCode::Load(0),
-//     //                 OpCode::CallImm(array_push),
-//     //                 OpCode::Load(0),
-//     //                 // print out the current state of the array
-//     //                 OpCode::Dbg(0),
-//     //                 // halt, we're done.
-//     //                 OpCode::Halt,
-//     //             ],
-//     //         )
-//     //         .expect("failed to define `main` function");
-
-//     //     let mut vm = Vm::new(std::hint::black_box(program)).expect("failed to create VM");
-
-//     //     for _ in 0..1_000_000 {
-//     //         vm.run().expect("failed to execute program");
-//     //         vm.reset().expect("failed to reset vm");
-//     //     }
-//     // }
-// }

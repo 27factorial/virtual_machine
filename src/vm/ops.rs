@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use std::{ops::Index, slice::SliceIndex, sync::Arc};
 
+use super::function::NewFunction;
+
 pub type OpResult = VmResult<Transition>;
 
 /// Opcodes representing the virtual machine's instruction set.
@@ -151,7 +153,7 @@ pub enum OpCode {
     /// Jump to the first instruction of a function determined by the index in the register.
     Call,
 
-    CallImm(Symbol),
+    CallImm(NewFunction),
     /// Call a native function determined by the immediate index pointing to a Program's string
     /// pool.
     CallNative(Symbol),
@@ -244,10 +246,12 @@ mod imp {
     use super::{OpResult, Transition};
     use crate::utils::IntoVmResult;
     use crate::value::Value;
+    use crate::vm::function::NewFunction;
     use crate::vm::{Vm, VmError, VmErrorKind};
     use crate::{symbol::Symbol, vm::CallFrame};
     use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Sub};
-    use std::{mem, ptr};
+    use std::time::Duration;
+    use std::{mem, ptr, thread};
 
     macro_rules! bin_arithmetic {
         // Normal
@@ -1013,7 +1017,7 @@ mod imp {
 
         // jmpi
         pub(super) fn op_jump_imm(&mut self, address: usize) -> OpResult {
-            self.frame.ip = address;
+            self.frame.ip = self.frame.start + address;
 
             Ok(Transition::Jump)
         }
@@ -1044,18 +1048,18 @@ mod imp {
 
         // call
         pub(super) fn op_call(&mut self) -> OpResult {
-            let symbol = self.pop_symbol()?;
+            let func = self.pop_function()?;
+            // let symbol = self.pop_symbol()?;
 
-            self.op_call_imm(symbol)
+            self.op_call_imm(func)
         }
 
         // calli
-        pub(super) fn op_call_imm(&mut self, symbol: Symbol) -> OpResult {
-            let called_func = self.resolve_function_2(symbol)?;
+        pub(super) fn op_call_imm(&mut self, func: NewFunction) -> OpResult {
             let new_base = self.frame.stack_base + self.frame.locals;
 
             self.push_frame(self.frame)?;
-            self.frame = CallFrame::new(called_func, new_base, 0);
+            self.frame = CallFrame::new(func, new_base, 0);
 
             Ok(Transition::Jump)
         }
