@@ -1054,10 +1054,8 @@ mod imp {
             let called_func = self.resolve_function_2(symbol)?;
             let new_base = self.frame.stack_base + self.frame.locals;
 
-            let caller = self.frame;
+            self.push_frame(self.frame)?;
             self.frame = CallFrame::new(called_func, new_base, 0);
-
-            self.push_frame(caller)?;
 
             Ok(Transition::Jump)
         }
@@ -1078,8 +1076,7 @@ mod imp {
         // ret
         pub(super) fn op_ret(&mut self) -> OpResult {
             let new_stack_len = self.frame.stack_base + self.frame.locals + 1;
-            let new_frame = self.pop_frame()?;
-            self.frame = new_frame;
+            self.frame = self.pop_frame()?;
 
             self.data_stack.truncate(new_stack_len);
 
@@ -1169,7 +1166,7 @@ mod imp {
                         None => eprintln!("<invalid>"),
                     }
                 }
-                value => eprintln!("*(sp - {index:#x}): {value:?}"),
+                value => eprintln!("stack[{index:#x}]: {value:?}"),
             }
             Ok(Transition::Continue)
         }

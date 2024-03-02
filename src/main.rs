@@ -9,8 +9,10 @@
 // Forces the use of unsafe blocks for unsafe operations, even when inside of an unsafe function.
 #![deny(unsafe_op_in_unsafe_fn)]
 
+#![allow(unused)]
+
 use program::Program;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use value::Value;
 use vm::ops::OpCode;
 use vm::Vm;

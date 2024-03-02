@@ -67,6 +67,12 @@ impl Vm {
             .vm_result(VmErrorKind::StackOverflow, &self.frame)
     }
 
+    pub(crate) fn push_current_frame(&mut self) -> Result<()> {
+        self.call_stack
+            .push(self.frame)
+            .vm_result(VmErrorKind::StackOverflow, &self.frame)
+    }
+
     pub fn pop_frame(&mut self) -> Result<CallFrame> {
         self.call_stack
             .pop()
@@ -397,22 +403,22 @@ impl Vm {
         VmError::new(kind, &self.frame)
     }
 
-    // #[cfg(test)]
-    // pub fn reset(&mut self) -> Result<()> {
-    //     let main = self
-    //         .program
-    //         .functions
-    //         .get("main")
-    //         .cloned()
-    //         .vm_err(VmErrorKind::FunctionNotFound, &self.frame)?;
+    pub fn reset(&mut self) -> Result<()> {
+        let main = self
+            .program
+            .functions_2
+            .get("main")
+            .cloned()
+            .ok_or_else(|| VmError::new(VmErrorKind::FunctionNotFound, None))?;
 
-    //     self.frame = CallFrame::new(main, 0, 0..1);
-    //     self.call_stack.clear();
-    //     self.data_stack.clear();
-    //     self.heap = Heap::new(1024);
+        self.frame = CallFrame::new(main, 0, 0);
+        self.call_stack = VmStack::new(64);
+        self.data_stack = VmStack::new(255);
+        self.heap = Heap::new(1024);
+        self.cache = RefCell::new(Cache::new());
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 }
 
 #[derive(Clone, PartialEq, Debug)]

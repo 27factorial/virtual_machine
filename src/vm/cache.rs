@@ -33,6 +33,9 @@ impl Cache {
         }
     }
 
+    // FIXME: There is a huge oversight here that doesn't consider the fact that multiple items may
+    // be in a single bucket, and it always marks them as equivalent, causing weird bugs. Fix this
+    // first!
     pub fn get_or_insert_function<F>(&mut self, symbol: Symbol, f: F) -> VmResult<Function>
     where
         F: FnOnce() -> VmResult<Function>,
@@ -58,6 +61,7 @@ impl Cache {
         }
     }
 
+    // FIXME: Read above
     pub fn get_or_insert_new_function<F>(&mut self, symbol: Symbol, f: F) -> VmResult<NewFunction>
     where
         F: FnOnce() -> VmResult<NewFunction>,
