@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use std::{ops::Index, slice::SliceIndex, sync::Arc};
 
-use super::function::NewFunction;
+use super::function::Function;
 use super::CallFrame;
 
 pub type OpResult = VmResult<Transition>;
@@ -154,7 +154,7 @@ pub enum OpCode {
     /// Jump to the first instruction of a function determined by the index in the register.
     Call,
 
-    CallImm(NewFunction),
+    CallImm(Function),
     /// Call a native function determined by the immediate index pointing to a Program's string
     /// pool.
     CallNative(Symbol),
@@ -248,7 +248,7 @@ mod imp {
     use super::{OpResult, Transition};
     use crate::utils::IntoVmResult;
     use crate::value::Value;
-    use crate::vm::function::NewFunction;
+    use crate::vm::function::Function;
     use crate::vm::{Vm, VmError, VmErrorKind};
     use crate::{symbol::Symbol, vm::CallFrame};
     use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Sub};
@@ -1095,12 +1095,10 @@ mod imp {
         }
 
         // calli
-        pub(super) fn op_call_imm(&mut self, func: NewFunction, frame: &CallFrame) -> OpResult {
+        pub(super) fn op_call_imm(&mut self, func: Function, frame: &CallFrame) -> OpResult {
             let new_base = frame.stack_base + frame.locals;
 
-            self.run_function(func, new_base);
-
-            Ok(Transition::Continue)
+            self.run_function(func, new_base)
         }
 
         // calln

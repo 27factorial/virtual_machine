@@ -9,8 +9,6 @@
 // Forces the use of unsafe blocks for unsafe operations, even when inside of an unsafe function.
 #![deny(unsafe_op_in_unsafe_fn)]
 
-#![allow(unused)]
-
 use program::Program;
 use std::time::{Duration, Instant};
 use value::Value;
@@ -30,13 +28,13 @@ fn main() {
 
     let main_sym = program.define_symbol("main");
     let adder_sym = program.define_symbol("adder");
-    
+
     let adder = program
-        .define_function_2(adder_sym, [OpCode::Add, OpCode::Ret])
+        .define_function(adder_sym, [OpCode::Add, OpCode::Ret])
         .expect("failed to define `adder` function");
 
     program
-        .define_function_2(
+        .define_function(
             main_sym,
             [
                 // Initialize a counter to 50 million and store the counter in local variable 0

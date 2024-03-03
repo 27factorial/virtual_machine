@@ -100,13 +100,9 @@ impl VmType {
     pub fn with_method(
         &mut self,
         name: impl Into<Arc<str>>,
-        func: impl IntoIterator<Item = OpCode>,
+        func: Function,
     ) -> &mut Self {
-        fn inner(methods: &mut FxHashMap<Arc<str>, Function>, name: Arc<str>, func: Function) {
-            methods.insert(name, func);
-        }
-
-        inner(&mut self.methods, name.into(), func.into_iter().collect());
+        self.methods.insert(name.into(), func);
         self
     }
 }

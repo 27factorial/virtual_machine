@@ -1,5 +1,3 @@
-use self::cache::Cache;
-use self::function::NewFunction;
 use self::memory::VmStack;
 use self::ops::OpResult;
 use crate::object::VmObject;
@@ -8,12 +6,12 @@ use crate::symbol::Symbol;
 use crate::utils::{IntEntry, IntoVmResult};
 use crate::value::Value;
 use function::Function;
+use hashbrown::hash_map::RawEntryMut;
 use heap::{Heap, Reference};
-use ops::{OpCode, Transition};
+use ops::Transition;
 use std::cell::RefCell;
 use std::sync::Arc;
 
-pub mod cache;
 pub mod function;
 pub mod gc;
 pub mod heap;
@@ -26,41 +24,38 @@ pub type Result<T> = std::result::Result<T, VmError>;
 pub struct Vm {
     data_stack: VmStack<Value>,
     heap: Heap,
-    cache: RefCell<Cache>,
     program: Program,
 }
 
 impl Vm {
     pub fn new(program: Program) -> Result<Self> {
-
-
         Ok(Self {
             data_stack: VmStack::new(255),
             heap: Heap::new(1024),
-            cache: RefCell::new(Cache::new()),
             program,
         })
     }
 
     pub fn run(&mut self) -> Result<()> {
-        let main = self.program
-        .functions_2
-        .get("main")
-        .cloned()
-        .ok_or_else(|| VmError::new(VmErrorKind::FunctionNotFound, None))?;
+        let main = self
+            .program
+            .function_indices
+            .get("main")
+            .cloned()
+            .ok_or_else(|| VmError::new(VmErrorKind::FunctionNotFound, None))?;
 
         self.run_function(main, 0)?;
 
         Ok(())
     }
 
-    pub(crate) fn run_function(&mut self, func: NewFunction, stack_base: usize) -> OpResult {
+    pub(crate) fn run_function(&mut self, func: Function, stack_base: usize) -> OpResult {
         let mut call_frame = CallFrame::new(func, stack_base, 0);
 
         while let Some(opcode) = self.program.code.get(call_frame.ip) {
             match opcode.execute(self, &mut call_frame)? {
                 Transition::Continue => call_frame.ip += 1,
-                Transition::Jump => {},
+                Transition::Jump => {}
                 Transition::Return => break,
                 Transition::Halt => return Ok(Transition::Halt),
             }
@@ -74,7 +69,6 @@ impl Vm {
             .push(value)
             .vm_result(VmErrorKind::StackOverflow, frame)
     }
-
 
     pub fn pop_value(&mut self, frame: &CallFrame) -> Result<Value> {
         if self.data_stack.len() != frame.stack_base + frame.locals {
@@ -172,14 +166,14 @@ impl Vm {
             .vm_result(VmErrorKind::Type, frame)
     }
 
-    pub fn pop_function(&mut self) -> Result<NewFunction> {
+    pub fn pop_function(&mut self) -> Result<Function> {
         todo!("pop_function");
         // self.pop_value(frame)?
         //     .function()
         //     .vm_result(VmErrorKind::Type, frame)
     }
 
-    pub fn get_function(&self, index: usize) -> Result<NewFunction> {
+    pub fn get_function(&self, index: usize) -> Result<Function> {
         todo!("get_function");
         // self.get_value(index, frame)?
         //     .function()
@@ -231,7 +225,11 @@ impl Vm {
             .vm_result(VmErrorKind::Type, frame)
     }
 
-    pub fn heap_object_mut<T: VmObject>(&mut self, obj: Reference, frame: &CallFrame) -> Result<&mut T> {
+    pub fn heap_object_mut<T: VmObject>(
+        &mut self,
+        obj: Reference,
+        frame: &CallFrame,
+    ) -> Result<&mut T> {
         self.heap
             .get_mut(obj)
             .vm_result(VmErrorKind::InvalidObject, frame)?
@@ -306,92 +304,23 @@ impl Vm {
         }
     }
 
-    pub fn resolve_function(&mut self, symbol: Symbol, frame: &CallFrame) -> Result<Function> {
-        self.cache.get_mut().get_or_insert_function(symbol, || {
-            let name = self
-                .program
-                .symbols
-                .get(symbol)
-                .vm_result(VmErrorKind::SymbolNotFound, frame)?;
+    pub fn resolve_native_function(
+        &mut self,
+        symbol: Symbol,
+        frame: &CallFrame,
+    ) -> Result<Arc<NativeFn>> {
+        match self.program.symbols.get(symbol) {
+            Some(name) => {
+                let entry = self.program.native_functions.raw_entry_mut().from_key(name);
 
-            let path = Path::new(name).vm_result(VmErrorKind::FunctionNotFound, frame)?;
-
-            let functions = match path.object {
-                Some(name) => {
-                    let ty = self
-                        .program
-                        .types
-                        .get(name)
-                        .vm_result(VmErrorKind::TypeNotFound, frame)?;
-                    &ty.methods
+                match entry {
+                    RawEntryMut::Occupied(entry) => Ok(entry.get().clone()),
+                    RawEntryMut::Vacant(_) => {
+                        Err(VmError::new(VmErrorKind::FunctionNotFound, frame))
+                    }
                 }
-                None => &self.program.functions,
-            };
-
-            let function = functions
-                .get(path.member)
-                .cloned()
-                .vm_result(VmErrorKind::FunctionNotFound, frame)?;
-
-            Ok(function.clone())
-        })
-    }
-
-    pub fn resolve_function_2(&mut self, symbol: Symbol, frame: &CallFrame) -> Result<NewFunction> {
-        self.cache.get_mut().get_or_insert_new_function(symbol, || {
-            let name = self
-                .program
-                .symbols
-                .get(symbol)
-                .vm_result(VmErrorKind::SymbolNotFound, frame)?;
-
-            let path = Path::new(name).vm_result(VmErrorKind::FunctionNotFound, frame)?;
-
-            let functions = match path.object {
-                Some(_name) => {
-                    todo!("type methods")
-                    // let ty = self
-                    //     .program
-                    //     .types
-                    //     .get(name)
-                    //     .vm_result(VmErrorKind::TypeNotFound, frame)?;
-                    // &ty.methods
-                }
-                None => &self.program.functions_2,
-            };
-
-            let function = functions
-                .get(path.member)
-                .copied()
-                .vm_result(VmErrorKind::FunctionNotFound, frame)?;
-
-            Ok(function)
-        })
-    }
-
-    pub fn resolve_native_function(&mut self, symbol: Symbol, frame: &CallFrame) -> Result<Arc<NativeFn>> {
-        let mut cache = self.cache.borrow_mut();
-
-        match cache.native_function_entry(symbol) {
-            IntEntry::Occupied(entry) => Ok(entry.get().clone()),
-            IntEntry::Vacant(entry) => {
-                let name = self
-                    .program
-                    .symbols
-                    .get(symbol)
-                    .vm_result(VmErrorKind::SymbolNotFound, frame)?;
-
-                let function = self
-                    .program
-                    .native_functions
-                    .get(name)
-                    .cloned()
-                    .vm_result(VmErrorKind::FunctionNotFound, frame)?;
-
-                let function = entry.insert(function);
-
-                Ok(function.clone())
             }
+            None => Err(VmError::new(VmErrorKind::SymbolNotFound, frame)),
         }
     }
 
@@ -400,16 +329,8 @@ impl Vm {
     }
 
     pub fn reset(&mut self) -> Result<()> {
-        let main = self
-            .program
-            .functions_2
-            .get("main")
-            .cloned()
-            .ok_or_else(|| VmError::new(VmErrorKind::FunctionNotFound, None))?;
-
         self.data_stack = VmStack::new(255);
         self.heap = Heap::new(1024);
-        self.cache = RefCell::new(Cache::new());
 
         Ok(())
     }
@@ -453,7 +374,7 @@ pub struct CallFrame {
 }
 
 impl CallFrame {
-    pub fn new(func: NewFunction, stack_base: usize, locals: usize) -> Self {
+    pub fn new(func: Function, stack_base: usize, locals: usize) -> Self {
         Self {
             start: func.0,
             ip: func.0,
