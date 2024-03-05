@@ -10,7 +10,7 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 use program::Program;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use value::Value;
 use vm::ops::OpCode;
 use vm::Vm;

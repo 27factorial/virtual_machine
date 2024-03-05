@@ -1105,7 +1105,7 @@ mod imp {
         pub(super) fn op_call_native(&mut self, symbol: Symbol, frame: &CallFrame) -> OpResult {
             let native = self.resolve_native_function(symbol, frame)?;
 
-            let value = native(self)?;
+            let value = native(self, frame)?;
 
             if !value.is_null() {
                 self.push_value(value, frame)?;

@@ -7,6 +7,7 @@ use crate::vm::ops::OpCode;
 use serde::{Deserialize, Serialize};
 use std::any::{Any, TypeId};
 use std::fmt::Debug;
+use std::ops::Range;
 use std::sync::Arc;
 
 pub mod array;
@@ -14,7 +15,7 @@ pub mod dict;
 pub mod string;
 
 pub trait VmObject: Any + Debug + Send + Sync + sealed::Upcast {
-    fn register_type(program: &mut Program) -> &VmType
+    fn register_type(program: &mut Program) -> &Type
     where
         Self: Sized;
     fn field(&self, name: &str) -> Option<&Value>;
@@ -76,19 +77,21 @@ impl GcBox<dyn VmObject> {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-pub struct VmType {
+#[derive(Clone, PartialEq, Debug)]
+pub struct TypeBuilder {
     pub(crate) name: Arc<str>,
     pub(crate) fields: FxHashMap<Arc<str>, usize>,
-    pub(crate) methods: FxHashMap<Arc<str>, Function>,
+    pub(crate) methods: FxHashMap<Arc<str>, Range<usize>>,
+    pub(crate) code: Vec<OpCode>,
 }
 
-impl VmType {
+impl TypeBuilder {
     pub fn new(name: impl Into<Arc<str>>) -> Self {
         Self {
             name: name.into(),
-            fields: Default::default(),
-            methods: Default::default(),
+            fields: FxHashMap::default(),
+            methods: FxHashMap::default(),
+            code: Vec::new(),
         }
     }
 
@@ -100,18 +103,26 @@ impl VmType {
     pub fn with_method(
         &mut self,
         name: impl Into<Arc<str>>,
-        func: Function,
+        code: impl IntoIterator<Item = OpCode>,
     ) -> &mut Self {
-        self.methods.insert(name.into(), func);
+        let start = self.code.len();
+        self.code.extend(code);
+        let end = self.code.len();
+
+        self.methods.insert(name.into(), start..end);
         self
+    }
+
+    pub fn register(self, program: &mut Program) -> &Type {
+        program.register_type(self)
     }
 }
 
-#[derive(Clone, PartialEq, PartialOrd, Debug, Default, Serialize, Deserialize)]
-pub struct Operators {
-    pub(crate) init: Function,
-    pub(crate) deinit: Option<Function>,
-    pub(crate) index: Option<Function>,
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct Type {
+    pub(crate) name: Arc<str>,
+    pub(crate) fields: FxHashMap<Arc<str>, usize>,
+    pub(crate) methods: FxHashMap<Arc<str>, Function>,
 }
 
 mod sealed {

@@ -1,11 +1,11 @@
-use crate::object::VmType;
+use crate::object::{Type, TypeBuilder};
 use crate::symbol::{Symbol, Symbols};
 use crate::utils::FxHashMap;
 use crate::value::Value;
 use crate::vm::function::Function;
 use crate::vm::ops::OpCode;
-use crate::vm::Result as VmResult;
 use crate::vm::Vm;
+use crate::vm::{CallFrame, Result as VmResult};
 use hashbrown::hash_map::RawEntryMut;
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Debug};
@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 pub const VALID_MAGIC: &[u8; 7] = b"27FCTRL";
 
-pub type NativeFn = dyn Fn(&mut Vm) -> VmResult<Value> + 'static;
+pub type NativeFn = dyn Fn(&mut Vm, &CallFrame) -> VmResult<Value> + 'static;
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Program {
@@ -22,7 +22,7 @@ pub struct Program {
     pub(crate) code: Vec<OpCode>,
     #[serde(skip)]
     pub(crate) native_functions: FxHashMap<Arc<str>, Arc<NativeFn>>,
-    pub(crate) types: FxHashMap<Arc<str>, VmType>,
+    pub(crate) types: FxHashMap<Arc<str>, Type>,
     pub(crate) symbols: Symbols,
 }
 
@@ -80,7 +80,7 @@ impl Program {
 
     pub fn define_native_function<F>(&mut self, symbol: Symbol, func: F) -> Result<(), F>
     where
-        F: Fn(&mut Vm) -> VmResult<Value> + 'static,
+        F: Fn(&mut Vm, &CallFrame) -> VmResult<Value> + 'static,
     {
         if let Some(name) = self.symbols.get(symbol) {
             match self.native_functions.raw_entry_mut().from_key(name) {
@@ -95,16 +95,42 @@ impl Program {
         }
     }
 
-    pub fn register_type(&mut self, ty: VmType) -> &VmType {
-        self.symbols.get_or_push(&ty.name);
+    pub(crate) fn register_type(&mut self, builder: TypeBuilder) -> &Type {
+        let TypeBuilder {
+            name: type_name,
+            fields,
+            methods: method_ranges,
+            mut code,
+        } = builder;
 
-        let (_, vm_type) = self
-            .types
-            .raw_entry_mut()
-            .from_key(&ty.name)
-            .or_insert_with(|| (Arc::clone(&ty.name), ty));
+        let RawEntryMut::Vacant(entry) = self.types.raw_entry_mut().from_key(&type_name) else {
+            panic!("Attempt to register duplicate type {type_name}");
+        };
 
-        vm_type
+        self.symbols.get_or_push(&type_name);
+
+        let mut methods =
+            FxHashMap::with_capacity_and_hasher(method_ranges.len(), Default::default());
+
+        for (name, range) in method_ranges {
+            let code = code.drain(range);
+            let start = self.code.len();
+            self.code.extend(code);
+            let func = Function::new(start);
+
+            methods.insert(name, func);
+        }
+
+        let (_, ty) = entry.insert(
+            Arc::clone(&type_name),
+            Type {
+                name: Arc::clone(&type_name),
+                fields,
+                methods,
+            },
+        );
+
+        ty
     }
 }
 
