@@ -6,7 +6,7 @@ use crate::vm::function::Function;
 use crate::vm::ops::OpCode;
 use crate::vm::Vm;
 use crate::vm::{CallFrame, Result as VmResult};
-use hashbrown::hash_map::RawEntryMut;
+use hashbrown::hash_map::{Entry, RawEntryMut};
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Debug};
 use std::sync::Arc;
@@ -100,10 +100,10 @@ impl Program {
             name: type_name,
             fields,
             methods: method_ranges,
-            mut code,
+            code,
         } = builder;
 
-        let RawEntryMut::Vacant(entry) = self.types.raw_entry_mut().from_key(&type_name) else {
+        let Entry::Vacant(entry) = self.types.entry(Arc::clone(&type_name)) else {
             panic!("Attempt to register duplicate type {type_name}");
         };
 
@@ -113,16 +113,14 @@ impl Program {
             FxHashMap::with_capacity_and_hasher(method_ranges.len(), Default::default());
 
         for (name, range) in method_ranges {
-            let code = code.drain(range);
             let start = self.code.len();
-            self.code.extend(code);
+            self.code.extend(&code[range]);
             let func = Function::new(start);
 
             methods.insert(name, func);
         }
 
-        let (_, ty) = entry.insert(
-            Arc::clone(&type_name),
+        let ty = entry.insert(
             Type {
                 name: Arc::clone(&type_name),
                 fields,
@@ -152,7 +150,7 @@ impl Debug for Program {
 
         f.debug_struct("Program")
             .field("constants", &self.constants)
-            .field("functions_2", &self.function_indices)
+            .field("function_indices", &self.function_indices)
             .field("code", &self.code)
             .field("native_functions", &NativeFnsDebug(&self.native_functions))
             .field("types", &self.types)

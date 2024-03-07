@@ -1,15 +1,14 @@
 use self::memory::VmStack;
 use self::ops::OpResult;
 use crate::object::VmObject;
-use crate::program::{NativeFn, Path, Program};
+use crate::program::{NativeFn, Program};
 use crate::symbol::Symbol;
-use crate::utils::{IntEntry, IntoVmResult};
+use crate::utils::IntoVmResult;
 use crate::value::Value;
 use function::Function;
 use hashbrown::hash_map::RawEntryMut;
 use heap::{Heap, Reference};
 use ops::Transition;
-use std::cell::RefCell;
 use std::sync::Arc;
 
 pub mod function;
@@ -17,6 +16,7 @@ pub mod gc;
 pub mod heap;
 pub mod memory;
 pub mod ops;
+pub mod intrinsics;
 
 pub type Result<T> = std::result::Result<T, VmError>;
 

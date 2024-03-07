@@ -252,8 +252,7 @@ mod imp {
     use crate::vm::{Vm, VmError, VmErrorKind};
     use crate::{symbol::Symbol, vm::CallFrame};
     use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Sub};
-    use std::time::Duration;
-    use std::{mem, ptr, thread};
+    use std::ptr;
 
     macro_rules! bin_arithmetic {
         // Normal
@@ -1212,7 +1211,7 @@ mod imp {
 
         // dbgvm
         pub(super) fn op_dbg_vm(&self, frame: &CallFrame) -> OpResult {
-            eprintln!("{self:#?}");
+            eprintln!("vm: {self:#?}, frame: {frame:#?}");
 
             Ok(Transition::Continue)
         }

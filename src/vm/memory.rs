@@ -1,14 +1,12 @@
-use super::CallFrame;
-use crate::value::Value;
 use std::alloc::{self, Layout};
 use std::cmp;
 use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 use std::iter::FusedIterator;
-use std::mem::{self, MaybeUninit};
+use std::mem::MaybeUninit;
 use std::ops::{Index, IndexMut};
 use std::ptr::{self, NonNull};
-use std::slice::{self, SliceIndex};
+use std::slice;
 
 #[cold]
 #[inline(never)]
