@@ -252,7 +252,8 @@ mod imp {
     use crate::utils::IntoVmResult;
     use crate::value::Value;
     use crate::vm::function::Function;
-    use crate::vm::{intrinsics, Vm, VmError, VmErrorKind};
+    use crate::vm::builtin::BUILTINS;
+    use crate::vm::{builtin, Vm, VmError, VmErrorKind};
     use crate::{symbol::Symbol, vm::CallFrame};
     use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Sub};
     use std::ptr;
@@ -1104,7 +1105,7 @@ mod imp {
         }
 
         pub(super) fn op_call_builtin(&mut self, index: usize, frame: &CallFrame) -> OpResult {
-            let func = intrinsics::INTRINSICS.get(index).vm_result(VmErrorKind::FunctionNotFound, frame)?;
+            let func = BUILTINS.get(index).vm_result(VmErrorKind::FunctionNotFound, frame)?;
 
             func(self, frame)?;
             Ok(Transition::Continue)

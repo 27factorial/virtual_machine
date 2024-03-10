@@ -124,105 +124,136 @@ macro_rules! int_arithmetic_intrinsics {
     }
 }
 
-type Intrinsic = fn(&mut Vm, frame: &CallFrame) -> Result<()>;
+macro_rules! define_builtins {
+    ($($name:ident),+ $(,)?) => {
+        const BUILTINS_LEN: usize = define_builtins!(@count $($name)+);
 
-#[rustfmt::skip]
-pub static INTRINSICS: &[Intrinsic] = &[
+        paste! {
+            pub static BUILTINS: [fn(&mut Vm, frame: &CallFrame) -> Result<()>; BUILTINS_LEN] = [
+                $(
+                    [<vmbi_ $name>]
+                ),+
+            ];
+        }
+
+        define_builtins! {
+            @constant $($name)*
+        }
+    };
+    (@constant $name:ident $($rest:ident)*) => {
+        paste! {
+            pub const [<BUILTIN_ $name:upper>]: usize = BUILTINS_LEN - define_builtins!(@count $($rest)*) - 1;
+        }
+
+        define_builtins! {
+            @constant $($rest)*
+        }
+    };
+    (@constant) => {};
+    (@replace_expr $_t:tt $sub:expr) => {$sub};
+    (@count $($tts:tt)*) => {
+        // Counting tts for const expressions became much simpler after Rust 1.39, since slice's
+        // len method became const. Since pfvm always targets the latest nightly, compatibility
+        // with Rust versions <1.39 is not a concern.
+        <[()]>::len(&[$(define_builtins!(@replace_expr $tts ())),*])
+    };
+}
+
+define_builtins! {
     // Panics
-    vmbi_assert,
-    vmbi_unreachable,
-    vmbi_panic,
+    assert,
+    unreachable,
+    panic,
 
     // Counts
-    vmbi_count_ones,
-    vmbi_count_zeros,
-    vmbi_leading_zeros,
-    vmbi_trailing_zeros,
-    vmbi_leading_ones,
-    vmbi_trailing_ones,
+    count_ones,
+    count_zeros,
+    leading_zeros,
+    trailing_zeros,
+    leading_ones,
+    trailing_ones,
 
     // Integer/float checked arithmetic
-    vmbi_abs,
-    vmbi_pow,
-    vmbi_log,
+    abs,
+    pow,
+    log,
 
     // Wrapping integer arithmetic
-    vmbi_wrapping_add,
-    vmbi_wrapping_sub,
-    vmbi_wrapping_mul,
-    vmbi_wrapping_div,
-    vmbi_wrapping_rem,
-    vmbi_wrapping_neg,
-    vmbi_wrapping_abs,
-    vmbi_wrapping_pow,
+    wrapping_add,
+    wrapping_sub,
+    wrapping_mul,
+    wrapping_div,
+    wrapping_rem,
+    wrapping_neg,
+    wrapping_abs,
+    wrapping_pow,
 
     // Saturating integer arithmetic
-    vmbi_saturating_add,
-    vmbi_saturating_sub,
-    vmbi_saturating_mul,
-    vmbi_saturating_div,
-    // vmbi_saturating_rem doesn't exist, it has the same behavior as the Rem instruction.
-    vmbi_saturating_neg,
-    vmbi_saturating_abs,
-    vmbi_saturating_pow,
+    saturating_add,
+    saturating_sub,
+    saturating_mul,
+    saturating_div,
+    // saturating_rem doesn't exist, it has the same behavior as the Rem instruction.
+    saturating_neg,
+    saturating_abs,
+    saturating_pow,
 
     // Overflowing integer arithmetic (e.g., returns a bool indicating overflow)
-    vmbi_overflowing_add,
-    vmbi_overflowing_sub,
-    vmbi_overflowing_mul,
-    vmbi_overflowing_div,
-    vmbi_overflowing_rem,
-    vmbi_overflowing_neg,
-    vmbi_overflowing_abs,
-    vmbi_overflowing_pow,
+    overflowing_add,
+    overflowing_sub,
+    overflowing_mul,
+    overflowing_div,
+    overflowing_rem,
+    overflowing_neg,
+    overflowing_abs,
+    overflowing_pow,
 
     // Specific integer/float logarithms
-    vmbi_log2,
-    vmbi_log10,
+    log2,
+    log10,
 
     // Signs
-    vmbi_signum,
-    vmbi_is_positive,
-    vmbi_is_negative,
+    signum,
+    is_positive,
+    is_negative,
 
     // Min/max and ranges
-    vmbi_min,
-    vmbi_max,
-    vmbi_clamp,
+    min,
+    max,
+    clamp,
 
     // Floating point functions
-    vmbi_sin,
-    vmbi_cos,
-    vmbi_tan,
-    vmbi_sinh,
-    vmbi_cosh,
-    vmbi_tanh,
-    vmbi_asin,
-    vmbi_acos,
-    vmbi_atan,
-    vmbi_atan2,
-    vmbi_asinh,
-    vmbi_acosh,
-    vmbi_atanh,
-    vmbi_floor,
-    vmbi_ceil,
-    vmbi_round,
-    vmbi_trunc,
-    vmbi_fract,
-    vmbi_sqrt,
-    vmbi_cbrt,
-    vmbi_exp,
-    vmbi_exp2,
-    vmbi_exp_m1,
-    vmbi_ln,
-    vmbi_ln_1p,
-    vmbi_to_degrees,
-    vmbi_to_radians,
-    vmbi_recip,
+    sin,
+    cos,
+    tan,
+    sinh,
+    cosh,
+    tanh,
+    asin,
+    acos,
+    atan,
+    atan2,
+    asinh,
+    acosh,
+    atanh,
+    floor,
+    ceil,
+    round,
+    trunc,
+    fract,
+    sqrt,
+    cbrt,
+    exp,
+    exp2,
+    exp_m1,
+    ln,
+    ln_1p,
+    to_degrees,
+    to_radians,
 
     // Misc. useful functions
-    vmbi_to_string,
-];
+    to_string,
+}
 
 //////////////////////////////////////////
 // ============== PANICS ============== //
@@ -735,9 +766,6 @@ float_intrinsics! {
     // Angles
     to_degrees,
     to_radians,
-
-    // Misc.
-    recip,
 }
 
 float_to_bool_intrinsics! {

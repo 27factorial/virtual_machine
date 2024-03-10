@@ -16,7 +16,7 @@ pub mod gc;
 pub mod heap;
 pub mod memory;
 pub mod ops;
-pub mod intrinsics;
+pub mod builtin;
 
 pub type Result<T> = std::result::Result<T, VmError>;
 
