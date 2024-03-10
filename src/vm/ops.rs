@@ -155,6 +155,8 @@ pub enum OpCode {
     Call,
 
     CallImm(Function),
+
+    CallBuiltin(usize),
     /// Call a native function determined by the immediate index pointing to a Program's string
     /// pool.
     CallNative(Symbol),
@@ -224,6 +226,7 @@ impl OpCode {
             Op::JumpCondImm(address) => vm.op_jump_cond_imm(address, frame),
             Op::Call => vm.op_call(frame),
             Op::CallImm(symbol) => vm.op_call_imm(symbol, frame),
+            Op::CallBuiltin(idx) => vm.op_call_builtin(idx, frame),
             Op::CallNative(index) => vm.op_call_native(index, frame),
             Op::Ret => vm.op_ret(frame),
             Op::CastUint => vm.op_cast_uint(frame),
@@ -249,7 +252,7 @@ mod imp {
     use crate::utils::IntoVmResult;
     use crate::value::Value;
     use crate::vm::function::Function;
-    use crate::vm::{Vm, VmError, VmErrorKind};
+    use crate::vm::{intrinsics, Vm, VmError, VmErrorKind};
     use crate::{symbol::Symbol, vm::CallFrame};
     use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Sub};
     use std::ptr;
@@ -1098,6 +1101,13 @@ mod imp {
             let new_base = frame.stack_base + frame.locals;
 
             self.run_function(func, new_base)
+        }
+
+        pub(super) fn op_call_builtin(&mut self, index: usize, frame: &CallFrame) -> OpResult {
+            let func = intrinsics::INTRINSICS.get(index).vm_result(VmErrorKind::FunctionNotFound, frame)?;
+
+            func(self, frame)?;
+            Ok(Transition::Continue)
         }
 
         // calln

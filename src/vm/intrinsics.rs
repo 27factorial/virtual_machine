@@ -3,105 +3,35 @@ use crate::{utils::IntoVmResult, value::Value};
 use super::{CallFrame, Result, Vm, VmError, VmErrorKind};
 use paste::paste;
 
-type Intrinsic = fn(&mut Vm, frame: &CallFrame) -> Result<()>;
+macro_rules! float_intrinsics {
+    ($($name:ident),* $(,)?) => {
+        $(
+            paste! {
+                fn [<vmbi_ $name>](vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+                    let Value::Float(top) = vm.top_value_mut(frame)? else {
+                        return Err(VmError::new(VmErrorKind::Type, frame));
+                    };
 
-#[rustfmt::skip]
-pub static INTRINSICS: &[Intrinsic] = &[
-    // Panics
-    vmbi_assert,
-    vmbi_unreachable,
-    vmbi_panic,
+                    *top = top.$name();
+                    Ok(())
+                }
+            }
+        )*
+    }
+}
 
-    // Trig functions
-    vmbi_sin,
-    vmbi_cos,
-    vmbi_tan,
-    vmbi_sinh,
-    vmbi_cosh,
-    vmbi_tanh,
-    vmbi_asin,
-    vmbi_acos,
-    vmbi_atan,
-    vmbi_asinh,
-    vmbi_acosh,
-    vmbi_atanh,
-    vmbi_atan2,
-
-    // 0/1 counting
-    vmbi_count_ones,
-    vmbi_count_zeros,
-    vmbi_leading_zeros,
-    vmbi_trailing_zeros,
-    vmbi_leading_ones,
-    vmbi_trailing_ones,
-
-    // Normal math operations
-    vmbi_abs,
-    vmbi_pow,
-
-    // Wrapping math operations
-    vmbi_wrapping_add,
-    vmbi_wrapping_sub,
-    vmbi_wrapping_mul,
-    vmbi_wrapping_div,
-    vmbi_wrapping_rem,
-    vmbi_wrapping_abs,
-    vmbi_wrapping_pow,
-
-    // Saturating math operations
-    vmbi_saturating_add,
-    vmbi_saturating_sub,
-    vmbi_saturating_mul,
-    vmbi_saturating_div,
-    vmbi_saturating_abs,
-    vmbi_saturating_pow,
-
-    // Overflowing math operations
-    vmbi_overflowing_add,
-    vmbi_overflowing_sub,
-    vmbi_overflowing_mul,
-    vmbi_overflowing_div,
-    vmbi_overflowing_rem,
-    vmbi_overflowing_abs,
-    vmbi_overflowing_pow,
-
-    // Logarithms
-    vmbi_log,
-    vmbi_log2,
-    vmbi_log10,
-
-    // Positive/Negative
-    vmbi_signum,
-    vmbi_is_positive,
-    vmbi_is_negative,
-
-    // Min/max
-    vmbi_min,
-    vmbi_max,
-    vmbi_clamp,
-
-    // Misc. Arithmetic
-    vmbi_abs_diff,
-    
-    // Misc.
-    vmbi_to_string,
-];
-
-macro_rules! trig_intrinsics {
+macro_rules! float_to_bool_intrinsics {
     ($($name:ident),* $(,)?) => {
         $(
             paste! {
                 fn [<vmbi_ $name>](vm: &mut Vm, frame: &CallFrame) -> Result<()> {
                     let top = vm.top_value_mut(frame)?;
 
-                    let arg = match top {
-                        Value::UInt(v) => *v as f64,
-                        Value::SInt(v) => *v as f64,
-                        Value::Float(v) => *v,
-                        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+                    let Value::Float(arg) = top else {
+                        return Err(VmError::new(VmErrorKind::Type, frame));
                     };
 
-                    *top = Value::Float(arg.$name());
+                    *top = Value::Bool(arg.$name());
                     Ok(())
                 }
             }
@@ -194,6 +124,106 @@ macro_rules! int_arithmetic_intrinsics {
     }
 }
 
+type Intrinsic = fn(&mut Vm, frame: &CallFrame) -> Result<()>;
+
+#[rustfmt::skip]
+pub static INTRINSICS: &[Intrinsic] = &[
+    // Panics
+    vmbi_assert,
+    vmbi_unreachable,
+    vmbi_panic,
+
+    // Counts
+    vmbi_count_ones,
+    vmbi_count_zeros,
+    vmbi_leading_zeros,
+    vmbi_trailing_zeros,
+    vmbi_leading_ones,
+    vmbi_trailing_ones,
+
+    // Integer/float checked arithmetic
+    vmbi_abs,
+    vmbi_pow,
+    vmbi_log,
+
+    // Wrapping integer arithmetic
+    vmbi_wrapping_add,
+    vmbi_wrapping_sub,
+    vmbi_wrapping_mul,
+    vmbi_wrapping_div,
+    vmbi_wrapping_rem,
+    vmbi_wrapping_neg,
+    vmbi_wrapping_abs,
+    vmbi_wrapping_pow,
+
+    // Saturating integer arithmetic
+    vmbi_saturating_add,
+    vmbi_saturating_sub,
+    vmbi_saturating_mul,
+    vmbi_saturating_div,
+    // vmbi_saturating_rem doesn't exist, it has the same behavior as the Rem instruction.
+    vmbi_saturating_neg,
+    vmbi_saturating_abs,
+    vmbi_saturating_pow,
+
+    // Overflowing integer arithmetic (e.g., returns a bool indicating overflow)
+    vmbi_overflowing_add,
+    vmbi_overflowing_sub,
+    vmbi_overflowing_mul,
+    vmbi_overflowing_div,
+    vmbi_overflowing_rem,
+    vmbi_overflowing_neg,
+    vmbi_overflowing_abs,
+    vmbi_overflowing_pow,
+
+    // Specific integer/float logarithms
+    vmbi_log2,
+    vmbi_log10,
+
+    // Signs
+    vmbi_signum,
+    vmbi_is_positive,
+    vmbi_is_negative,
+
+    // Min/max and ranges
+    vmbi_min,
+    vmbi_max,
+    vmbi_clamp,
+
+    // Floating point functions
+    vmbi_sin,
+    vmbi_cos,
+    vmbi_tan,
+    vmbi_sinh,
+    vmbi_cosh,
+    vmbi_tanh,
+    vmbi_asin,
+    vmbi_acos,
+    vmbi_atan,
+    vmbi_atan2,
+    vmbi_asinh,
+    vmbi_acosh,
+    vmbi_atanh,
+    vmbi_floor,
+    vmbi_ceil,
+    vmbi_round,
+    vmbi_trunc,
+    vmbi_fract,
+    vmbi_sqrt,
+    vmbi_cbrt,
+    vmbi_exp,
+    vmbi_exp2,
+    vmbi_exp_m1,
+    vmbi_ln,
+    vmbi_ln_1p,
+    vmbi_to_degrees,
+    vmbi_to_radians,
+    vmbi_recip,
+
+    // Misc. useful functions
+    vmbi_to_string,
+];
+
 //////////////////////////////////////////
 // ============== PANICS ============== //
 //////////////////////////////////////////
@@ -232,47 +262,6 @@ fn vmbi_unreachable(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 fn vmbi_panic(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let message = get_panic_message(vm, frame);
     panic!("{message}");
-}
-
-////////////////////////////////////////
-// ============== TRIG ============== //
-////////////////////////////////////////
-
-trig_intrinsics! {
-    sin,
-    cos,
-    tan,
-    sinh,
-    cosh,
-    tanh,
-    asin,
-    acos,
-    atan,
-    asinh,
-    acosh,
-    atanh,
-}
-
-fn vmbi_atan2(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    let second = vm.pop_value(frame)?;
-    let top = vm.top_value_mut(frame)?;
-
-    let arg1 = match top {
-        Value::UInt(v) => *v as f64,
-        Value::SInt(v) => *v as f64,
-        Value::Float(v) => *v,
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
-    };
-
-    let arg2 = match second {
-        Value::UInt(v) => v as f64,
-        Value::SInt(v) => v as f64,
-        Value::Float(v) => v,
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
-    };
-
-    *top = Value::Float(arg1.atan2(arg2));
-    Ok(())
 }
 
 //////////////////////////////////////////
@@ -400,12 +389,48 @@ fn vmbi_overflowing_rem(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     Ok(())
 }
 
+fn vmbi_wrapping_neg(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let Value::SInt(top) = vm.top_value_mut(frame)? else {
+        return Err(VmError::new(VmErrorKind::Type, frame));
+    };
+
+    let result = top.wrapping_neg();
+
+    *top = result;
+    Ok(())
+}
+
+fn vmbi_saturating_neg(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let Value::SInt(top) = vm.top_value_mut(frame)? else {
+        return Err(VmError::new(VmErrorKind::Type, frame));
+    };
+
+    let result = top.saturating_neg();
+
+    *top = result;
+    Ok(())
+}
+
+fn vmbi_overflowing_neg(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let Value::SInt(top) = vm.top_value_mut(frame)? else {
+        return Err(VmError::new(VmErrorKind::Type, frame));
+    };
+
+    let (result, flag) = top.overflowing_neg();
+
+    *top = result;
+    vm.push_value(Value::Bool(flag), frame)?;
+    Ok(())
+}
+
+// The normal pow function is more complex than a normal instruction, since it has different
+// behaviors if the exponent is an unsigned, signed, or floating point number.
 fn vmbi_pow(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     #[inline(always)]
-    // Integer powers (works in the range 0..=u32::MAX for integers and the range 
+    // Integer powers (works in the range 0..=u32::MAX for integers and the range
     // i32::MIN..=i32::MAX for floats).
     fn powi(
-        value: &mut Value,
+        value: &Value,
         exponent: impl TryInto<u32> + TryInto<i32>,
         frame: &CallFrame,
     ) -> Result<Value> {
@@ -414,14 +439,18 @@ fn vmbi_pow(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
                 let exp: u32 = exponent
                     .try_into()
                     .vm_result(VmErrorKind::Arithmetic, frame)?;
-                let result = v.checked_pow(exp).vm_result(VmErrorKind::Arithmetic, frame)?;
+                let result = v
+                    .checked_pow(exp)
+                    .vm_result(VmErrorKind::Arithmetic, frame)?;
                 Ok(Value::UInt(result))
             }
             Value::SInt(v) => {
                 let exp: u32 = exponent
                     .try_into()
                     .vm_result(VmErrorKind::Arithmetic, frame)?;
-                let result = v.checked_pow(exp).vm_result(VmErrorKind::Arithmetic, frame)?;
+                let result = v
+                    .checked_pow(exp)
+                    .vm_result(VmErrorKind::Arithmetic, frame)?;
                 Ok(Value::SInt(result))
             }
             Value::Float(v) => {
@@ -508,11 +537,11 @@ fn vmbi_overflowing_pow(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         Value::UInt(v) => {
             let (result, flag) = v.overflowing_pow(exponent);
             (Value::UInt(result), flag)
-        },
+        }
         Value::SInt(v) => {
             let (result, flag) = v.overflowing_pow(exponent);
             (Value::SInt(result), flag)
-        },
+        }
         _ => return Err(VmError::new(VmErrorKind::Type, frame)),
     };
 
@@ -526,8 +555,18 @@ fn vmbi_log(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let top = vm.top_value_mut(frame)?;
 
     let result = match (&top, base) {
-        (Value::UInt(a), Value::UInt(b)) => Value::UInt(a.ilog(b) as u64),
-        (Value::SInt(a), Value::SInt(b)) => Value::SInt(a.ilog(b) as i64),
+        (Value::UInt(a), Value::UInt(b)) => {
+            let result = a
+                .checked_ilog(b)
+                .vm_result(VmErrorKind::Arithmetic, frame)?;
+            Value::UInt(result as u64)
+        }
+        (Value::SInt(a), Value::SInt(b)) => {
+            let result = a
+                .checked_ilog(b)
+                .vm_result(VmErrorKind::Arithmetic, frame)?;
+            Value::SInt(result as i64)
+        }
         (Value::Float(a), Value::Float(b)) => Value::Float(a.log(b)),
         _ => return Err(VmError::new(VmErrorKind::Type, frame)),
     };
@@ -668,6 +707,81 @@ fn vmbi_clamp(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     };
 
     *top = result;
+    Ok(())
+}
+
+//////////////////////////////////////////
+// ============== FLOATS ============== //
+//////////////////////////////////////////
+
+float_intrinsics! {
+    // Trig
+    sin,
+    cos,
+    tan,
+    sinh,
+    cosh,
+    tanh,
+    asin,
+    acos,
+    atan,
+    asinh,
+    acosh,
+    atanh,
+
+    // Rounding/fractional
+    floor,
+    ceil,
+    round,
+    trunc,
+    fract,
+
+    // Roots
+    sqrt,
+    cbrt,
+
+    // Exp/log
+    exp,
+    exp2,
+    exp_m1,
+    ln,
+    ln_1p,
+
+    // Angles
+    to_degrees,
+    to_radians,
+
+    // Misc.
+    recip,
+}
+
+float_to_bool_intrinsics! {
+    is_nan,
+    is_infinite,
+    is_finite,
+    is_subnormal,
+    is_normal,
+}
+
+fn vmbi_atan2(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let second = vm.pop_value(frame)?;
+    let top = vm.top_value_mut(frame)?;
+
+    let arg1 = match top {
+        Value::UInt(v) => *v as f64,
+        Value::SInt(v) => *v as f64,
+        Value::Float(v) => *v,
+        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+    };
+
+    let arg2 = match second {
+        Value::UInt(v) => v as f64,
+        Value::SInt(v) => v as f64,
+        Value::Float(v) => v,
+        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+    };
+
+    *top = Value::Float(arg1.atan2(arg2));
     Ok(())
 }
 
