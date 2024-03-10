@@ -645,21 +645,6 @@ fn vmbi_is_negative(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     Ok(())
 }
 
-fn vmbi_abs_diff(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    let other = vm.pop_value(frame)?;
-    let top = vm.top_value_mut(frame)?;
-
-    let result = match (&top, other) {
-        (Value::UInt(a), Value::UInt(b)) => Value::UInt(a.abs_diff(b)),
-        (Value::SInt(a), Value::SInt(b)) => Value::SInt(a.abs_diff(b) as i64),
-        (Value::Float(a), Value::Float(b)) => Value::Float((a - b).abs()),
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
-    };
-
-    *top = result;
-    Ok(())
-}
-
 ///////////////////////////////////////////
 // ============== MIN/MAX ============== //
 ///////////////////////////////////////////
