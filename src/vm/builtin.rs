@@ -1,4 +1,4 @@
-use crate::{utils::IntoVmResult, value::Value};
+use crate::{object::array::VmArray, utils::IntoVmResult, value::Value};
 
 use super::{CallFrame, Result, Vm, VmError, VmErrorKind};
 use paste::paste;
@@ -142,7 +142,7 @@ macro_rules! define_builtins {
     };
     (@constant $name:ident $($rest:ident)*) => {
         paste! {
-            pub const [<BUILTIN_ $name:upper>]: usize = BUILTINS_LEN - define_builtins!(@count $($rest)*) - 1;
+            pub const [<$name:upper>]: usize = BUILTINS_LEN - define_builtins!(@count $($rest)*) - 1;
         }
 
         define_builtins! {
@@ -255,6 +255,22 @@ define_builtins! {
     is_finite,
     is_subnormal,
     is_normal,
+
+    // Array functions
+    array_new,
+    array_with_capacity,
+    array_length,
+    array_index,
+    array_capacity,
+    array_reserve,
+    array_shrink_to_fit,
+    array_shrink_to,
+    array_truncate,
+    array_swap_remove,
+    array_insert,
+    array_remove,
+    array_push,
+    array_pop,
 
     // Misc. useful functions
     to_string,
@@ -615,8 +631,18 @@ fn vmbi_log2(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let top = vm.top_value_mut(frame)?;
 
     let result = match top {
-        Value::UInt(a) => Value::UInt(a.ilog2() as u64),
-        Value::SInt(a) => Value::SInt(a.ilog2() as i64),
+        Value::UInt(a) => {
+            let result = a
+                .checked_ilog2()
+                .vm_result(VmErrorKind::Arithmetic, frame)?;
+            Value::UInt(result as u64)
+        }
+        Value::SInt(a) => {
+            let result = a
+                .checked_ilog2()
+                .vm_result(VmErrorKind::Arithmetic, frame)?;
+            Value::SInt(result as i64)
+        }
         Value::Float(a) => Value::Float(a.log2()),
         _ => return Err(VmError::new(VmErrorKind::Type, frame)),
     };
@@ -629,8 +655,18 @@ fn vmbi_log10(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let top = vm.top_value_mut(frame)?;
 
     let result = match top {
-        Value::UInt(a) => Value::UInt(a.ilog10() as u64),
-        Value::SInt(a) => Value::SInt(a.ilog10() as i64),
+        Value::UInt(a) => {
+            let result = a
+                .checked_ilog10()
+                .vm_result(VmErrorKind::Arithmetic, frame)?;
+            Value::UInt(result as u64)
+        }
+        Value::SInt(a) => {
+            let result = a
+                .checked_ilog10()
+                .vm_result(VmErrorKind::Arithmetic, frame)?;
+            Value::SInt(result as i64)
+        }
         Value::Float(a) => Value::Float(a.log10()),
         _ => return Err(VmError::new(VmErrorKind::Type, frame)),
     };
@@ -785,21 +821,16 @@ fn vmbi_atan2(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let second = vm.pop_value(frame)?;
     let top = vm.top_value_mut(frame)?;
 
-    let arg1 = match top {
-        Value::UInt(v) => *v as f64,
-        Value::SInt(v) => *v as f64,
-        Value::Float(v) => *v,
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+    let Value::Float(arg1) = top else {
+        return Err(VmError::new(VmErrorKind::Type, frame));
     };
 
-    let arg2 = match second {
-        Value::UInt(v) => v as f64,
-        Value::SInt(v) => v as f64,
-        Value::Float(v) => v,
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+    let Value::Float(arg2) = second else {
+        return Err(VmError::new(VmErrorKind::Type, frame));
     };
 
-    *top = Value::Float(arg1.atan2(arg2));
+    let result = arg1.atan2(arg2);
+    *arg1 = result;
     Ok(())
 }
 
@@ -807,7 +838,170 @@ fn vmbi_atan2(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 // ============== ARRAY ============== //
 /////////////////////////////////////////
 
+fn vmbi_array_new(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.alloc(VmArray::new(), frame)?;
 
+    vm.push_value(Value::Reference(this_ref), frame)?;
+    Ok(())
+}
+
+fn vmbi_array_with_capacity(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    // Using isize::MAX as a maximum bound ensures that the capacity cannot exceed the bounds
+    // of usize, so the `as` casts here are fine. This is also a degenerate case that will
+    // likely cause an OOM error in Rust anyway.
+    let capacity = vm.pop_uint(frame)?.max(isize::MAX as u64) as usize;
+    let this_ref = vm.alloc(VmArray::with_capacity(capacity), frame)?;
+
+    vm.push_value(Value::Reference(this_ref), frame)?;
+    Ok(())
+}
+
+fn vmbi_array_length(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let len = vm.heap_object::<VmArray>(this_ref, frame)?.len();
+
+    vm.push_value(Value::UInt(len as u64), frame)?;
+    Ok(())
+}
+
+fn vmbi_array_index(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let index: usize = vm
+        .pop_uint(frame)?
+        .try_into()
+        .vm_result(VmErrorKind::OutOfBounds, frame)?;
+
+    let value = vm
+        .heap_object::<VmArray>(this_ref, frame)?
+        .get(index)
+        .copied()
+        .vm_result(VmErrorKind::OutOfBounds, frame)?;
+
+    vm.push_value(value, frame)?;
+    Ok(())
+}
+
+fn vmbi_array_capacity(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this = vm.pop_reference(frame)?;
+    let capacity = vm.heap_object::<VmArray>(this, frame)?.capacity();
+
+    vm.push_value(Value::UInt(capacity as u64), frame)?;
+    Ok(())
+}
+
+fn vmbi_array_reserve(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this = vm.pop_reference(frame)?;
+    let additional: usize = vm
+        .pop_uint(frame)?
+        .try_into()
+        .vm_result(VmErrorKind::OutOfBounds, frame)?;
+
+    vm.heap_object_mut::<VmArray>(this, frame)?
+        .reserve(additional);
+
+    Ok(())
+}
+
+fn vmbi_array_shrink_to_fit(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this = vm.pop_reference(frame)?;
+    vm.heap_object_mut::<VmArray>(this, frame)?.shrink_to_fit();
+
+    Ok(())
+}
+
+fn vmbi_array_shrink_to(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this = vm.pop_reference(frame)?;
+    let min_capacity = vm.pop_uint(frame)?.max(isize::MAX as u64) as usize;
+
+    vm.heap_object_mut::<VmArray>(this, frame)?
+        .shrink_to(min_capacity);
+
+    Ok(())
+}
+
+fn vmbi_array_truncate(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this = vm.pop_reference(frame)?;
+    let len = vm.pop_uint(frame)?.max(isize::MAX as u64) as usize;
+
+    vm.heap_object_mut::<VmArray>(this, frame)?.truncate(len);
+
+    Ok(())
+}
+
+fn vmbi_array_swap_remove(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let idx: usize = vm
+        .pop_uint(frame)?
+        .try_into()
+        .vm_result(VmErrorKind::OutOfBounds, frame)?;
+
+    let this = vm.heap_object_mut::<VmArray>(this_ref, frame)?;
+
+    if idx < this.len() {
+        let value = this.swap_remove(idx);
+        vm.push_value(value, frame)?;
+        Ok(())
+    } else {
+        Err(vm.error(VmErrorKind::OutOfBounds, frame))
+    }
+}
+
+fn vmbi_array_insert(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let idx: usize = vm
+        .pop_uint(frame)?
+        .try_into()
+        .vm_result(VmErrorKind::OutOfBounds, frame)?;
+    let value = vm.pop_value(frame)?;
+
+    let this = vm.heap_object_mut::<VmArray>(this_ref, frame)?;
+
+    if idx <= this.len() {
+        this.insert(idx, value);
+        Ok(())
+    } else {
+        Err(vm.error(VmErrorKind::OutOfBounds, frame))
+    }
+}
+
+fn vmbi_array_remove(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let idx: usize = vm
+        .pop_uint(frame)?
+        .try_into()
+        .vm_result(VmErrorKind::OutOfBounds, frame)?;
+
+    let this = vm.heap_object_mut::<VmArray>(this_ref, frame)?;
+
+    if idx < this.len() {
+        let value = this.remove(idx);
+        vm.push_value(value, frame)?;
+        Ok(())
+    } else {
+        Err(vm.error(VmErrorKind::OutOfBounds, frame))
+    }
+}
+
+fn vmbi_array_push(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let value = vm.pop_value(frame)?;
+
+    vm.heap_object_mut::<VmArray>(this_ref, frame)?.push(value);
+
+    Ok(())
+}
+
+fn vmbi_array_pop(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+
+    let value = vm
+        .heap_object_mut::<VmArray>(this_ref, frame)?
+        .pop()
+        .vm_result(VmErrorKind::OutOfBounds, frame)?;
+
+    vm.push_value(value, frame)?;
+    Ok(())
+}
 
 ////////////////////////////////////////
 // ============== MISC ============== //

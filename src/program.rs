@@ -113,6 +113,8 @@ impl Program {
             FxHashMap::with_capacity_and_hasher(method_ranges.len(), Default::default());
 
         for (name, range) in method_ranges {
+            self.symbols.get_or_push_iter([&type_name, "::", &name]);
+
             let start = self.code.len();
             self.code.extend(&code[range]);
             let func = Function::new(start);
@@ -120,13 +122,11 @@ impl Program {
             methods.insert(name, func);
         }
 
-        let ty = entry.insert(
-            Type {
-                name: Arc::clone(&type_name),
-                fields,
-                methods,
-            },
-        );
+        let ty = entry.insert(Type {
+            name: Arc::clone(&type_name),
+            fields,
+            methods,
+        });
 
         ty
     }
