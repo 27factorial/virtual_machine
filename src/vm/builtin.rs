@@ -154,7 +154,7 @@ macro_rules! define_builtins {
     (@count $($tts:tt)*) => {
         // Counting tts for const expressions became much simpler after Rust 1.39, since slice's
         // len method became const. Since pfvm always targets the latest nightly, compatibility
-        // with Rust versions <1.39 is not a concern.
+        // with Rust versions < 1.39 is not a concern.
         <[()]>::len(&[$(define_builtins!(@replace_expr $tts ())),*])
     };
 }
@@ -250,6 +250,11 @@ define_builtins! {
     ln_1p,
     to_degrees,
     to_radians,
+    is_nan,
+    is_infinite,
+    is_finite,
+    is_subnormal,
+    is_normal,
 
     // Misc. useful functions
     to_string,
@@ -797,6 +802,12 @@ fn vmbi_atan2(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     *top = Value::Float(arg1.atan2(arg2));
     Ok(())
 }
+
+/////////////////////////////////////////
+// ============== ARRAY ============== //
+/////////////////////////////////////////
+
+
 
 ////////////////////////////////////////
 // ============== MISC ============== //
