@@ -1,13 +1,10 @@
+use super::{Type, TypeBuilder, VmObject};
 use crate::program::Program;
-use crate::utils::IntoVmResult;
 use crate::value::Value;
-use crate::vm::builtin::ARRAY_SHRINK_TO_FIT;
+use crate::vm::builtin;
 use crate::vm::ops::OpCode;
-use crate::vm::{builtin, CallFrame, Result as VmResult, Vm, VmErrorKind};
 use serde::{Deserialize, Serialize};
 use std::ops::{Deref, DerefMut};
-
-use super::{Type, TypeBuilder, VmObject};
 
 #[derive(Clone, PartialEq, PartialOrd, Debug, Default, Serialize, Deserialize)]
 pub struct VmArray(pub Vec<Value>);

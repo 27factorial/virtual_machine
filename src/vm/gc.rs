@@ -44,6 +44,17 @@ macro_rules! gc_box {
     }};
 }
 
+#[macro_export]
+macro_rules! coerce {
+    ($e:expr) => {{
+        #[allow(unsafe_code)]
+        unsafe {
+            let cast = &mut *$crate::vm::gc::GcBox::into_raw($e);
+            $crate::vm::gc::GcBox::from_raw(cast)
+        }
+    }};
+}
+
 const TAG: usize = 1;
 const TAG_MASK: usize = !TAG;
 
