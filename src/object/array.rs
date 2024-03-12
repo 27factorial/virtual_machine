@@ -63,8 +63,7 @@ impl VmObject for VmArray {
         ];
 
         for (name, builtin) in native_funcs {
-            let method_name = [type_name, "::", name];
-            // methods on Array simply forward to the native implementation, so the methods are
+            // methods on Array simply forward to the built-in implementation, so the methods are
             // pretty trivial.
             builder.with_method(name, [OpCode::CallBuiltin(builtin), OpCode::Ret]);
         }
