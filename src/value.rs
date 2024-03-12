@@ -51,13 +51,8 @@ macro_rules! variant_methods {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Default, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
 pub enum Value {
-    /// A value corresponding to "nothing". The default value when operating on memory.
-    #[default]
-    Null,
-    /// An unsigned 64-bit integer.
-    UInt(u64),
     /// A signed 64-bit integer.
     SInt(i64),
     /// A double precision IEEE 754 floating point value (a.k.a. double, f64).
@@ -75,14 +70,7 @@ pub enum Value {
     Reference(Reference),
 }
 
-impl Value {
-    pub fn is_null(self) -> bool {
-        matches!(self, Self::Null)
-    }
-}
-
 variant_methods! {
-    UInt(u64), "a";
     SInt(i64), "an";
     Float(f64), "a";
     Bool(bool), "a";

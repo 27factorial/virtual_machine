@@ -11,12 +11,12 @@ use heap::{Heap, Reference};
 use ops::Transition;
 use std::sync::Arc;
 
+pub mod builtin;
 pub mod function;
 pub mod gc;
 pub mod heap;
 pub mod memory;
 pub mod ops;
-pub mod builtin;
 
 pub type Result<T> = std::result::Result<T, VmError>;
 
@@ -92,18 +92,6 @@ impl Vm {
             .get(index)
             .cloned()
             .vm_result(VmErrorKind::OutOfBounds, frame)
-    }
-
-    pub fn pop_uint(&mut self, frame: &CallFrame) -> Result<u64> {
-        self.pop_value(frame)?
-            .uint()
-            .vm_result(VmErrorKind::Type, frame)
-    }
-
-    pub fn get_uint(&self, index: usize, frame: &CallFrame) -> Result<u64> {
-        self.get_value(index, frame)?
-            .uint()
-            .vm_result(VmErrorKind::Type, frame)
     }
 
     pub fn pop_sint(&mut self, frame: &CallFrame) -> Result<i64> {
@@ -363,6 +351,7 @@ pub enum VmErrorKind {
     TypeNotFound,
     InvalidObject,
     OutOfBounds,
+    InvalidSize,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]

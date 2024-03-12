@@ -38,21 +38,21 @@ fn main() {
             main_sym,
             [
                 // Initialize a counter to 50 million and store the counter in local variable 0
-                OpCode::Push(Value::UInt(50_000_000)),
+                OpCode::Push(Value::SInt(50_000_000)),
                 OpCode::ReserveImm(1),
                 // Load the counter from local variable 0, and if it's zero, jump to the end of
                 // the program.
                 OpCode::Load(0),
-                OpCode::EqImm(Value::UInt(0)),
+                OpCode::EqImm(Value::SInt(0)),
                 OpCode::JumpCondImm(13),
                 // else...
                 // load the value from local variable 0, subtract 1, and store the new counter
                 // back in the local variable 0.
                 OpCode::Load(0),
-                OpCode::SubImm(Value::UInt(1)),
+                OpCode::SubImm(Value::SInt(1)),
                 OpCode::Store(0),
                 // Push two 2s onto the stack
-                OpCode::Push(Value::UInt(2)),
+                OpCode::Push(Value::SInt(2)),
                 OpCode::Dup,
                 // Call a function which pops them from the stack, adds them, then returns
                 OpCode::CallImm(adder),
