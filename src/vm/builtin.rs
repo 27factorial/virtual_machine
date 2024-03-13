@@ -1,4 +1,4 @@
-use crate::{object::array::VmArray, utils::IntoVmResult, value::Value};
+use crate::{object::{array::VmArray, string::VmString}, utils::IntoVmResult, value::Value};
 
 use super::{CallFrame, Result, Vm, VmError, VmErrorKind};
 use paste::paste;
@@ -265,8 +265,22 @@ define_builtins! {
     array_push,
     array_pop,
 
-    // Misc. useful functions
-    to_string,
+    // String functions
+    string_new,
+    string_from,
+    string_with_capacity,
+    string_length,
+    string_index_byte,
+    string_index_char,
+    string_capacity,
+    string_reserve,
+    string_shrink_to_fit,
+    string_shrink_to,
+    string_truncate,
+    string_insert,
+    string_remove,
+    string_push,
+    string_pop,
 }
 
 //////////////////////////////////////////
@@ -954,11 +968,18 @@ fn vmbi_array_pop(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     Ok(())
 }
 
-////////////////////////////////////////
-// ============== MISC ============== //
-////////////////////////////////////////
+//////////////////////////////////////////
+// ============== STRING ============== //
+//////////////////////////////////////////
 
-fn vmbi_to_string(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+fn vmbi_string_new(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.alloc(VmString::new(), frame)?;
+
+    vm.push_value(Value::Reference(this_ref), frame)?;
+    Ok(())
+}
+
+fn vmbi_string_from(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let string = match vm.pop_value(frame)? {
         Value::SInt(v) => v.to_string(),
         Value::Float(v) => v.to_string(),
@@ -969,5 +990,182 @@ fn vmbi_to_string(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         Value::Reference(v) => todo!("reference to_string"),
     };
 
-    todo!("TODO: Allocate string and push new object ref");
+    let this_ref = vm.alloc(VmString::from(string), frame)?;
+    vm.push_value(Value::Reference(this_ref), frame)?;
+    Ok(())
+}
+
+fn vmbi_string_with_capacity(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let capacity: usize = vm
+        .pop_sint(frame)?
+        .try_into()
+        .vm_result(VmErrorKind::InvalidSize, frame)?;
+    let this_ref = vm.alloc(VmString::with_capacity(capacity), frame)?;
+
+    vm.push_value(Value::Reference(this_ref), frame)?;
+    Ok(())
+}
+
+fn vmbi_string_length(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let len = vm.heap_object::<VmString>(this_ref, frame)?.len();
+
+    vm.push_value(Value::SInt(len as i64), frame)?;
+    Ok(())
+}
+
+fn vmbi_string_index_byte(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let index: usize = vm
+        .pop_sint(frame)?
+        .try_into()
+        .vm_result(VmErrorKind::OutOfBounds, frame)?;
+
+    let value = vm
+        .heap_object::<VmString>(this_ref, frame)?
+        .as_bytes()
+        .get(index)
+        .copied()
+        .vm_result(VmErrorKind::OutOfBounds, frame)?;
+
+    vm.push_value(Value::SInt(value as i64), frame)?;
+    Ok(())
+}
+
+fn vmbi_string_index_char(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let index: usize = vm
+        .pop_sint(frame)?
+        .try_into()
+        .vm_result(VmErrorKind::OutOfBounds, frame)?;
+
+    let value = vm
+        .heap_object::<VmString>(this_ref, frame)?
+        .chars()
+        .nth(index)
+        .vm_result(VmErrorKind::OutOfBounds, frame)?;
+
+    vm.push_value(Value::Char(value), frame)?;
+    Ok(())
+}
+
+fn vmbi_string_capacity(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this = vm.pop_reference(frame)?;
+    let capacity = vm.heap_object::<VmString>(this, frame)?.capacity();
+
+    // Casting to i64 is fine here since Rust limits Vecs to a capacity of isize::MAX bytes, which
+    // can never exceed i64::MAX bytes
+    vm.push_value(Value::SInt(capacity as i64), frame)?;
+    Ok(())
+}
+
+fn vmbi_string_reserve(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this = vm.pop_reference(frame)?;
+    let additional: usize = vm
+        .pop_sint(frame)?
+        .try_into()
+        .vm_result(VmErrorKind::InvalidSize, frame)?;
+
+    vm.heap_object_mut::<VmString>(this, frame)?
+        .reserve(additional);
+
+    Ok(())
+}
+
+fn vmbi_string_shrink_to_fit(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this = vm.pop_reference(frame)?;
+    vm.heap_object_mut::<VmString>(this, frame)?.shrink_to_fit();
+
+    Ok(())
+}
+
+fn vmbi_string_shrink_to(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this = vm.pop_reference(frame)?;
+    let min_capacity = vm
+        .pop_sint(frame)?
+        .try_into()
+        .vm_result(VmErrorKind::InvalidSize, frame)?;
+
+    vm.heap_object_mut::<VmString>(this, frame)?
+        .shrink_to(min_capacity);
+
+    Ok(())
+}
+
+fn vmbi_string_truncate(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this = vm.pop_reference(frame)?;
+    let len = vm
+        .pop_sint(frame)?
+        .try_into()
+        .vm_result(VmErrorKind::InvalidSize, frame)?;
+
+    vm.heap_object_mut::<VmString>(this, frame)?.truncate(len);
+
+    Ok(())
+}
+
+fn vmbi_string_insert(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let idx: usize = vm
+        .pop_sint(frame)?
+        .try_into()
+        .vm_result(VmErrorKind::OutOfBounds, frame)?;
+    let value = vm.pop_char(frame)?;
+
+    let this = vm.heap_object_mut::<VmString>(this_ref, frame)?;
+
+    if idx <= this.len() {
+        this.insert(idx, value);
+        Ok(())
+    } else {
+        Err(vm.error(VmErrorKind::OutOfBounds, frame))
+    }
+}
+
+fn vmbi_string_remove(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let idx: usize = vm
+        .pop_sint(frame)?
+        .try_into()
+        .vm_result(VmErrorKind::OutOfBounds, frame)?;
+
+    let this = vm.heap_object_mut::<VmString>(this_ref, frame)?;
+
+    if idx < this.len() {
+        let value = this.remove(idx);
+        vm.push_value(Value::Char(value), frame)?;
+        Ok(())
+    } else {
+        Err(vm.error(VmErrorKind::OutOfBounds, frame))
+    }
+}
+
+fn vmbi_string_push(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let value = vm.pop_value(frame)?;
+
+    let this = vm.heap_object_mut::<VmString>(this_ref, frame)?;
+
+    match value {
+        Value::Char(v) => this.push(v),
+        // Value::Symbol(v) => {
+        //     let s = vm.program.
+        // },
+        // Value::Reference(v) => todo!(),
+        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+    }
+
+    Ok(())
+}
+
+fn vmbi_string_pop(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+
+    let value = vm
+        .heap_object_mut::<VmString>(this_ref, frame)?
+        .pop()
+        .vm_result(VmErrorKind::OutOfBounds, frame)?;
+
+    vm.push_value(Value::Char(value), frame)?;
+    Ok(())
 }
