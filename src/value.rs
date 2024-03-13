@@ -1,4 +1,4 @@
-use crate::symbol::Symbol;
+use crate::{symbol::Symbol, vm::function::Function};
 use crate::vm::heap::Reference;
 use paste::paste;
 use serde::{Deserialize, Serialize};
@@ -65,7 +65,7 @@ pub enum Value {
     Address(usize),
     /// The index of a symbol.
     Symbol(Symbol),
-    // Function(Function),
+    Function(Function),
     /// An object reference, referring to some data in the object heap.
     Reference(Reference),
 }
@@ -77,6 +77,6 @@ variant_methods! {
     Char(char), "a";
     Address(usize), "an";
     Symbol(Symbol), "a";
-    // Function(Function), "a";
+    Function(Function), "a";
     Reference(Reference), "a";
 }

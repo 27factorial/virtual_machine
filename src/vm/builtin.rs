@@ -291,6 +291,10 @@ define_builtins! {
     string_remove,
     string_push,
     string_pop,
+
+    // I/O
+    print,
+    println,
 }
 
 fn get_panic_message(vm: &mut Vm, frame: &CallFrame) -> String {
@@ -301,6 +305,7 @@ fn get_panic_message(vm: &mut Vm, frame: &CallFrame) -> String {
         Ok(Value::Char(v)) => v.to_string(),
         Ok(Value::Address(v)) => format!("{v:x}"),
         Ok(Value::Symbol(v)) => vm.program.symbols.get(v).unwrap_or("<no message>").into(),
+        Ok(Value::Function(v)) => format!("{:x}", v.0),
         Ok(Value::Reference(_)) => todo!("reference to_string"),
         Err(_) => "<no message>".into(),
     }
@@ -1004,6 +1009,7 @@ fn vmbi_string_from(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         Value::Bool(v) => v.to_string(),
         Value::Char(v) => v.to_string(),
         Value::Address(v) => format!("{v:x}"),
+        Value::Function(v) => format!("{:x}", v.0),
         Value::Symbol(v) => vm.program.symbols.get(v).unwrap_or("").into(),
         Value::Reference(v) => todo!("reference to_string"),
     };
@@ -1192,5 +1198,27 @@ fn vmbi_string_pop(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         .vm_result(VmErrorKind::OutOfBounds, frame)?;
 
     vm.push_value(Value::Char(value), frame)?;
+    Ok(())
+}
+
+///////////////////////////////////////
+// ============== I/O ============== //
+///////////////////////////////////////
+
+fn vmbi_print(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let string_ref = vm.pop_reference(frame)?;
+
+    let value = vm.heap_object::<VmString>(string_ref, frame)?;
+
+    print!("{}", value.as_str());
+    Ok(())
+}
+
+fn vmbi_println(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let string_ref = vm.pop_reference(frame)?;
+
+    let value = vm.heap_object::<VmString>(string_ref, frame)?;
+
+    println!("{}", value.as_str());
     Ok(())
 }

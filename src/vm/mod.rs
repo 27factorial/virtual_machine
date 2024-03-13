@@ -24,7 +24,10 @@ pub(crate) static EXPECTED_PANIC: AtomicBool = AtomicBool::new(false);
 
 // Ugly hack to set a temporary panic hook. We only want the custom panic hook while running code
 // on the VM.
-fn with_panic_hook<F: FnOnce() -> Result<Transition>>(func: F) -> Result<Transition> {
+fn with_panic_hook<F, T>(func: F) -> T
+where
+    F: FnOnce() -> T,
+{
     use std::panic;
     use std::sync::atomic::Ordering;
 
@@ -32,10 +35,9 @@ fn with_panic_hook<F: FnOnce() -> Result<Transition>>(func: F) -> Result<Transit
     let cloned = Arc::clone(&original_hook);
 
     panic::set_hook(Box::new(move |info| {
-        // dyn Fn + ... requires that contents are only immutably borrowed, not moved or mutably
-        // borrowed, so taking a reference is required here. It makes sure that the Arc is not 
-        // dropped at the end of the closure's scope when run, but rather when the closure itself is
-        // dropped.
+        // Fn requires that contents are only immutably borrowed, not moved or mutably borrowed, so
+        // taking a reference is required here. It makes sure that the Arc is not dropped at the end
+        // of the closure's scope when run, but rather when the closure itself is dropped.
         let original_hook = &cloned;
 
         if EXPECTED_PANIC.load(Ordering::SeqCst) {
@@ -51,16 +53,14 @@ fn with_panic_hook<F: FnOnce() -> Result<Transition>>(func: F) -> Result<Transit
         }
     }));
 
-    let ret = func()?;
+    let ret = func();
 
     // Take the current hook and drop the cloned Arc, which means that the Arc is unique and can
     // be unwrapped to get the original panic hook back.
     let _ = panic::take_hook();
-    panic::set_hook(
-        Arc::try_unwrap(original_hook).unwrap_or_else(|_| panic!("failed to unwrap unique Arc")),
-    );
+    panic::set_hook(Arc::try_unwrap(original_hook).ok().unwrap());
 
-    Ok(ret)
+    ret
 }
 
 pub type Result<T> = std::result::Result<T, VmError>;
@@ -199,18 +199,16 @@ impl Vm {
             .vm_result(VmErrorKind::Type, frame)
     }
 
-    pub fn pop_function(&mut self) -> Result<Function> {
-        todo!("pop_function");
-        // self.pop_value(frame)?
-        //     .function()
-        //     .vm_result(VmErrorKind::Type, frame)
+    pub fn pop_function(&mut self, frame: &CallFrame) -> Result<Function> {
+        self.pop_value(frame)?
+            .function()
+            .vm_result(VmErrorKind::Type, frame)
     }
 
-    pub fn get_function(&self, index: usize) -> Result<Function> {
-        todo!("get_function");
-        // self.get_value(index, frame)?
-        //     .function()
-        //     .vm_result(VmErrorKind::Type, frame)
+    pub fn get_function(&self, index: usize, frame: &CallFrame) -> Result<Function> {
+        self.get_value(index, frame)?
+            .function()
+            .vm_result(VmErrorKind::Type, frame)
     }
 
     pub fn pop_symbol(&mut self, frame: &CallFrame) -> Result<Symbol> {

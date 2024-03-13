@@ -42,7 +42,7 @@ impl VmObject for VmArray {
 
         let mut builder = TypeBuilder::new(type_name);
 
-        let native_funcs = [
+        let builtin_funcs = [
             ("new", builtin::ARRAY_NEW),
             ("with_capacity", builtin::ARRAY_WITH_CAPACITY),
             ("length", builtin::ARRAY_LENGTH),
@@ -59,7 +59,7 @@ impl VmObject for VmArray {
             ("pop", builtin::ARRAY_POP),
         ];
 
-        for (name, builtin) in native_funcs {
+        for (name, builtin) in builtin_funcs {
             // methods on Array simply forward to the built-in implementation, so the methods are
             // pretty trivial.
             builder.with_method(name, [OpCode::CallBuiltin(builtin), OpCode::Ret]);

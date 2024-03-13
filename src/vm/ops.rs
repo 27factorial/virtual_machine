@@ -990,8 +990,7 @@ mod imp {
 
         // call
         pub(super) fn op_call(&mut self, frame: &CallFrame) -> OpResult {
-            let func = self.pop_function()?;
-            // let symbol = self.pop_symbol()?;
+            let func = self.pop_function(frame)?;
 
             self.op_call_imm(func, frame)
         }

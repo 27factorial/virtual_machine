@@ -48,24 +48,25 @@ impl VmObject for VmString {
 
         let mut builder = TypeBuilder::new(type_name);
 
-        let native_funcs = [
-            ("new", builtin::ARRAY_NEW),
-            ("with_capacity", builtin::ARRAY_WITH_CAPACITY),
-            ("length", builtin::ARRAY_LENGTH),
-            ("index", builtin::ARRAY_INDEX),
-            ("capacity", builtin::ARRAY_CAPACITY),
-            ("reserve", builtin::ARRAY_RESERVE),
-            ("shrink_to_fit", builtin::ARRAY_SHRINK_TO_FIT),
-            ("shrink_to", builtin::ARRAY_SHRINK_TO),
-            ("truncate", builtin::ARRAY_TRUNCATE),
-            ("swap_remove", builtin::ARRAY_SWAP_REMOVE),
-            ("insert", builtin::ARRAY_INSERT),
-            ("remove", builtin::ARRAY_REMOVE),
-            ("push", builtin::ARRAY_PUSH),
-            ("pop", builtin::ARRAY_POP),
+        let builtin_funcs = [
+            ("new", builtin::STRING_NEW),
+            ("from", builtin::STRING_FROM),
+            ("with_capacity", builtin::STRING_WITH_CAPACITY),
+            ("length", builtin::STRING_LENGTH),
+            ("index_byte", builtin::STRING_INDEX_BYTE),
+            ("index_char", builtin::STRING_INDEX_CHAR),
+            ("capacity", builtin::STRING_CAPACITY),
+            ("reserve", builtin::STRING_RESERVE),
+            ("shrink_to_fit", builtin::STRING_SHRINK_TO_FIT),
+            ("shrink_to", builtin::STRING_SHRINK_TO),
+            ("truncate", builtin::STRING_TRUNCATE),
+            ("insert", builtin::STRING_INSERT),
+            ("remove", builtin::STRING_REMOVE),
+            ("push", builtin::STRING_PUSH),
+            ("pop", builtin::STRING_POP),
         ];
 
-        for (name, builtin) in native_funcs {
+        for (name, builtin) in builtin_funcs {
             // methods on Array simply forward to the built-in implementation, so the methods are
             // pretty trivial.
             builder.with_method(name, [OpCode::CallBuiltin(builtin), OpCode::Ret]);

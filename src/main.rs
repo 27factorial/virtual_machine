@@ -15,6 +15,8 @@ use value::Value;
 use vm::ops::OpCode;
 use vm::Vm;
 
+use crate::vm::builtin;
+
 pub mod object;
 pub mod program;
 pub mod serde_impl;
@@ -65,6 +67,20 @@ fn main() {
             ],
         )
         .expect("failed to define `main` function");
+
+    // let test_string_sym = program.define_symbol("Hello, World!");
+
+    // program.define_function(
+    //     main_sym,
+    //     [
+    //         OpCode::Push(Value::Symbol(test_string_sym)),
+    //         OpCode::CallBuiltin(builtin::STRING_FROM),
+    //         OpCode::ReserveImm(1),
+    //         OpCode::Load(0),
+    //         OpCode::CallBuiltin(builtin::PRINTLN),
+    //         OpCode::Halt,
+    //     ],
+    // ).expect("failed to define `main` function");
 
     let mut vm = Vm::new(program).expect("failed to create VM");
 
