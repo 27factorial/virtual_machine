@@ -3,12 +3,13 @@ use crate::object::VmObject;
 use crate::value::Value;
 use crate::vm::gc::GcBox;
 use serde::{Deserialize, Serialize};
+use std::cell::{Ref, RefCell, RefMut};
 use std::collections::VecDeque;
 use std::mem;
 
 #[derive(Debug)]
 pub struct Heap {
-    memory: Vec<Option<GcBox<dyn VmObject>>>,
+    memory: Vec<Option<RefCell<GcBox<dyn VmObject>>>>,
     free_indices: VecDeque<usize>,
     worklist: Vec<usize>,
     current_children: Vec<Reference>,
@@ -42,7 +43,7 @@ impl Heap {
                     // Remove the index we used from free_indices.
                     self.free_indices.pop_front();
 
-                    self.memory[idx] = Some(gc_box!(value));
+                    self.memory[idx] = Some(RefCell::new(gc_box!(value)));
 
                     Ok(Reference(idx))
                 } else {
@@ -56,7 +57,7 @@ impl Heap {
 
                 if required_space <= self.byte_capacity {
                     let idx = self.memory.len();
-                    self.memory.push(Some(gc_box!(value)));
+                    self.memory.push(Some(RefCell::new(gc_box!(value))));
                     self.byte_len = required_space;
                     Ok(Reference(idx))
                 } else {
@@ -73,9 +74,11 @@ impl Heap {
 
     pub fn mark_from_roots(&mut self, roots: impl IntoIterator<Item = Reference>) {
         for root in roots {
-            let Some(object) = self.memory.get_mut(root.0).and_then(|opt| opt.as_mut()) else {
+            let Some(cell) = self.memory.get_mut(root.0).and_then(|opt| opt.as_mut()) else {
                 continue;
             };
+
+            let object = cell.get_mut();
 
             if !object.is_marked() {
                 object.mark();
@@ -92,7 +95,13 @@ impl Heap {
 
         for (idx, slot) in enumerated {
             match slot {
-                Some(object) if object.is_marked() => object.unmark(),
+                Some(cell) => {
+                    let object = cell.get_mut();
+
+                    if object.is_marked() {
+                        object.unmark();
+                    }
+                }
                 opt => {
                     *opt = None;
                     self.free_indices.push_back(idx)
@@ -101,32 +110,43 @@ impl Heap {
         }
     }
 
-    pub fn get(&self, object: Reference) -> Option<&dyn VmObject> {
-        self.memory.get(object.0).and_then(|opt| opt.as_deref())
+    pub fn get(&self, object: Reference) -> Option<Ref<'_, dyn VmObject>> {
+        self.memory.get(object.0).and_then(|opt| {
+            opt.as_ref()
+                .and_then(|cell| cell.try_borrow().ok().map(|gc| Ref::map(gc, |gc| &**gc)))
+        })
     }
 
-    pub fn get_mut(&mut self, object: Reference) -> Option<&mut dyn VmObject> {
-        self.memory
-            .get_mut(object.0)
-            .and_then(|opt| opt.as_deref_mut())
+    pub fn get_mut(&self, object: Reference) -> Option<RefMut<'_, dyn VmObject>> {
+        self.memory.get(object.0).and_then(|opt| {
+            opt.as_ref().and_then(|cell| {
+                cell.try_borrow_mut()
+                    .ok()
+                    .map(|gc| RefMut::map(gc, |gc| &mut **gc))
+            })
+        })
     }
 
     fn mark_children(&mut self) {
         while let Some(idx) = self.worklist.pop() {
             let object = self
                 .memory
-                .get(idx)
-                .and_then(|opt| opt.as_ref())
+                .get_mut(idx)
+                .and_then(|opt| opt.as_mut())
                 .expect("object should exist");
+
+            let object = &*object.get_mut();
 
             let object_children = object.data().iter().copied().filter_map(Value::reference);
 
             self.current_children.extend(object_children);
 
             for Reference(child_idx) in self.current_children.drain(..) {
-                let object_opt = self.memory.get_mut(child_idx).and_then(|opt| opt.as_mut());
+                let cell_opt = self.memory.get_mut(child_idx).and_then(|opt| opt.as_mut());
 
-                if let Some(child_object) = object_opt {
+                if let Some(child_cell) = cell_opt {
+                    let child_object = child_cell.get_mut();
+
                     if !child_object.is_marked() {
                         child_object.mark();
                         self.worklist.push(child_idx);

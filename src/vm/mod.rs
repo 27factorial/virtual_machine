@@ -9,6 +9,8 @@ use function::Function;
 use hashbrown::hash_map::RawEntryMut;
 use heap::{Heap, Reference};
 use ops::Transition;
+use std::cell::{Ref, RefMut};
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 pub mod builtin;
@@ -17,6 +19,49 @@ pub mod gc;
 pub mod heap;
 pub mod memory;
 pub mod ops;
+
+pub(crate) static EXPECTED_PANIC: AtomicBool = AtomicBool::new(false);
+
+// Ugly hack to set a temporary panic hook. We only want the custom panic hook while running code
+// on the VM.
+fn with_panic_hook<F: FnOnce() -> Result<Transition>>(func: F) -> Result<Transition> {
+    use std::panic;
+    use std::sync::atomic::Ordering;
+
+    let original_hook = Arc::new(panic::take_hook());
+    let cloned = Arc::clone(&original_hook);
+
+    panic::set_hook(Box::new(move |info| {
+        // dyn Fn + ... requires that contents are only immutably borrowed, not moved or mutably
+        // borrowed, so taking a reference is required here. It makes sure that the Arc is not 
+        // dropped at the end of the closure's scope when run, but rather when the closure itself is
+        // dropped.
+        let original_hook = &cloned;
+
+        if EXPECTED_PANIC.load(Ordering::SeqCst) {
+            original_hook(info);
+        } else {
+            eprintln!(
+                "The virtual machine has encountered an internal error and panicked. This is a bug.\n\
+                 Please be sure to file an issue at the PFVM issue tracker (<LINK_HERE>).\n\
+                 Rust panic is as follows:\n"
+            );
+
+            original_hook(info);
+        }
+    }));
+
+    let ret = func()?;
+
+    // Take the current hook and drop the cloned Arc, which means that the Arc is unique and can
+    // be unwrapped to get the original panic hook back.
+    let _ = panic::take_hook();
+    panic::set_hook(
+        Arc::try_unwrap(original_hook).unwrap_or_else(|_| panic!("failed to unwrap unique Arc")),
+    );
+
+    Ok(ret)
+}
 
 pub type Result<T> = std::result::Result<T, VmError>;
 
@@ -44,7 +89,7 @@ impl Vm {
             .cloned()
             .ok_or_else(|| VmError::new(VmErrorKind::FunctionNotFound, None))?;
 
-        self.run_function(main, 0)?;
+        with_panic_hook(|| self.run_function(main, 0))?;
 
         Ok(())
     }
@@ -205,24 +250,30 @@ impl Vm {
             .vm_result(VmErrorKind::OutOfBounds, frame)
     }
 
-    pub fn heap_object<T: VmObject>(&self, obj: Reference, frame: &CallFrame) -> Result<&T> {
-        self.heap
+    pub fn heap_object<T: VmObject>(
+        &self,
+        obj: Reference,
+        frame: &CallFrame,
+    ) -> Result<Ref<'_, T>> {
+        let obj_ref = self
+            .heap
             .get(obj)
-            .vm_result(VmErrorKind::InvalidObject, frame)?
-            .downcast_ref()
-            .vm_result(VmErrorKind::Type, frame)
+            .vm_result(VmErrorKind::InvalidObject, frame)?;
+
+        Ref::filter_map(obj_ref, |obj| obj.downcast_ref()).vm_result(VmErrorKind::Type, frame)
     }
 
     pub fn heap_object_mut<T: VmObject>(
-        &mut self,
+        &self,
         obj: Reference,
         frame: &CallFrame,
-    ) -> Result<&mut T> {
-        self.heap
+    ) -> Result<RefMut<'_, T>> {
+        let obj_ref = self
+            .heap
             .get_mut(obj)
-            .vm_result(VmErrorKind::InvalidObject, frame)?
-            .downcast_mut()
-            .vm_result(VmErrorKind::Type, frame)
+            .vm_result(VmErrorKind::InvalidObject, frame)?;
+
+        RefMut::filter_map(obj_ref, |obj| obj.downcast_mut()).vm_result(VmErrorKind::Type, frame)
     }
 
     pub fn get_local(&self, index: usize, frame: &CallFrame) -> Result<Value> {
@@ -370,5 +421,44 @@ impl CallFrame {
             stack_base,
             locals,
         }
+    }
+}
+
+#[repr(transparent)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+pub(crate) struct VmPanic(String);
+
+impl VmPanic {
+    pub fn new() -> Self {
+        Self(String::new())
+    }
+
+    pub fn with_message(s: String) -> Self {
+        Self(s)
+    }
+
+    pub fn panic(self) -> ! {
+        use std::sync::atomic::Ordering;
+
+        EXPECTED_PANIC.store(true, Ordering::SeqCst);
+
+        if !self.0.is_empty() {
+            panic!("{}", self.0);
+        } else {
+            // default message from Rust.
+            panic!();
+        }
+    }
+}
+
+impl From<String> for VmPanic {
+    fn from(value: String) -> Self {
+        Self::with_message(value)
+    }
+}
+
+impl From<&str> for VmPanic {
+    fn from(value: &str) -> Self {
+        Self::with_message(value.into())
     }
 }

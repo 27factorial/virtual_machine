@@ -1,6 +1,16 @@
-use crate::{object::{array::VmArray, string::VmString}, utils::IntoVmResult, value::Value};
+use std::{
+    fmt::{self, Display},
+    panic,
+    sync::atomic::AtomicBool,
+};
 
-use super::{CallFrame, Result, Vm, VmError, VmErrorKind};
+use crate::{
+    object::{array::VmArray, string::VmString},
+    utils::IntoVmResult,
+    value::Value,
+};
+
+use super::{CallFrame, Result, Vm, VmError, VmErrorKind, VmPanic};
 use paste::paste;
 
 macro_rules! float_intrinsics {
@@ -283,10 +293,6 @@ define_builtins! {
     string_pop,
 }
 
-//////////////////////////////////////////
-// ============== PANICS ============== //
-//////////////////////////////////////////
-
 fn get_panic_message(vm: &mut Vm, frame: &CallFrame) -> String {
     match vm.pop_value(frame) {
         Ok(Value::SInt(v)) => v.to_string(),
@@ -300,12 +306,16 @@ fn get_panic_message(vm: &mut Vm, frame: &CallFrame) -> String {
     }
 }
 
+//////////////////////////////////////////
+// ============== PANICS ============== //
+//////////////////////////////////////////
+
 fn vmbi_assert(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let message = get_panic_message(vm, frame);
     let condition = vm.pop_bool(frame)?;
 
     if !condition {
-        panic!("assertion failure: {message}");
+        VmPanic::from(format!("assertion failure: {message}")).panic();
     }
 
     Ok(())
@@ -313,12 +323,16 @@ fn vmbi_assert(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
 fn vmbi_unreachable(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let message: String = get_panic_message(vm, frame);
-    unreachable!("{message}");
+
+    VmPanic::from(format!(
+        "internal error: entered unreachable code: {message}"
+    ))
+    .panic();
 }
 
 fn vmbi_panic(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let message = get_panic_message(vm, frame);
-    panic!("{message}");
+    VmPanic::with_message(message).panic();
 }
 
 //////////////////////////////////////////
@@ -900,10 +914,12 @@ fn vmbi_array_swap_remove(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         .try_into()
         .vm_result(VmErrorKind::OutOfBounds, frame)?;
 
-    let this = vm.heap_object_mut::<VmArray>(this_ref, frame)?;
+    let mut this = vm.heap_object_mut::<VmArray>(this_ref, frame)?;
 
     if idx < this.len() {
         let value = this.swap_remove(idx);
+        drop(this);
+
         vm.push_value(value, frame)?;
         Ok(())
     } else {
@@ -919,7 +935,7 @@ fn vmbi_array_insert(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         .vm_result(VmErrorKind::OutOfBounds, frame)?;
     let value = vm.pop_value(frame)?;
 
-    let this = vm.heap_object_mut::<VmArray>(this_ref, frame)?;
+    let mut this = vm.heap_object_mut::<VmArray>(this_ref, frame)?;
 
     if idx <= this.len() {
         this.insert(idx, value);
@@ -936,10 +952,12 @@ fn vmbi_array_remove(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         .try_into()
         .vm_result(VmErrorKind::OutOfBounds, frame)?;
 
-    let this = vm.heap_object_mut::<VmArray>(this_ref, frame)?;
+    let mut this = vm.heap_object_mut::<VmArray>(this_ref, frame)?;
 
     if idx < this.len() {
         let value = this.remove(idx);
+        drop(this);
+
         vm.push_value(value, frame)?;
         Ok(())
     } else {
@@ -1112,7 +1130,7 @@ fn vmbi_string_insert(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         .vm_result(VmErrorKind::OutOfBounds, frame)?;
     let value = vm.pop_char(frame)?;
 
-    let this = vm.heap_object_mut::<VmString>(this_ref, frame)?;
+    let mut this = vm.heap_object_mut::<VmString>(this_ref, frame)?;
 
     if idx <= this.len() {
         this.insert(idx, value);
@@ -1129,10 +1147,12 @@ fn vmbi_string_remove(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         .try_into()
         .vm_result(VmErrorKind::OutOfBounds, frame)?;
 
-    let this = vm.heap_object_mut::<VmString>(this_ref, frame)?;
+    let mut this = vm.heap_object_mut::<VmString>(this_ref, frame)?;
 
     if idx < this.len() {
         let value = this.remove(idx);
+        drop(this);
+
         vm.push_value(Value::Char(value), frame)?;
         Ok(())
     } else {
@@ -1144,13 +1164,18 @@ fn vmbi_string_push(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this_ref = vm.pop_reference(frame)?;
     let value = vm.pop_value(frame)?;
 
-    let this = vm.heap_object_mut::<VmString>(this_ref, frame)?;
+    let mut this = vm.heap_object_mut::<VmString>(this_ref, frame)?;
 
     match value {
         Value::Char(v) => this.push(v),
-        // Value::Symbol(v) => {
-        //     let s = vm.program.
-        // },
+        Value::Symbol(v) => {
+            let s = vm
+                .program
+                .symbols
+                .get(v)
+                .vm_result(VmErrorKind::SymbolNotFound, frame)?;
+            this.push_str(s);
+        }
         // Value::Reference(v) => todo!(),
         _ => return Err(VmError::new(VmErrorKind::Type, frame)),
     }

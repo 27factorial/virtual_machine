@@ -33,7 +33,7 @@ pub trait VmObject: Any + Debug + Send + Sync + sealed::Upcast {
     }
 
     #[inline(always)]
-    fn as_debug(&self) -> &dyn Debug {
+    fn as_debug(&self) -> &(dyn Debug + 'static) {
         sealed::Upcast::upcast_debug(self)
     }
 }
@@ -131,10 +131,10 @@ mod sealed {
     use super::VmObject;
 
     #[doc(hidden)]
-    pub trait Upcast {
+    pub trait Upcast: 'static {
         fn upcast_any(&self) -> &dyn Any;
         fn upcast_any_mut(&mut self) -> &mut dyn Any;
-        fn upcast_debug(&self) -> &dyn Debug;
+        fn upcast_debug(&self) -> &(dyn Debug + 'static);
     }
 
     impl<T: VmObject> Upcast for T {
@@ -149,7 +149,7 @@ mod sealed {
         }
 
         #[inline(always)]
-        fn upcast_debug(&self) -> &dyn Debug {
+        fn upcast_debug(&self) -> &(dyn Debug + 'static) {
             self
         }
     }

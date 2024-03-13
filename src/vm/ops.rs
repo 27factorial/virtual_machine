@@ -251,8 +251,9 @@ mod imp {
     use crate::value::Value;
     use crate::vm::function::Function;
     use crate::vm::builtin::BUILTINS;
-    use crate::vm::{builtin, Vm, VmError, VmErrorKind};
+    use crate::vm::{Vm, VmError, VmErrorKind, VmPanic};
     use crate::{symbol::Symbol, vm::CallFrame};
+    use std::cell::Ref;
     use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Sub};
     use std::ptr;
 
@@ -997,6 +998,8 @@ mod imp {
 
         // calli
         pub(super) fn op_call_imm(&mut self, func: Function, frame: &CallFrame) -> OpResult {
+            panic!("test");
+
             let new_base = frame.stack_base + frame.locals;
 
             self.run_function(func, new_base)
@@ -1081,11 +1084,11 @@ mod imp {
                 reference @ Value::Reference(v) => {
                     eprint!("stack[{index:#x}]: {reference:?} => ");
 
-                    let obj_debug = self.heap.get(v).map(|obj| obj.as_debug());
+                    let obj_ref = self.heap.get(v).map(|obj| Ref::map(obj, |obj| obj.as_debug()));
 
-                    match obj_debug {
+                    match obj_ref {
                         Some(debug) => {
-                            let address = ptr::from_ref(debug).addr();
+                            let address = ptr::from_ref(&*debug).addr();
 
                             eprintln!("{debug:#?} @ {address:#x}")
                         }
