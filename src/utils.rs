@@ -1,7 +1,7 @@
 use crate::vm::{CallFrame, Result as VmResult, VmError, VmErrorKind};
 use rustc_hash::FxHasher;
 use serde::{Deserialize, Serialize};
-use std::{fmt::{self, Display}, hash::{BuildHasherDefault, Hasher}};
+use std::hash::{BuildHasherDefault, Hasher};
 
 pub type FxHashMap<K, V> = hashbrown::HashMap<K, V, BuildHasherDefault<FxHasher>>;
 pub type FxEntry<'a, K, V> = hashbrown::hash_map::Entry<'a, K, V, BuildHasherDefault<FxHasher>>;

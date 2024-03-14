@@ -997,8 +997,6 @@ mod imp {
 
         // calli
         pub(super) fn op_call_imm(&mut self, func: Function, frame: &CallFrame) -> OpResult {
-            panic!("test");
-
             let new_base = frame.stack_base + frame.locals;
 
             self.run_function(func, new_base)

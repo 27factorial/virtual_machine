@@ -42,6 +42,7 @@ where
 
         if EXPECTED_PANIC.load(Ordering::SeqCst) {
             original_hook(info);
+            EXPECTED_PANIC.store(false, Ordering::SeqCst);
         } else {
             eprintln!(
                 "The virtual machine has encountered an internal error and panicked. This is a bug.\n\
@@ -73,12 +74,12 @@ pub struct Vm {
 }
 
 impl Vm {
-    pub fn new(program: Program) -> Result<Self> {
-        Ok(Self {
+    pub fn new(program: Program) -> Self {
+        Self {
             data_stack: VmStack::new(255),
             heap: Heap::new(1024),
             program,
-        })
+        }
     }
 
     pub fn run(&mut self) -> Result<()> {

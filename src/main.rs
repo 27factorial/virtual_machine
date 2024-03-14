@@ -15,7 +15,7 @@ use value::Value;
 use vm::ops::OpCode;
 use vm::Vm;
 
-use crate::vm::builtin;
+// use crate::vm::builtin;
 
 pub mod object;
 pub mod program;
@@ -82,7 +82,7 @@ fn main() {
     //     ],
     // ).expect("failed to define `main` function");
 
-    let mut vm = Vm::new(program).expect("failed to create VM");
+    let mut vm = Vm::new(program);
 
     let start = Instant::now();
     vm.run().expect("failed to run vm");
