@@ -2,7 +2,7 @@ use crate::object::{Type, TypeBuilder};
 use crate::symbol::{Symbol, Symbols};
 use crate::utils::FxHashMap;
 use crate::value::Value;
-use crate::vm::function::Function;
+use crate::vm::function::{Function, Functions};
 use crate::vm::ops::OpCode;
 use crate::vm::Vm;
 use crate::vm::{CallFrame, Result as VmResult};
@@ -18,6 +18,7 @@ pub type NativeFn = dyn Fn(&mut Vm, &CallFrame) -> VmResult<Value> + 'static;
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Program {
     pub(crate) constants: Vec<Value>,
+    pub(crate) functions: Functions,
     pub(crate) function_indices: FxHashMap<Arc<str>, Function>,
     pub(crate) code: Vec<OpCode>,
     #[serde(skip)]
@@ -30,6 +31,7 @@ impl Program {
     pub fn new() -> Self {
         Self {
             constants: Vec::new(),
+            functions: Functions::new(),
             function_indices: FxHashMap::default(),
             code: Vec::new(),
             native_functions: FxHashMap::default(),
@@ -61,20 +63,9 @@ impl Program {
         symbol: Symbol,
         func: I,
     ) -> Result<Function, I> {
-        if let Some(name) = self.symbols.get(symbol) {
-            match self.function_indices.raw_entry_mut().from_key(name) {
-                RawEntryMut::Vacant(entry) => {
-                    let start = self.code.len();
-                    self.code.extend(func);
-                    let func = Function::new(start);
-
-                    entry.insert(Arc::from(name), func);
-                    Ok(func)
-                }
-                RawEntryMut::Occupied(_) => Err(func),
-            }
-        } else {
-            Err(func)
+        match self.symbols.get(symbol) {
+            Some(name) => self.functions.define(name, func),
+            None => Err(func),
         }
     }
 
