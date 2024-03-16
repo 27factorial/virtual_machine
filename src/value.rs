@@ -1,5 +1,5 @@
-use crate::{symbol::Symbol, vm::function::Function};
 use crate::vm::heap::Reference;
+use crate::{symbol::Symbol, vm::function::Function};
 use paste::paste;
 use serde::{Deserialize, Serialize};
 
@@ -54,7 +54,7 @@ macro_rules! variant_methods {
 #[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
 pub enum Value {
     /// A signed 64-bit integer.
-    SInt(i64),
+    Int(i64),
     /// A double precision IEEE 754 floating point value (a.k.a. double, f64).
     Float(f64),
     /// A boolean value which can be true or false.
@@ -71,7 +71,7 @@ pub enum Value {
 }
 
 variant_methods! {
-    SInt(i64), "an";
+    Int(i64), "an";
     Float(f64), "a";
     Bool(bool), "a";
     Char(char), "a";

@@ -15,8 +15,6 @@ use value::Value;
 use vm::ops::OpCode;
 use vm::Vm;
 
-// use crate::vm::builtin;
-
 pub mod object;
 pub mod program;
 pub mod serde_impl;
@@ -40,21 +38,21 @@ fn main() {
             main_sym,
             [
                 // Initialize a counter to 50 million and store the counter in local variable 0
-                OpCode::Push(Value::SInt(50_000_000)),
+                OpCode::Push(Value::Int(50_000_000)),
                 OpCode::ReserveImm(1),
                 // Load the counter from local variable 0, and if it's zero, jump to the end of
                 // the program.
                 OpCode::Load(0),
-                OpCode::EqImm(Value::SInt(0)),
+                OpCode::EqImm(Value::Int(0)),
                 OpCode::JumpCondImm(13),
                 // else...
                 // load the value from local variable 0, subtract 1, and store the new counter
                 // back in the local variable 0.
                 OpCode::Load(0),
-                OpCode::SubImm(Value::SInt(1)),
+                OpCode::SubImm(Value::Int(1)),
                 OpCode::Store(0),
                 // Push two 2s onto the stack
-                OpCode::Push(Value::SInt(2)),
+                OpCode::Push(Value::Int(2)),
                 OpCode::Dup,
                 // Call a function which pops them from the stack, adds them, then returns
                 OpCode::CallImm(adder),
@@ -67,20 +65,6 @@ fn main() {
             ],
         )
         .expect("failed to define `main` function");
-
-    // let test_string_sym = program.define_symbol("Hello, World!");
-
-    // program.define_function(
-    //     main_sym,
-    //     [
-    //         OpCode::Push(Value::Symbol(test_string_sym)),
-    //         OpCode::CallBuiltin(builtin::STRING_FROM),
-    //         OpCode::ReserveImm(1),
-    //         OpCode::Load(0),
-    //         OpCode::CallBuiltin(builtin::PRINTLN),
-    //         OpCode::Halt,
-    //     ],
-    // ).expect("failed to define `main` function");
 
     let mut vm = Vm::new(program);
 

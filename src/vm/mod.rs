@@ -140,15 +140,15 @@ impl Vm {
             .vm_result(VmErrorKind::OutOfBounds, frame)
     }
 
-    pub fn pop_sint(&mut self, frame: &CallFrame) -> Result<i64> {
+    pub fn pop_int(&mut self, frame: &CallFrame) -> Result<i64> {
         self.pop_value(frame)?
-            .sint()
+            .int()
             .vm_result(VmErrorKind::Type, frame)
     }
 
-    pub fn get_sint(&self, index: usize, frame: &CallFrame) -> Result<i64> {
+    pub fn get_int(&self, index: usize, frame: &CallFrame) -> Result<i64> {
         self.get_value(index, frame)?
-            .sint()
+            .int()
             .vm_result(VmErrorKind::Type, frame)
     }
 

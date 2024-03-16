@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{self, Debug};
 use std::sync::Arc;
 
-pub const VALID_MAGIC: &[u8; 7] = b"27FCTRL";
+pub const VALID_MAGIC: &[u8; 4] = b"PFVM";
 
 pub type NativeFn = dyn Fn(&mut Vm, &CallFrame) -> VmResult<Value> + 'static;
 
@@ -56,11 +56,11 @@ impl Program {
         index
     }
 
-    pub fn define_function<F: IntoIterator<Item = OpCode>>(
+    pub fn define_function<I: IntoIterator<Item = OpCode>>(
         &mut self,
         symbol: Symbol,
-        func: F,
-    ) -> Result<Function, F> {
+        func: I,
+    ) -> Result<Function, I> {
         if let Some(name) = self.symbols.get(symbol) {
             match self.function_indices.raw_entry_mut().from_key(name) {
                 RawEntryMut::Vacant(entry) => {

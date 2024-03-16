@@ -3,8 +3,6 @@ use crate::value::Value;
 use crate::vm::{Result as VmResult, Vm};
 use serde::{Deserialize, Serialize};
 
-use std::{ops::Index, slice::SliceIndex, sync::Arc};
-
 use super::function::Function;
 use super::CallFrame;
 
@@ -163,7 +161,7 @@ pub enum OpCode {
     /// Set the VM's current frame to the call frame popped from the call stack.
     Ret,
 
-    CastSint,
+    CastInt,
     CastFloat,
     CastBool,
 
@@ -228,7 +226,7 @@ impl OpCode {
             Op::CallBuiltin(idx) => vm.op_call_builtin(idx, frame),
             Op::CallNative(index) => vm.op_call_native(index, frame),
             Op::Ret => vm.op_ret(frame),
-            Op::CastSint => vm.op_cast_sint(frame),
+            Op::CastInt => vm.op_cast_int(frame),
             Op::CastFloat => vm.op_cast_float(frame),
             Op::CastBool => vm.op_cast_bool(frame),
             Op::Dbg(address) => vm.op_dbg(address, frame),
@@ -268,7 +266,7 @@ mod imp {
             frame = $frame:expr $(,)?
         ) => {{
             match ($a, $b) {
-                (Value::SInt(a), Value::SInt(b)) => {
+                (Value::Int(a), Value::Int(b)) => {
                     let new_value = match i64::$int_op(a, *b) {
                         Some(v) => v,
                         None => return Err(VmError::new(VmErrorKind::Arithmetic, $frame)),
@@ -301,7 +299,7 @@ mod imp {
             frame = $frame:expr $(,)?
         ) => {{
             match ($a, $b) {
-                (Value::SInt(a), Value::SInt(b)) => {
+                (Value::Int(a), Value::Int(b)) => {
                     let new_value = match i64::$int_op(*a, b) {
                         Some(v) => v,
                         None => return Err(VmError::new(VmErrorKind::Arithmetic, $frame)),
@@ -334,7 +332,7 @@ mod imp {
         frame = $frame:expr $(,)?
     ) => {{
             match ($a, $b) {
-                (Value::SInt(a), Value::SInt(b)) => {
+                (Value::Int(a), Value::Int(b)) => {
                     let new_value = $op(a, *b);
                     *b = new_value;
                 }
@@ -359,7 +357,7 @@ mod imp {
             frame = $frame:expr $(,)?
         ) => {{
             match ($a, $b) {
-                (Value::SInt(a), Value::SInt(b)) => {
+                (Value::Int(a), Value::Int(b)) => {
                     let new_value = $op(*a, b);
                     *a = new_value;
                 }
@@ -389,9 +387,9 @@ mod imp {
             // This one has to be different, since `top` might be a different variant than `$a`, so
             // the variant has to be changed out when reassigning to it.
             match ($a, $b) {
-                (Value::SInt(a), top) => {
+                (Value::Int(a), top) => {
                     let operand_res: Result<u32, _> = match top {
-                        Value::SInt(v) => (*v).try_into(),
+                        Value::Int(v) => (*v).try_into(),
                         _ => return Err(VmError::new(VmErrorKind::Type, $frame)),
                     };
 
@@ -404,11 +402,11 @@ mod imp {
                         None => return Err(VmError::new(VmErrorKind::Arithmetic, $frame)),
                     };
 
-                    *top = Value::SInt(new_value);
+                    *top = Value::Int(new_value);
                 }
                 (Value::Address(a), top) => {
                     let operand_res: Result<u32, _> = match top {
-                        Value::SInt(v) => (*v).try_into(),
+                        Value::Int(v) => (*v).try_into(),
                         _ => return Err(VmError::new(VmErrorKind::Type, $frame)),
                     };
 
@@ -437,7 +435,7 @@ mod imp {
             frame = $frame:expr $(,)?
         ) => {{
             match ($a, $b) {
-                (Value::SInt(a), Value::SInt(b)) => {
+                (Value::Int(a), Value::Int(b)) => {
                     let b = match u32::try_from(b) {
                         Ok(v) => v,
                         Err(_) => return Err(VmError::new(VmErrorKind::Arithmetic, $frame)),
@@ -463,7 +461,7 @@ mod imp {
 
                     *a = new_value;
                 }
-                (Value::Address(a), Value::SInt(b)) => {
+                (Value::Address(a), Value::Int(b)) => {
                     let b = match u32::try_from(b) {
                         Ok(v) => v,
                         Err(_) => return Err(VmError::new(VmErrorKind::Arithmetic, $frame)),
@@ -564,7 +562,7 @@ mod imp {
         // rsrv
         pub(super) fn op_reserve(&mut self, frame: &mut CallFrame) -> OpResult {
             let n: usize = match self.pop_value(frame)? {
-                Value::SInt(n) => n
+                Value::Int(n) => n
                     .try_into()
                     .vm_result(VmErrorKind::OutOfBounds, &*frame)?,
                 _ => return Err(self.error(VmErrorKind::Type, frame)),
@@ -771,7 +769,7 @@ mod imp {
             let value = self.top_value_mut(frame)?;
 
             match value {
-                Value::SInt(val) => {
+                Value::Int(val) => {
                     *val = !*val;
                 }
                 Value::Bool(val) => {
@@ -1029,12 +1027,12 @@ mod imp {
         }
 
         // casts
-        pub(super) fn op_cast_sint(&mut self, frame: &CallFrame) -> OpResult {
+        pub(super) fn op_cast_int(&mut self, frame: &CallFrame) -> OpResult {
             let cast = match self.pop_value(frame)? {
-                Value::SInt(v) => Value::SInt(v),
-                Value::Float(v) => Value::SInt(v as i64),
-                Value::Bool(v) => Value::SInt(v as i64),
-                Value::Char(v) => Value::SInt(v as i64),
+                Value::Int(v) => Value::Int(v),
+                Value::Float(v) => Value::Int(v as i64),
+                Value::Bool(v) => Value::Int(v as i64),
+                Value::Char(v) => Value::Int(v as i64),
                 _ => return Err(self.error(VmErrorKind::Type, frame)),
             };
 
@@ -1046,7 +1044,7 @@ mod imp {
         // castf
         pub(super) fn op_cast_float(&mut self, frame: &CallFrame) -> OpResult {
             let cast = match self.pop_value(frame)? {
-                Value::SInt(v) => Value::Float(v as f64),
+                Value::Int(v) => Value::Float(v as f64),
                 Value::Float(v) => Value::Float(v),
                 Value::Bool(v) => Value::Float(v as u64 as f64),
                 Value::Char(v) => Value::Float(v as u64 as f64),
@@ -1061,7 +1059,7 @@ mod imp {
         // castb
         pub(super) fn op_cast_bool(&mut self, frame: &CallFrame) -> OpResult {
             let cast = match self.pop_value(frame)? {
-                Value::SInt(v) => Value::Bool(v != 0),
+                Value::Int(v) => Value::Bool(v != 0),
                 Value::Float(v) => Value::Bool(v != 0.0),
                 Value::Bool(v) => Value::Bool(v),
                 Value::Char(v) => Value::Bool(v != '\0'),
