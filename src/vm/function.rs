@@ -50,11 +50,11 @@ impl Functions {
         }
     }
 
-    pub fn get(&self, name: impl AsRef<str>) -> Option<Function> {
-        self.indices.get(name.as_ref()).copied()
+    pub fn get(&self, name: impl AsRef<str>) -> Option<&Function> {
+        self.indices.get(name.as_ref())
     }
 
-    pub fn get_opcode(&self, index: usize) -> Option<OpCode> {
-        self.code.get(index).copied()
+    pub fn get_opcode(&self, index: usize) -> Option<&OpCode> {
+        self.code.get(index)
     }
 }

@@ -254,6 +254,7 @@ mod imp {
     use std::cell::Ref;
     use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Sub};
     use std::ptr;
+    use crate::throw;
 
     macro_rules! bin_arithmetic {
         // Normal
@@ -269,7 +270,7 @@ mod imp {
                 (Value::Int(a), Value::Int(b)) => {
                     let new_value = match i64::$int_op(a, *b) {
                         Some(v) => v,
-                        None => return Err(VmError::new(VmErrorKind::Arithmetic, $frame)),
+                        None => throw!(VmErrorKind::Arithmetic, $frame),
                     };
                     *b = new_value;
                 }
@@ -279,11 +280,11 @@ mod imp {
                 (Value::Address(a), Value::Address(b)) => {
                     let new_value = match usize::$int_op(a, *b) {
                         Some(v) => v,
-                        None => return Err(VmError::new(VmErrorKind::Arithmetic, $frame)),
+                        None => throw!(VmErrorKind::Arithmetic, $frame),
                     };
                     *b = new_value;
                 }
-                _ => return Err(VmError::new(VmErrorKind::Type, $frame)),
+                _ => throw!(VmErrorKind::Type, $frame),
             }
 
             Ok(Transition::Continue)
@@ -302,7 +303,7 @@ mod imp {
                 (Value::Int(a), Value::Int(b)) => {
                     let new_value = match i64::$int_op(*a, b) {
                         Some(v) => v,
-                        None => return Err(VmError::new(VmErrorKind::Arithmetic, $frame)),
+                        None => throw!(VmErrorKind::Arithmetic, $frame),
                     };
                     *a = new_value;
                 }
@@ -312,11 +313,11 @@ mod imp {
                 (Value::Address(a), Value::Address(b)) => {
                     let new_value = match usize::$int_op(*a, b) {
                         Some(v) => v,
-                        None => return Err(VmError::new(VmErrorKind::Arithmetic, $frame)),
+                        None => throw!(VmErrorKind::Arithmetic, $frame),
                     };
                     *a = new_value;
                 }
-                _ => return Err(VmError::new(VmErrorKind::Type, $frame)),
+                _ => throw!(VmErrorKind::Type, $frame),
             }
 
             Ok(Transition::Continue)
@@ -344,7 +345,7 @@ mod imp {
                     let new_value = $op(a, *b);
                     *b = new_value;
                 }
-                _ => return Err($self.error(VmErrorKind::Type, $frame)),
+                _ => throw!(VmErrorKind::Type, $frame),
             }
 
             Ok(Transition::Continue)
@@ -369,7 +370,7 @@ mod imp {
                     let new_value = $op(*a, b);
                     *a = new_value;
                 }
-                _ => return Err($self.error(VmErrorKind::Type, $frame)),
+                _ => throw!(VmErrorKind::Type, $frame),
             }
 
             Ok(Transition::Continue)
@@ -390,16 +391,16 @@ mod imp {
                 (Value::Int(a), top) => {
                     let operand_res: Result<u32, _> = match top {
                         Value::Int(v) => (*v).try_into(),
-                        _ => return Err(VmError::new(VmErrorKind::Type, $frame)),
+                        _ => throw!(VmErrorKind::Type, $frame),
                     };
 
                     let Ok(b) = operand_res else {
-                        return Err(VmError::new(VmErrorKind::Arithmetic, $frame));
+                        throw!(VmErrorKind::Arithmetic, $frame);
                     };
 
                     let new_value = match i64::$op(a, b) {
                         Some(v) => v,
-                        None => return Err(VmError::new(VmErrorKind::Arithmetic, $frame)),
+                        None => throw!(VmErrorKind::Arithmetic, $frame),
                     };
 
                     *top = Value::Int(new_value);
@@ -407,22 +408,22 @@ mod imp {
                 (Value::Address(a), top) => {
                     let operand_res: Result<u32, _> = match top {
                         Value::Int(v) => (*v).try_into(),
-                        _ => return Err(VmError::new(VmErrorKind::Type, $frame)),
+                        _ => throw!(VmErrorKind::Type, $frame),
                     };
 
                     let Ok(b) = operand_res else {
-                        return Err(VmError::new(VmErrorKind::Arithmetic, $frame));
+                        throw!(VmErrorKind::Arithmetic, $frame);
                     };
 
                     let new_value = match usize::$op(a, b) {
                         Some(v) => v,
-                        None => return Err(VmError::new(VmErrorKind::Arithmetic, $frame)),
+                        None => throw!(VmErrorKind::Arithmetic, $frame),
                     };
 
                     *top = Value::Address(new_value);
                 }
 
-                _ => return Err(VmError::new(VmErrorKind::Type, $frame)),
+                _ => throw!(VmErrorKind::Type, $frame),
             }
 
             Ok(Transition::Continue)
@@ -438,12 +439,12 @@ mod imp {
                 (Value::Int(a), Value::Int(b)) => {
                     let b = match u32::try_from(b) {
                         Ok(v) => v,
-                        Err(_) => return Err(VmError::new(VmErrorKind::Arithmetic, $frame)),
+                        Err(_) => throw!(VmErrorKind::Arithmetic, $frame),
                     };
 
                     let new_value = match i64::$op(*a, b) {
                         Some(v) => v,
-                        None => return Err(VmError::new(VmErrorKind::Arithmetic, $frame)),
+                        None => throw!(VmErrorKind::Arithmetic, $frame),
                     };
 
                     *a = new_value;
@@ -451,12 +452,12 @@ mod imp {
                 (Value::Address(a), Value::Address(b)) => {
                     let b = match u32::try_from(b) {
                         Ok(v) => v,
-                        Err(_) => return Err(VmError::new(VmErrorKind::Arithmetic, $frame)),
+                        Err(_) => throw!(VmErrorKind::Arithmetic, $frame),
                     };
 
                     let new_value = match usize::$op(*a, b) {
                         Some(v) => v,
-                        None => return Err(VmError::new(VmErrorKind::Arithmetic, $frame)),
+                        None => throw!(VmErrorKind::Arithmetic, $frame),
                     };
 
                     *a = new_value;
@@ -464,17 +465,17 @@ mod imp {
                 (Value::Address(a), Value::Int(b)) => {
                     let b = match u32::try_from(b) {
                         Ok(v) => v,
-                        Err(_) => return Err(VmError::new(VmErrorKind::Arithmetic, $frame)),
+                        Err(_) => throw!(VmErrorKind::Arithmetic, $frame),
                     };
 
                     let new_value = match usize::$op(*a, b) {
                         Some(v) => v,
-                        None => return Err(VmError::new(VmErrorKind::Arithmetic, $frame)),
+                        None => throw!(VmErrorKind::Arithmetic, $frame),
                     };
 
                     *a = new_value;
                 }
-                _ => return Err(VmError::new(VmErrorKind::Type, $frame)),
+                _ => throw!(VmErrorKind::Type, $frame),
             }
 
             Ok(Transition::Continue)
@@ -565,7 +566,7 @@ mod imp {
                 Value::Int(n) => n
                     .try_into()
                     .vm_result(VmErrorKind::OutOfBounds, &*frame)?,
-                _ => return Err(self.error(VmErrorKind::Type, frame)),
+                _ => throw!(VmErrorKind::Type, &*frame),
             };
 
             self.op_reserve_imm(n, frame)
@@ -778,7 +779,7 @@ mod imp {
                 Value::Address(val) => {
                     *val = !*val;
                 }
-                _ => return Err(self.error(VmErrorKind::Type, frame)),
+                _ => throw!(VmErrorKind::Type, frame),
             }
 
             Ok(Transition::Continue)
@@ -973,7 +974,7 @@ mod imp {
             // match self.get_value(0)? {
             //     Value::Bool(true) => self.op_jump(),
             //     Value::Bool(false) => Ok(Transition::Continue),
-            //     _ => Err(self.error(VmErrorKind::Type)),
+            //     _ => throw!(VmErrorKind::Type)),
             // }
         }
 
@@ -1033,7 +1034,7 @@ mod imp {
                 Value::Float(v) => Value::Int(v as i64),
                 Value::Bool(v) => Value::Int(v as i64),
                 Value::Char(v) => Value::Int(v as i64),
-                _ => return Err(self.error(VmErrorKind::Type, frame)),
+                _ => throw!(VmErrorKind::Type, frame),
             };
 
             self.push_value(cast, frame)?;
@@ -1048,7 +1049,7 @@ mod imp {
                 Value::Float(v) => Value::Float(v),
                 Value::Bool(v) => Value::Float(v as u64 as f64),
                 Value::Char(v) => Value::Float(v as u64 as f64),
-                _ => return Err(self.error(VmErrorKind::Type, frame)),
+                _ => throw!(VmErrorKind::Type, frame),
             };
 
             self.push_value(cast, frame)?;
@@ -1063,7 +1064,7 @@ mod imp {
                 Value::Float(v) => Value::Bool(v != 0.0),
                 Value::Bool(v) => Value::Bool(v),
                 Value::Char(v) => Value::Bool(v != '\0'),
-                _ => return Err(self.error(VmErrorKind::Type, frame)),
+                _ => throw!(VmErrorKind::Type, frame),
             };
 
             self.push_value(cast, frame)?;

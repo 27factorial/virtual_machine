@@ -20,11 +20,22 @@ pub mod heap;
 pub mod memory;
 pub mod ops;
 
+/// "Throws" a new VmError.
+///
+/// This macro simply expands to `return Err(VmError::new(kind, frame))`
+#[macro_export]
+macro_rules! throw {
+    ($kind:path, $frame:expr) => {
+        return ::std::result::Result::Err($crate::vm::VmError::new($kind, $frame))
+    };
+}
+
 pub(crate) static EXPECTED_PANIC: AtomicBool = AtomicBool::new(false);
 
 // Ugly hack to set a temporary panic hook. We only want the custom panic hook while running code
-// on the VM.
-fn with_panic_hook<F, T>(func: F) -> T
+// on the VM. This may produce unexpected results when used with multithreaded code, but should be
+// fine in the context of this crate.
+fn with_panic_hook<F, T>(f: F) -> T
 where
     F: FnOnce() -> T,
 {
@@ -42,6 +53,10 @@ where
 
         if EXPECTED_PANIC.load(Ordering::SeqCst) {
             original_hook(info);
+
+            // The load and store are done separately in case the original panic was this panic
+            // handler (for whatever reason). That way the EXPECTED_PANIC flag is propagated down
+            // the panicking call stack.
             EXPECTED_PANIC.store(false, Ordering::SeqCst);
         } else {
             eprintln!(
@@ -54,7 +69,7 @@ where
         }
     }));
 
-    let ret = func();
+    let ret = f();
 
     // Take the current hook and drop the cloned Arc, which means that the Arc is unique and can
     // be unwrapped to get the original panic hook back.
@@ -83,7 +98,7 @@ impl Vm {
     }
 
     pub fn run(&mut self) -> Result<()> {
-        let main = self
+        let &main = self
             .program
             .functions
             .get("main")
@@ -121,7 +136,7 @@ impl Vm {
                 .pop()
                 .vm_result(VmErrorKind::StackUnderflow, frame)
         } else {
-            Err(self.error(VmErrorKind::StackUnderflow, frame))
+            throw!(VmErrorKind::StackUnderflow, frame);
         }
     }
 
@@ -283,7 +298,7 @@ impl Vm {
         if valid_range.contains(&index) {
             Ok(self.data_stack.get(index).copied().unwrap())
         } else {
-            Err(self.error(VmErrorKind::OutOfBounds, frame))
+            throw!(VmErrorKind::OutOfBounds, frame);
         }
     }
 
@@ -298,7 +313,7 @@ impl Vm {
             *local = value;
             Ok(())
         } else {
-            Err(self.error(VmErrorKind::OutOfBounds, frame))
+            throw!(VmErrorKind::OutOfBounds, frame);
         }
     }
 
@@ -307,7 +322,7 @@ impl Vm {
             frame.locals = n;
             Ok(())
         } else {
-            Err(self.error(VmErrorKind::OutOfBounds, frame))
+            throw!(VmErrorKind::OutOfBounds, &*frame);
         }
     }
 
@@ -359,10 +374,6 @@ impl Vm {
             }
             None => Err(VmError::new(VmErrorKind::SymbolNotFound, frame)),
         }
-    }
-
-    pub(crate) fn error(&self, kind: VmErrorKind, frame: &CallFrame) -> VmError {
-        VmError::new(kind, frame)
     }
 
     pub fn reset(&mut self) -> Result<()> {
@@ -427,11 +438,7 @@ impl CallFrame {
 pub(crate) struct VmPanic(String);
 
 impl VmPanic {
-    pub fn new() -> Self {
-        Self(String::new())
-    }
-
-    pub fn with_message(s: String) -> Self {
+    pub fn new(s: String) -> Self {
         Self(s)
     }
 
@@ -451,12 +458,12 @@ impl VmPanic {
 
 impl From<String> for VmPanic {
     fn from(value: String) -> Self {
-        Self::with_message(value)
+        Self::new(value)
     }
 }
 
 impl From<&str> for VmPanic {
     fn from(value: &str) -> Self {
-        Self::with_message(value.into())
+        Self::new(value.into())
     }
 }

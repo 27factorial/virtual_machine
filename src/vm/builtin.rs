@@ -12,6 +12,7 @@ use crate::{
 
 use super::{CallFrame, Result, Vm, VmError, VmErrorKind, VmPanic};
 use paste::paste;
+use crate::throw;
 
 macro_rules! float_intrinsics {
     ($($name:ident),* $(,)?) => {
@@ -19,7 +20,7 @@ macro_rules! float_intrinsics {
             paste! {
                 fn [<vmbi_ $name>](vm: &mut Vm, frame: &CallFrame) -> Result<()> {
                     let Value::Float(top) = vm.top_value_mut(frame)? else {
-                        return Err(VmError::new(VmErrorKind::Type, frame));
+                        throw!(VmErrorKind::Type, frame);
                     };
 
                     *top = top.$name();
@@ -38,7 +39,7 @@ macro_rules! float_to_bool_intrinsics {
                     let top = vm.top_value_mut(frame)?;
 
                     let Value::Float(arg) = top else {
-                        return Err(VmError::new(VmErrorKind::Type, frame));
+                        throw!(VmErrorKind::Type, frame);
                     };
 
                     *top = Value::Bool(arg.$name());
@@ -59,7 +60,7 @@ macro_rules! count_intrinsics {
                     let count = match top {
                         Value::Int(v) => v.$name() as i64,
                         Value::Address(v) => v.$name() as i64,
-                        _ => return Err(VmError::new(VmErrorKind::Type, frame))
+                        _ => throw!(VmErrorKind::Type, frame)
                     };
 
                     *top = Value::Int(count);
@@ -81,7 +82,7 @@ macro_rules! int_arithmetic_intrinsics {
                     let result = match (&top, rhs) {
                         (Value::Int(a), Value::Int(b))  => Value::Int(a.[<wrapping_ $name>](b)),
                         (Value::Address(a), Value::Address(b))  => Value::Address(a.[<wrapping_ $name>](b)),
-                        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+                        _ => throw!(VmErrorKind::Type, frame),
                     };
 
                     *top = result;
@@ -95,7 +96,7 @@ macro_rules! int_arithmetic_intrinsics {
                     let result = match (&top, rhs) {
                         (Value::Int(a), Value::Int(b))  => Value::Int(a.[<saturating_ $name>](b)),
                         (Value::Address(a), Value::Address(b))  => Value::Address(a.[<saturating_ $name>](b)),
-                        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+                        _ => throw!(VmErrorKind::Type, frame),
                     };
 
                     *top = result;
@@ -115,7 +116,7 @@ macro_rules! int_arithmetic_intrinsics {
                             let (val, flag) = a.[<overflowing_ $name>](b);
                             (Value::Address(val), flag)
                         },
-                        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+                        _ => throw!(VmErrorKind::Type, frame),
                     };
 
                     *top = result;
@@ -337,7 +338,7 @@ fn vmbi_unreachable(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
 fn vmbi_panic(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let message = get_panic_message(vm, frame);
-    VmPanic::with_message(message).panic();
+    VmPanic::new(message).panic();
 }
 
 //////////////////////////////////////////
@@ -371,7 +372,7 @@ fn vmbi_abs(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let value = match top {
         Value::Int(v) => Value::Int(v.abs()),
         Value::Float(v) => Value::Float(v.abs()),
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     *top = value;
@@ -384,7 +385,7 @@ fn vmbi_wrapping_abs(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let result = match top {
         Value::Int(v) => Value::Int(v.wrapping_abs()),
         Value::Address(v) => Value::Address(*v),
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     *top = result;
@@ -397,7 +398,7 @@ fn vmbi_saturating_abs(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let result = match top {
         Value::Int(v) => Value::Int(v.saturating_abs()),
         Value::Address(v) => Value::Address(*v),
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     *top = result;
@@ -413,7 +414,7 @@ fn vmbi_overflowing_abs(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
             (Value::Int(val), flag)
         }
         Value::Address(v) => (Value::Address(*v), false),
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     *top = result;
@@ -428,7 +429,7 @@ fn vmbi_wrapping_rem(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let result = match (&top, rhs) {
         (Value::Int(a), Value::Int(b)) => Value::Int(a.wrapping_rem(b)),
         (Value::Address(a), Value::Address(b)) => Value::Address(a.wrapping_rem(b)),
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     *top = result;
@@ -448,7 +449,7 @@ fn vmbi_overflowing_rem(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
             let (val, flag) = a.overflowing_rem(b);
             (Value::Address(val), flag)
         }
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     *top = result;
@@ -458,7 +459,7 @@ fn vmbi_overflowing_rem(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
 fn vmbi_wrapping_neg(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let Value::Int(top) = vm.top_value_mut(frame)? else {
-        return Err(VmError::new(VmErrorKind::Type, frame));
+        throw!(VmErrorKind::Type, frame);
     };
 
     let result = top.wrapping_neg();
@@ -469,7 +470,7 @@ fn vmbi_wrapping_neg(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
 fn vmbi_saturating_neg(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let Value::Int(top) = vm.top_value_mut(frame)? else {
-        return Err(VmError::new(VmErrorKind::Type, frame));
+        throw!(VmErrorKind::Type, frame);
     };
 
     let result = top.saturating_neg();
@@ -480,7 +481,7 @@ fn vmbi_saturating_neg(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
 fn vmbi_overflowing_neg(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let Value::Int(top) = vm.top_value_mut(frame)? else {
-        return Err(VmError::new(VmErrorKind::Type, frame));
+        throw!(VmErrorKind::Type, frame);
     };
 
     let (result, flag) = top.overflowing_neg();
@@ -517,7 +518,7 @@ fn vmbi_pow(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
                     .vm_result(VmErrorKind::Arithmetic, frame)?;
                 Ok(Value::Float(v.powi(exp)))
             }
-            _ => Err(VmError::new(VmErrorKind::Type, frame)),
+            _ => throw!(VmErrorKind::Type, frame),
         }
     }
 
@@ -528,12 +529,12 @@ fn vmbi_pow(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         Value::Int(exp) => powi(top, exp, frame)?,
         Value::Float(exp) => {
             let Value::Float(v) = top else {
-                return Err(VmError::new(VmErrorKind::Type, frame));
+                throw!(VmErrorKind::Type, frame);
             };
 
             Value::Float(v.powf(exp))
         }
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     *top = result;
@@ -546,12 +547,12 @@ fn vmbi_wrapping_pow(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
     let exponent = match exponent {
         Value::Int(v) => u32::try_from(v).vm_result(VmErrorKind::Arithmetic, frame)?,
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     let result = match top {
         Value::Int(v) => Value::Int(v.wrapping_pow(exponent)),
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     *top = result;
@@ -564,12 +565,12 @@ fn vmbi_saturating_pow(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
     let exponent = match exponent {
         Value::Int(v) => u32::try_from(v).vm_result(VmErrorKind::Arithmetic, frame)?,
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     let result = match top {
         Value::Int(v) => Value::Int(v.saturating_pow(exponent)),
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     *top = result;
@@ -582,7 +583,7 @@ fn vmbi_overflowing_pow(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
     let exponent = match exponent {
         Value::Int(v) => u32::try_from(v).vm_result(VmErrorKind::Arithmetic, frame)?,
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     let (result, flag) = match top {
@@ -590,7 +591,7 @@ fn vmbi_overflowing_pow(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
             let (result, flag) = v.overflowing_pow(exponent);
             (Value::Int(result), flag)
         }
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     *top = result;
@@ -610,7 +611,7 @@ fn vmbi_log(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
             Value::Int(result as i64)
         }
         (Value::Float(a), Value::Float(b)) => Value::Float(a.log(b)),
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     *top = result;
@@ -628,7 +629,7 @@ fn vmbi_log2(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
             Value::Int(result as i64)
         }
         Value::Float(a) => Value::Float(a.log2()),
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     *top = result;
@@ -646,7 +647,7 @@ fn vmbi_log10(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
             Value::Int(result as i64)
         }
         Value::Float(a) => Value::Float(a.log10()),
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     *top = result;
@@ -659,7 +660,7 @@ fn vmbi_signum(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let result = match top {
         Value::Int(a) => Value::Int(a.signum()),
         Value::Float(a) => Value::Float(a.signum()),
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     *top = result;
@@ -672,7 +673,7 @@ fn vmbi_is_positive(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let result = match top {
         Value::Int(a) => Value::Bool(a.is_positive()),
         Value::Float(a) => Value::Bool(a.is_sign_positive()),
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     *top = result;
@@ -685,7 +686,7 @@ fn vmbi_is_negative(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let result = match top {
         Value::Int(a) => Value::Bool(a.is_negative()),
         Value::Float(a) => Value::Bool(a.is_sign_negative()),
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     *top = result;
@@ -703,7 +704,7 @@ fn vmbi_min(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let result = match (&top, other) {
         (Value::Int(a), Value::Int(b)) => Value::Int((*a).min(b)),
         (Value::Float(a), Value::Float(b)) => Value::Float(a.min(b)),
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     *top = result;
@@ -717,7 +718,7 @@ fn vmbi_max(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let result = match (&top, other) {
         (Value::Int(a), Value::Int(b)) => Value::Int((*a).max(b)),
         (Value::Float(a), Value::Float(b)) => Value::Float(a.max(b)),
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     *top = result;
@@ -732,7 +733,7 @@ fn vmbi_clamp(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let result = match (&top, min, max) {
         (Value::Int(a), Value::Int(min), Value::Int(max)) => Value::Int((*a).clamp(min, max)),
         (Value::Float(a), Value::Float(min), Value::Float(max)) => Value::Float(a.clamp(min, max)),
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     };
 
     *top = result;
@@ -794,11 +795,11 @@ fn vmbi_atan2(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let top = vm.top_value_mut(frame)?;
 
     let Value::Float(arg1) = top else {
-        return Err(VmError::new(VmErrorKind::Type, frame));
+        throw!(VmErrorKind::Type, frame);
     };
 
     let Value::Float(arg2) = second else {
-        return Err(VmError::new(VmErrorKind::Type, frame));
+        throw!(VmErrorKind::Type, frame);
     };
 
     let result = arg1.atan2(arg2);
@@ -928,7 +929,7 @@ fn vmbi_array_swap_remove(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         vm.push_value(value, frame)?;
         Ok(())
     } else {
-        Err(vm.error(VmErrorKind::OutOfBounds, frame))
+        throw!(VmErrorKind::OutOfBounds, frame);
     }
 }
 
@@ -946,7 +947,7 @@ fn vmbi_array_insert(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         this.insert(idx, value);
         Ok(())
     } else {
-        Err(vm.error(VmErrorKind::OutOfBounds, frame))
+        throw!(VmErrorKind::OutOfBounds, frame)
     }
 }
 
@@ -966,7 +967,7 @@ fn vmbi_array_remove(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         vm.push_value(value, frame)?;
         Ok(())
     } else {
-        Err(vm.error(VmErrorKind::OutOfBounds, frame))
+        throw!(VmErrorKind::OutOfBounds, frame)
     }
 }
 
@@ -1142,7 +1143,7 @@ fn vmbi_string_insert(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         this.insert(idx, value);
         Ok(())
     } else {
-        Err(vm.error(VmErrorKind::OutOfBounds, frame))
+        throw!(VmErrorKind::OutOfBounds, frame)
     }
 }
 
@@ -1162,7 +1163,7 @@ fn vmbi_string_remove(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         vm.push_value(Value::Char(value), frame)?;
         Ok(())
     } else {
-        Err(vm.error(VmErrorKind::OutOfBounds, frame))
+        throw!(VmErrorKind::OutOfBounds, frame)
     }
 }
 
@@ -1183,7 +1184,7 @@ fn vmbi_string_push(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
             this.push_str(s);
         }
         // Value::Reference(v) => todo!(),
-        _ => return Err(VmError::new(VmErrorKind::Type, frame)),
+        _ => throw!(VmErrorKind::Type, frame),
     }
 
     Ok(())
