@@ -1,10 +1,8 @@
+use super::ops::OpCode;
+use crate::utils::FxHashMap;
 use hashbrown::hash_map::RawEntryMut;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-
-use crate::utils::FxHashMap;
-
-use super::ops::OpCode;
 
 #[derive(
     Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize, Deserialize,
@@ -20,8 +18,8 @@ impl Function {
 
 #[derive(Clone, PartialEq, Debug, Default, Serialize, Deserialize)]
 pub struct Functions {
-    indices: FxHashMap<Arc<str>, Function>,
-    code: Vec<OpCode>,
+    pub(crate) indices: FxHashMap<Arc<str>, Function>,
+    pub(crate) code: Vec<OpCode>,
 }
 
 impl Functions {
@@ -54,5 +52,9 @@ impl Functions {
 
     pub fn get(&self, name: impl AsRef<str>) -> Option<Function> {
         self.indices.get(name.as_ref()).copied()
+    }
+
+    pub fn get_opcode(&self, index: usize) -> Option<OpCode> {
+        self.code.get(index).copied()
     }
 }

@@ -249,7 +249,7 @@ mod imp {
     use crate::value::Value;
     use crate::vm::function::Function;
     use crate::vm::builtin::BUILTINS;
-    use crate::vm::{Vm, VmError, VmErrorKind, VmPanic};
+    use crate::vm::{Vm, VmError, VmErrorKind};
     use crate::{symbol::Symbol, vm::CallFrame};
     use std::cell::Ref;
     use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Sub};

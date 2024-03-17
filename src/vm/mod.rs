@@ -85,9 +85,8 @@ impl Vm {
     pub fn run(&mut self) -> Result<()> {
         let main = self
             .program
-            .function_indices
+            .functions
             .get("main")
-            .cloned()
             .ok_or_else(|| VmError::new(VmErrorKind::FunctionNotFound, None))?;
 
         with_panic_hook(|| self.run_function(main, 0))?;
@@ -98,7 +97,7 @@ impl Vm {
     pub(crate) fn run_function(&mut self, func: Function, stack_base: usize) -> OpResult {
         let mut call_frame = CallFrame::new(func, stack_base, 0);
 
-        while let Some(opcode) = self.program.code.get(call_frame.ip) {
+        while let Some(opcode) = self.program.functions.get_opcode(call_frame.ip) {
             match opcode.execute(self, &mut call_frame)? {
                 Transition::Continue => call_frame.ip += 1,
                 Transition::Jump => {}

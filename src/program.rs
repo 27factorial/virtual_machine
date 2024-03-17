@@ -19,8 +19,6 @@ pub type NativeFn = dyn Fn(&mut Vm, &CallFrame) -> VmResult<Value> + 'static;
 pub struct Program {
     pub(crate) constants: Vec<Value>,
     pub(crate) functions: Functions,
-    pub(crate) function_indices: FxHashMap<Arc<str>, Function>,
-    pub(crate) code: Vec<OpCode>,
     #[serde(skip)]
     pub(crate) native_functions: FxHashMap<Arc<str>, Arc<NativeFn>>,
     pub(crate) types: FxHashMap<Arc<str>, Type>,
@@ -32,8 +30,6 @@ impl Program {
         Self {
             constants: Vec::new(),
             functions: Functions::new(),
-            function_indices: FxHashMap::default(),
-            code: Vec::new(),
             native_functions: FxHashMap::default(),
             types: FxHashMap::default(),
             symbols: Symbols::new(),
@@ -106,8 +102,8 @@ impl Program {
         for (name, range) in method_ranges {
             self.symbols.get_or_push_iter([&type_name, "::", &name]);
 
-            let start = self.code.len();
-            self.code.extend(&code[range]);
+            let start = self.functions.code.len();
+            self.functions.code.extend(&code[range]);
             let func = Function::new(start);
 
             methods.insert(name, func);
@@ -141,8 +137,7 @@ impl Debug for Program {
 
         f.debug_struct("Program")
             .field("constants", &self.constants)
-            .field("function_indices", &self.function_indices)
-            .field("code", &self.code)
+            .field("functions", &self.functions)
             .field("native_functions", &NativeFnsDebug(&self.native_functions))
             .field("types", &self.types)
             .field("symbols", &self.symbols)
