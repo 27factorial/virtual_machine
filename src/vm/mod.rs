@@ -20,9 +20,7 @@ pub mod heap;
 pub mod memory;
 pub mod ops;
 
-/// "Throws" a new VmError.
-///
-/// This macro simply expands to `return Err(VmError::new(kind, frame))`
+/// A convenience macro for the expression `return Err(VmError::new(kind, frame))`
 #[macro_export]
 macro_rules! throw {
     ($kind:path, $frame:expr) => {
@@ -367,12 +365,10 @@ impl Vm {
 
                 match entry {
                     RawEntryMut::Occupied(entry) => Ok(entry.get().clone()),
-                    RawEntryMut::Vacant(_) => {
-                        Err(VmError::new(VmErrorKind::FunctionNotFound, frame))
-                    }
+                    RawEntryMut::Vacant(_) => throw!(VmErrorKind::FunctionNotFound, frame),
                 }
             }
-            None => Err(VmError::new(VmErrorKind::SymbolNotFound, frame)),
+            None => throw!(VmErrorKind::SymbolNotFound, frame),
         }
     }
 
