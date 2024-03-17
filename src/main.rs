@@ -22,6 +22,7 @@ pub mod symbol;
 pub mod utils;
 pub mod value;
 pub mod vm;
+pub mod module;
 
 fn main() {
     let mut program = Program::new();
