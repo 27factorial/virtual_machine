@@ -200,18 +200,6 @@ impl Vm {
             .vm_result(VmErrorKind::Type, frame)
     }
 
-    pub fn pop_address(&mut self, frame: &CallFrame) -> Result<usize> {
-        self.pop_value(frame)?
-            .address()
-            .vm_result(VmErrorKind::Type, frame)
-    }
-
-    pub fn get_address(&self, index: usize, frame: &CallFrame) -> Result<usize> {
-        self.get_value(index, frame)?
-            .address()
-            .vm_result(VmErrorKind::Type, frame)
-    }
-
     pub fn pop_function(&mut self, frame: &CallFrame) -> Result<Function> {
         self.pop_value(frame)?
             .function()

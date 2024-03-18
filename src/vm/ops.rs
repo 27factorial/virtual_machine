@@ -277,13 +277,6 @@ mod imp {
                 (Value::Float(a), Value::Float(b)) => {
                     *b = f64::$float_op(a, *b);
                 }
-                (Value::Address(a), Value::Address(b)) => {
-                    let new_value = match usize::$int_op(a, *b) {
-                        Some(v) => v,
-                        None => throw!(VmErrorKind::Arithmetic, $frame),
-                    };
-                    *b = new_value;
-                }
                 _ => throw!(VmErrorKind::Type, $frame),
             }
 
@@ -310,13 +303,6 @@ mod imp {
                 (Value::Float(a), Value::Float(b)) => {
                     *a = f64::$float_op(*a, b);
                 }
-                (Value::Address(a), Value::Address(b)) => {
-                    let new_value = match usize::$int_op(*a, b) {
-                        Some(v) => v,
-                        None => throw!(VmErrorKind::Arithmetic, $frame),
-                    };
-                    *a = new_value;
-                }
                 _ => throw!(VmErrorKind::Type, $frame),
             }
 
@@ -341,10 +327,6 @@ mod imp {
                     let new_value = $op(a, *b);
                     *b = new_value;
                 }
-                (Value::Address(a), Value::Address(b)) => {
-                    let new_value = $op(a, *b);
-                    *b = new_value;
-                }
                 _ => throw!(VmErrorKind::Type, $frame),
             }
 
@@ -363,10 +345,6 @@ mod imp {
                     *a = new_value;
                 }
                 (Value::Bool(a), Value::Bool(b)) => {
-                    let new_value = $op(*a, b);
-                    *a = new_value;
-                }
-                (Value::Address(a), Value::Address(b)) => {
                     let new_value = $op(*a, b);
                     *a = new_value;
                 }
@@ -405,24 +383,6 @@ mod imp {
 
                     *top = Value::Int(new_value);
                 }
-                (Value::Address(a), top) => {
-                    let operand_res: Result<u32, _> = match top {
-                        Value::Int(v) => (*v).try_into(),
-                        _ => throw!(VmErrorKind::Type, $frame),
-                    };
-
-                    let Ok(b) = operand_res else {
-                        throw!(VmErrorKind::Arithmetic, $frame);
-                    };
-
-                    let new_value = match usize::$op(a, b) {
-                        Some(v) => v,
-                        None => throw!(VmErrorKind::Arithmetic, $frame),
-                    };
-
-                    *top = Value::Address(new_value);
-                }
-
                 _ => throw!(VmErrorKind::Type, $frame),
             }
 
@@ -443,32 +403,6 @@ mod imp {
                     };
 
                     let new_value = match i64::$op(*a, b) {
-                        Some(v) => v,
-                        None => throw!(VmErrorKind::Arithmetic, $frame),
-                    };
-
-                    *a = new_value;
-                }
-                (Value::Address(a), Value::Address(b)) => {
-                    let b = match u32::try_from(b) {
-                        Ok(v) => v,
-                        Err(_) => throw!(VmErrorKind::Arithmetic, $frame),
-                    };
-
-                    let new_value = match usize::$op(*a, b) {
-                        Some(v) => v,
-                        None => throw!(VmErrorKind::Arithmetic, $frame),
-                    };
-
-                    *a = new_value;
-                }
-                (Value::Address(a), Value::Int(b)) => {
-                    let b = match u32::try_from(b) {
-                        Ok(v) => v,
-                        Err(_) => throw!(VmErrorKind::Arithmetic, $frame),
-                    };
-
-                    let new_value = match usize::$op(*a, b) {
                         Some(v) => v,
                         None => throw!(VmErrorKind::Arithmetic, $frame),
                     };
@@ -772,9 +706,6 @@ mod imp {
                     *val = !*val;
                 }
                 Value::Bool(val) => {
-                    *val = !*val;
-                }
-                Value::Address(val) => {
                     *val = !*val;
                 }
                 _ => throw!(VmErrorKind::Type, frame),

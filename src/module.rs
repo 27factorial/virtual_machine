@@ -2,9 +2,7 @@ use crate::{
     object::Type,
     program::{NativeFn, Program},
     value::Value,
-    vm::{
-        function::{Function},
-    },
+    vm::function::Function,
 };
 
 pub trait Module {

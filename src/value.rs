@@ -62,7 +62,6 @@ pub enum Value {
     /// A single Unicode scalar value, corresponding to Rust's `char` type.
     Char(char),
     /// The address of an instruction, stack value, or object field.
-    Address(usize),
     /// The index of a symbol.
     Symbol(Symbol),
     Function(Function),
@@ -75,7 +74,6 @@ variant_methods! {
     Float(f64), "a";
     Bool(bool), "a";
     Char(char), "a";
-    Address(usize), "an";
     Symbol(Symbol), "a";
     Function(Function), "a";
     Reference(Reference), "a";

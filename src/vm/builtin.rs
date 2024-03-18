@@ -54,7 +54,6 @@ macro_rules! count_intrinsics {
 
                     let count = match top {
                         Value::Int(v) => v.$name() as i64,
-                        Value::Address(v) => v.$name() as i64,
                         _ => throw!(VmErrorKind::Type, frame)
                     };
 
@@ -76,7 +75,6 @@ macro_rules! int_arithmetic_intrinsics {
 
                     let result = match (&top, rhs) {
                         (Value::Int(a), Value::Int(b))  => Value::Int(a.[<wrapping_ $name>](b)),
-                        (Value::Address(a), Value::Address(b))  => Value::Address(a.[<wrapping_ $name>](b)),
                         _ => throw!(VmErrorKind::Type, frame),
                     };
 
@@ -90,7 +88,6 @@ macro_rules! int_arithmetic_intrinsics {
 
                     let result = match (&top, rhs) {
                         (Value::Int(a), Value::Int(b))  => Value::Int(a.[<saturating_ $name>](b)),
-                        (Value::Address(a), Value::Address(b))  => Value::Address(a.[<saturating_ $name>](b)),
                         _ => throw!(VmErrorKind::Type, frame),
                     };
 
@@ -106,10 +103,6 @@ macro_rules! int_arithmetic_intrinsics {
                         (Value::Int(a), Value::Int(b))  => {
                             let (val, flag) = a.[<overflowing_ $name>](b);
                             (Value::Int(val), flag)
-                        },
-                        (Value::Address(a), Value::Address(b))  => {
-                            let (val, flag) = a.[<overflowing_ $name>](b);
-                            (Value::Address(val), flag)
                         },
                         _ => throw!(VmErrorKind::Type, frame),
                     };
@@ -299,7 +292,6 @@ fn get_panic_message(vm: &mut Vm, frame: &CallFrame) -> String {
         Ok(Value::Float(v)) => v.to_string(),
         Ok(Value::Bool(v)) => v.to_string(),
         Ok(Value::Char(v)) => v.to_string(),
-        Ok(Value::Address(v)) => format!("{v:x}"),
         Ok(Value::Symbol(v)) => vm.program.symbols.get(v).unwrap_or("<no message>").into(),
         Ok(Value::Function(v)) => format!("{:x}", v.0),
         Ok(Value::Reference(_)) => todo!("reference to_string"),
@@ -379,7 +371,6 @@ fn vmbi_wrapping_abs(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
     let result = match top {
         Value::Int(v) => Value::Int(v.wrapping_abs()),
-        Value::Address(v) => Value::Address(*v),
         _ => throw!(VmErrorKind::Type, frame),
     };
 
@@ -392,7 +383,6 @@ fn vmbi_saturating_abs(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
     let result = match top {
         Value::Int(v) => Value::Int(v.saturating_abs()),
-        Value::Address(v) => Value::Address(*v),
         _ => throw!(VmErrorKind::Type, frame),
     };
 
@@ -408,7 +398,6 @@ fn vmbi_overflowing_abs(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
             let (val, flag) = v.overflowing_abs();
             (Value::Int(val), flag)
         }
-        Value::Address(v) => (Value::Address(*v), false),
         _ => throw!(VmErrorKind::Type, frame),
     };
 
@@ -423,7 +412,6 @@ fn vmbi_wrapping_rem(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
     let result = match (&top, rhs) {
         (Value::Int(a), Value::Int(b)) => Value::Int(a.wrapping_rem(b)),
-        (Value::Address(a), Value::Address(b)) => Value::Address(a.wrapping_rem(b)),
         _ => throw!(VmErrorKind::Type, frame),
     };
 
@@ -439,10 +427,6 @@ fn vmbi_overflowing_rem(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         (Value::Int(a), Value::Int(b)) => {
             let (val, flag) = a.overflowing_rem(b);
             (Value::Int(val), flag)
-        }
-        (Value::Address(a), Value::Address(b)) => {
-            let (val, flag) = a.overflowing_rem(b);
-            (Value::Address(val), flag)
         }
         _ => throw!(VmErrorKind::Type, frame),
     };
@@ -1004,10 +988,9 @@ fn vmbi_string_from(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         Value::Float(v) => v.to_string(),
         Value::Bool(v) => v.to_string(),
         Value::Char(v) => v.to_string(),
-        Value::Address(v) => format!("{v:x}"),
         Value::Function(v) => format!("{:x}", v.0),
         Value::Symbol(v) => vm.program.symbols.get(v).unwrap_or("").into(),
-        Value::Reference(v) => todo!("reference to_string"),
+        Value::Reference(_v) => todo!("reference to_string"),
     };
 
     let this_ref = vm.alloc(VmString::from(string), frame)?;
