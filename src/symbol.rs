@@ -1,5 +1,5 @@
-use std::ops::Index;
 use serde::{Deserialize, Serialize};
+use std::ops::Index;
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize, Deserialize)]
 pub struct Symbols {

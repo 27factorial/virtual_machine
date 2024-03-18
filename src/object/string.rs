@@ -2,7 +2,11 @@ use std::ops::{Deref, DerefMut};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{program::Program, value::Value, vm::{builtin, ops::OpCode}};
+use crate::{
+    program::Program,
+    value::Value,
+    vm::{builtin, ops::OpCode},
+};
 
 use super::{Type, TypeBuilder, VmObject};
 

@@ -11,8 +11,8 @@ use crate::{
 };
 
 use super::{CallFrame, Result, Vm, VmError, VmErrorKind, VmPanic};
-use paste::paste;
 use crate::throw;
+use paste::paste;
 
 macro_rules! float_intrinsics {
     ($($name:ident),* $(,)?) => {

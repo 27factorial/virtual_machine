@@ -15,6 +15,7 @@ use value::Value;
 use vm::ops::OpCode;
 use vm::Vm;
 
+pub mod module;
 pub mod object;
 pub mod program;
 pub mod serde_impl;
@@ -22,7 +23,6 @@ pub mod symbol;
 pub mod utils;
 pub mod value;
 pub mod vm;
-pub mod module;
 
 fn main() {
     let mut program = Program::new();

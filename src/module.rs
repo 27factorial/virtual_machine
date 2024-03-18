@@ -1,6 +1,7 @@
 use crate::{
     object::Type,
-    program::NativeFn,
+    program::{NativeFn, Program},
+    value::Value,
     vm::{
         function::{Function, Functions},
         ops::OpCode,
@@ -9,9 +10,9 @@ use crate::{
 };
 
 pub trait Module {
-    fn load(self, vm: &mut Vm);
+    fn load(self, program: &mut Program);
+    fn constants(&self) -> impl Iterator<Item = &Value>;
     fn types(&self) -> impl Iterator<Item = &Type>;
     fn functions(&self) -> impl Iterator<Item = (&str, &Function)>;
     fn native_functions(&self) -> impl Iterator<Item = (&str, &NativeFn)>;
-    fn code(&self) -> &[OpCode];
 }

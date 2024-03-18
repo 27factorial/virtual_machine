@@ -412,7 +412,6 @@ pub enum VmErrorKind {
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct CallFrame {
-    pub(crate) start: usize,
     pub(crate) ip: usize,
     pub(crate) stack_base: usize,
     pub(crate) locals: usize,
@@ -421,7 +420,6 @@ pub struct CallFrame {
 impl CallFrame {
     pub fn new(func: Function, stack_base: usize, locals: usize) -> Self {
         Self {
-            start: func.0,
             ip: func.0,
             stack_base,
             locals,

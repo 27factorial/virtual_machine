@@ -141,13 +141,13 @@ pub enum OpCode {
     /// Jump to the index in the register within the current function.
     Jump,
     /// Jump to the immediate index within the current function.
-    JumpImm(usize),
+    JumpImm(isize),
     /// If the value in the first register is a boolean value of `true`, jump to the index in the
     /// second register within the current function.
     JumpCond,
     /// If the value in the register is a boolean value of `true`, jump to the immediate index
     /// within the current function.
-    JumpCondImm(usize),
+    JumpCondImm(isize),
 
     /// Jump to the first instruction of a function determined by the index in the register.
     Call,
@@ -245,16 +245,16 @@ pub enum Transition {
 
 mod imp {
     use super::{OpResult, Transition};
+    use crate::throw;
     use crate::utils::IntoVmResult;
     use crate::value::Value;
-    use crate::vm::function::Function;
     use crate::vm::builtin::BUILTINS;
-    use crate::vm::{Vm, VmError, VmErrorKind};
+    use crate::vm::function::Function;
+    use crate::vm::{Vm, VmErrorKind};
     use crate::{symbol::Symbol, vm::CallFrame};
     use std::cell::Ref;
     use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Sub};
     use std::ptr;
-    use crate::throw;
 
     macro_rules! bin_arithmetic {
         // Normal
@@ -563,9 +563,7 @@ mod imp {
         // rsrv
         pub(super) fn op_reserve(&mut self, frame: &mut CallFrame) -> OpResult {
             let n: usize = match self.pop_value(frame)? {
-                Value::Int(n) => n
-                    .try_into()
-                    .vm_result(VmErrorKind::OutOfBounds, &*frame)?,
+                Value::Int(n) => n.try_into().vm_result(VmErrorKind::OutOfBounds, &*frame)?,
                 _ => throw!(VmErrorKind::Type, &*frame),
             };
 
@@ -951,14 +949,28 @@ mod imp {
 
         // jmp
         pub(super) fn op_jump(&mut self, frame: &mut CallFrame) -> OpResult {
-            let address = self.pop_address(frame)?;
+            let address = self
+                .pop_int(frame)?
+                .try_into()
+                .vm_result(VmErrorKind::OutOfBounds, &*frame)?;
 
             self.op_jump_imm(address, frame)
         }
 
         // jmpi
-        pub(super) fn op_jump_imm(&mut self, address: usize, frame: &mut CallFrame) -> OpResult {
-            frame.ip = frame.start + address;
+        pub(super) fn op_jump_imm(&mut self, offset: isize, frame: &mut CallFrame) -> OpResult {
+            let positive = offset.is_positive();
+            let offset: usize = offset
+                .checked_abs()
+                .vm_result(VmErrorKind::OutOfBounds, &*frame)?
+                .try_into()
+                .vm_result(VmErrorKind::OutOfBounds, &*frame)?;
+
+            frame.ip = if positive {
+                frame.ip.checked_add(offset).vm_result(VmErrorKind::OutOfBounds, &*frame)?
+            } else {
+                frame.ip.checked_sub(offset).vm_result(VmErrorKind::OutOfBounds, &*frame)?
+            };
 
             Ok(Transition::Jump)
         }
@@ -979,9 +991,13 @@ mod imp {
         }
 
         // jmpci
-        pub(super) fn op_jump_cond_imm(&mut self, address: usize, frame: &mut CallFrame) -> OpResult {
+        pub(super) fn op_jump_cond_imm(
+            &mut self,
+            offset: isize,
+            frame: &mut CallFrame,
+        ) -> OpResult {
             if self.pop_bool(frame)? {
-                self.op_jump_imm(address, frame)
+                self.op_jump_imm(offset, frame)
             } else {
                 Ok(Transition::Continue)
             }
@@ -1002,7 +1018,9 @@ mod imp {
         }
 
         pub(super) fn op_call_builtin(&mut self, index: usize, frame: &CallFrame) -> OpResult {
-            let func = BUILTINS.get(index).vm_result(VmErrorKind::FunctionNotFound, frame)?;
+            let func = BUILTINS
+                .get(index)
+                .vm_result(VmErrorKind::FunctionNotFound, frame)?;
 
             func(self, frame)?;
             Ok(Transition::Continue)
@@ -1080,7 +1098,10 @@ mod imp {
                 reference @ Value::Reference(v) => {
                     eprint!("stack[{index:#x}]: {reference:?} => ");
 
-                    let obj_ref = self.heap.get(v).map(|obj| Ref::map(obj, |obj| obj.as_debug()));
+                    let obj_ref = self
+                        .heap
+                        .get(v)
+                        .map(|obj| Ref::map(obj, |obj| obj.as_debug()));
 
                     match obj_ref {
                         Some(debug) => {
