@@ -3,9 +3,7 @@ use crate::{
     program::{NativeFn, Program},
     value::Value,
     vm::{
-        function::{Function, Functions},
-        ops::OpCode,
-        Vm,
+        function::{Function},
     },
 };
 

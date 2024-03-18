@@ -1,8 +1,3 @@
-use std::{
-    fmt::{self, Display},
-    panic,
-    sync::atomic::AtomicBool,
-};
 
 use crate::{
     object::{array::VmArray, string::VmString},
@@ -10,7 +5,7 @@ use crate::{
     value::Value,
 };
 
-use super::{CallFrame, Result, Vm, VmError, VmErrorKind, VmPanic};
+use super::{CallFrame, Result, Vm, VmErrorKind, VmPanic};
 use crate::throw;
 use paste::paste;
 
