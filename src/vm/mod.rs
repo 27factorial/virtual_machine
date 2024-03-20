@@ -89,7 +89,7 @@ pub struct Vm {
 impl Vm {
     pub fn new(program: Program) -> Self {
         Self {
-            data_stack: VmStack::new(255),
+            data_stack: VmStack::new(16),
             heap: Heap::new(1024),
             program,
         }
@@ -275,34 +275,6 @@ impl Vm {
         RefMut::filter_map(obj_ref, |obj| obj.downcast_mut()).vm_result(VmErrorKind::Type, frame)
     }
 
-    pub fn get_local(&self, index: usize, frame: &CallFrame) -> Result<Value> {
-        let base = frame.stack_base;
-        let count = frame.locals;
-
-        let valid_range = base..base + count;
-
-        if valid_range.contains(&index) {
-            Ok(self.data_stack.get(index).copied().unwrap())
-        } else {
-            throw!(VmErrorKind::OutOfBounds, frame);
-        }
-    }
-
-    pub fn set_local(&mut self, index: usize, value: Value, frame: &CallFrame) -> Result<()> {
-        let base = frame.stack_base;
-        let count = frame.locals;
-
-        let valid_range = base..base + count;
-
-        if valid_range.contains(&index) {
-            let local = self.data_stack.get_mut(index).unwrap();
-            *local = value;
-            Ok(())
-        } else {
-            throw!(VmErrorKind::OutOfBounds, frame);
-        }
-    }
-
     pub fn set_reserved(&mut self, n: usize, frame: &mut CallFrame) -> Result<()> {
         if self.data_stack.len() >= frame.stack_base + n {
             frame.locals = n;
@@ -420,8 +392,8 @@ impl CallFrame {
 pub(crate) struct VmPanic(String);
 
 impl VmPanic {
-    pub fn new(s: String) -> Self {
-        Self(s)
+    pub fn new(s: impl ToString) -> Self {
+        Self(s.to_string())
     }
 
     pub fn panic(self) -> ! {
@@ -446,6 +418,6 @@ impl From<String> for VmPanic {
 
 impl From<&str> for VmPanic {
     fn from(value: &str) -> Self {
-        Self::new(value.into())
+        Self::new(value)
     }
 }

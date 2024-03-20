@@ -22,6 +22,18 @@ fn capacity_overflow() -> ! {
     panic!("capacity overflow");
 }
 
+#[inline(always)]
+unsafe fn copy_elem<T: Copy>(ptr: *mut [MaybeUninit<T>], src_index: usize, dest_index: usize) {
+    let ptr = ptr as *mut MaybeUninit<T>;
+
+    unsafe {
+        let src = ptr.add(src_index);
+        let dest = ptr.add(dest_index);
+
+        ptr::copy_nonoverlapping(src, dest, 1);
+    }
+}
+
 pub struct VmStack<T> {
     data: Box<[MaybeUninit<T>]>,
     len: usize,
@@ -72,14 +84,14 @@ impl<T> VmStack<T> {
     }
 
     pub fn push(&mut self, value: T) -> Result<(), T> {
-        if self.len() < self.capacity() {
-            unsafe {
-                self.push_unchecked(value);
-            }
-            Ok(())
-        } else {
-            Err(value)
+        if self.len() == self.capacity() {
+            return Err(value);
         }
+
+        unsafe {
+            self.push_unchecked(value);
+        }
+        Ok(())
     }
 
     pub fn pop(&mut self) -> Option<T> {
@@ -219,7 +231,10 @@ impl<T> VmStack<T> {
     #[inline(always)]
     pub unsafe fn push_unchecked(&mut self, value: T) {
         unsafe {
-            self.data.get_unchecked_mut(self.len).write(value);
+            self.data
+                .as_mut_ptr()
+                .add(self.len)
+                .write(MaybeUninit::new(value));
             self.len += 1;
         }
     }
@@ -238,6 +253,53 @@ impl<T> VmStack<T> {
         let data = unsafe { Box::from_raw(Box::into_raw(slice) as *mut _) };
 
         Self { data, len }
+    }
+}
+
+impl<T: Copy> VmStack<T> {
+    pub fn copy_to_top(&mut self, index: usize) {
+        assert_ne!(self.len(), self.capacity(), "capacity check failed");
+        assert!(index < self.len(), "bounds check failed");
+
+        unsafe {
+            copy_elem(ptr::addr_of_mut!(*self.data), index, self.len());
+            self.len += 1;
+        }
+    }
+
+    pub fn replace_from_top(&mut self, index: usize) {
+        assert!(index < self.len() - 1, "bounds check failed");
+
+        unsafe {
+            copy_elem(ptr::addr_of_mut!(*self.data), self.len() - 1, index);
+            self.len -= 1;
+        }
+    }
+
+    pub(crate) fn push_from_ref(&mut self, elem: &T) -> Result<(), T> {
+        if self.len() == self.capacity() {
+            // Returning the value on the stack here is fine, because it's an error state and is, 
+            // presumably, somewhat rare if this function is being called.
+            return Err(*elem);
+        }
+
+        // SAFETY:
+        // 1. The if check above makes sure that the ptr::add below is safe to call (for the same
+        // reason vec.as_ptr.add(vec.len()) is safe)
+        // 2. The borrow checker ensures that the element can't overlap with self, since it's
+        // mutably borrowed.
+        // 3. self.len is always less than the capacity, so it can never overflow the capacity of
+        // the stack.
+        // TODO: Think about whether or not this can be implemented with safe code without losing 
+        // copying to a temporary. This function is intended to (essentially) memcpy from the element into
+        // self, without first copying to the stack.
+        unsafe {
+            let top_ptr = (ptr::addr_of_mut!(*self.data) as *mut MaybeUninit<T>).add(self.len());
+            ptr::copy_nonoverlapping(ptr::from_ref(elem).cast(), top_ptr, 1);
+            self.len += 1;
+        }
+
+        Ok(())
     }
 }
 
@@ -532,6 +594,21 @@ mod test {
         assert_eq!(w, 1);
         assert_eq!(y, 2);
         assert_eq!(x, 3);
+    }
+
+    #[cfg(miri)]
+    #[test]
+    fn copies() {
+        let mut stack = VmStack::from([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+
+        stack.replace_from_top(6); // [0, 1, 2, 3, 4, 5, 8, 7]
+        assert_eq!(stack[6], 8);
+
+        dbg!(&stack);
+        stack.copy_to_top(1); // [0, 1, 2, 3, 4, 5, 8, 7, 1]
+        dbg!(&stack);
+
+        assert_eq!(stack[8], 1);
     }
 
     // SAFETY: it's not lol.

@@ -1,4 +1,3 @@
-
 use crate::{
     object::{array::VmArray, string::VmString},
     utils::IntoVmResult,
@@ -1199,5 +1198,13 @@ fn vmbi_println(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let value = vm.heap_object::<VmString>(string_ref, frame)?;
 
     println!("{}", value.as_str());
+    Ok(())
+}
+
+///////////////////////////////////////////////////
+// ============== DYNAMIC LOADING ============== //
+///////////////////////////////////////////////////
+
+fn vmbi_load_module(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     Ok(())
 }

@@ -45,7 +45,7 @@ fn main() {
                 // the program.
                 OpCode::Load(0),
                 OpCode::EqImm(Value::Int(0)),
-                OpCode::JumpCondImm(13),
+                OpCode::JumpCondImm(9),
                 // else...
                 // load the value from local variable 0, subtract 1, and store the new counter
                 // back in the local variable 0.
@@ -60,7 +60,7 @@ fn main() {
                 // Remove the added value (it's not actually used)
                 OpCode::Pop,
                 // Jump back to the counter check above
-                OpCode::JumpImm(2),
+                OpCode::JumpImm(-11),
                 // halt the virtual machine
                 OpCode::Halt,
             ],

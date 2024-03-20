@@ -1,6 +1,6 @@
 use crate::symbol::Symbol;
 use crate::value::Value;
-use crate::vm::{Result as VmResult, Vm};
+use crate::vm::{Result as VmResult, Vm, VmPanic};
 use serde::{Deserialize, Serialize};
 
 use super::function::Function;
@@ -13,6 +13,7 @@ pub type OpResult = VmResult<Transition>;
 /// For operations which move values into and out of memory or registers, the operands are in the
 /// order (src, dst). For binary operations, the operands are ordered `opcode.0 <operation>
 /// opcode.1`.
+#[repr(u8)]
 #[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
 pub enum OpCode {
     /// No operation; do nothing.
@@ -23,6 +24,10 @@ pub enum OpCode {
     /// Push an immediate value to the top of the stack.
     /// Corresponds to the PushImmediate instruction.
     Push(Value),
+
+    PushConst,
+
+    PushConstImm(usize),
     /// Pop the value at the top of the stack into a register
     Pop,
 
@@ -180,6 +185,8 @@ impl OpCode {
             Op::NoOp => vm.op_nop(),
             Op::Halt => vm.op_halt(),
             Op::Push(value) => vm.op_push(value, frame),
+            Op::PushConst => vm.op_push_const(frame),
+            Op::PushConstImm(index) => vm.op_push_const_imm(index, frame),
             Op::Pop => vm.op_pop(frame),
             Op::Load(index) => vm.op_load(index, frame),
             Op::Store(index) => vm.op_store(index, frame),
@@ -464,6 +471,26 @@ mod imp {
             Ok(Transition::Continue)
         }
 
+        // pushc
+        pub(super) fn op_push_const(&mut self, frame: &CallFrame) -> OpResult {
+            let index = self.pop_int(frame)?.try_into().vm_result(VmErrorKind::OutOfBounds, frame)?;
+
+            self.op_push_const_imm(index, frame)
+        }
+
+        // pushci
+        pub(super) fn op_push_const_imm(&mut self, index: usize, frame: &CallFrame) -> OpResult {
+            let Some(constant) = self.program.constants.get(index) else {
+                throw!(VmErrorKind::OutOfBounds, frame);
+            };
+    
+            self.data_stack
+                .push_from_ref(constant)
+                .vm_result(VmErrorKind::StackOverflow, frame)?;
+
+            Ok(Transition::Continue)
+        }
+
         // pop
         pub(super) fn op_pop(&mut self, frame: &CallFrame) -> OpResult {
             let _ = self.pop_value(frame)?;
@@ -472,24 +499,36 @@ mod imp {
         }
 
         pub(super) fn op_load(&mut self, index: usize, frame: &CallFrame) -> OpResult {
-            let value = self.get_local(index, frame)?;
+            let base = frame.stack_base;
+            let count = frame.locals;
 
-            self.push_value(value, frame)?;
+            let valid_range = base..base + count;
 
-            Ok(Transition::Continue)
+            if valid_range.contains(&index) {
+                self.data_stack.copy_to_top(index);
+                Ok(Transition::Continue)
+            } else {
+                throw!(VmErrorKind::OutOfBounds, frame);
+            }
         }
 
         pub(super) fn op_store(&mut self, index: usize, frame: &CallFrame) -> OpResult {
-            let value = self.pop_value(frame)?;
+            let base = frame.stack_base;
+            let count = frame.locals;
 
-            self.set_local(index, value, frame)?;
+            let valid_range = base..base + count;
 
-            Ok(Transition::Continue)
+            if valid_range.contains(&index) {
+                self.data_stack.replace_from_top(index);
+                Ok(Transition::Continue)
+            } else {
+                throw!(VmErrorKind::OutOfBounds, frame);
+            }
         }
 
-        pub(super) fn op_dup(&mut self, frame: &CallFrame) -> OpResult {
-            let value = self.top_value(frame)?;
-            self.push_value(value, frame)?;
+        pub(super) fn op_dup(&mut self, _: &CallFrame) -> OpResult {
+            // TODO: Handle error states. This can panic.
+            self.data_stack.copy_to_top(self.data_stack.len() - 1);
 
             Ok(Transition::Continue)
         }
@@ -898,9 +937,15 @@ mod imp {
                 .vm_result(VmErrorKind::OutOfBounds, &*frame)?;
 
             frame.ip = if positive {
-                frame.ip.checked_add(offset).vm_result(VmErrorKind::OutOfBounds, &*frame)?
+                frame
+                    .ip
+                    .checked_add(offset)
+                    .vm_result(VmErrorKind::OutOfBounds, &*frame)?
             } else {
-                frame.ip.checked_sub(offset).vm_result(VmErrorKind::OutOfBounds, &*frame)?
+                frame
+                    .ip
+                    .checked_sub(offset)
+                    .vm_result(VmErrorKind::OutOfBounds, &*frame)?
             };
 
             Ok(Transition::Jump)
