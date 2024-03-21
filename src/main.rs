@@ -9,7 +9,7 @@
 // Forces the use of unsafe blocks for unsafe operations, even when inside of an unsafe function.
 #![deny(unsafe_op_in_unsafe_fn)]
 
-use program::Program;
+use module::Module;
 use std::time::Instant;
 use value::Value;
 use vm::ops::OpCode;
@@ -17,24 +17,25 @@ use vm::Vm;
 
 pub mod module;
 pub mod object;
-pub mod program;
 pub mod serde_impl;
 pub mod symbol;
 pub mod utils;
 pub mod value;
 pub mod vm;
 
+const VALID_MAGIC: [u8; 4] = *b"PFVM";
+
 fn main() {
-    let mut program = Program::new();
+    let mut module = Module::new();
 
-    let main_sym = program.define_symbol("main");
-    let adder_sym = program.define_symbol("adder");
+    let main_sym = module.define_symbol("main");
+    let adder_sym = module.define_symbol("adder");
 
-    let adder = program
+    let adder = module
         .define_function(adder_sym, [OpCode::Add, OpCode::Ret])
         .expect("failed to define `adder` function");
 
-    program
+    module
         .define_function(
             main_sym,
             [
@@ -56,6 +57,7 @@ fn main() {
                 OpCode::Push(Value::Int(2)),
                 OpCode::Dup,
                 // Call a function which pops them from the stack, adds them, then returns
+                // OpCode::Add,
                 OpCode::CallImm(adder),
                 // Remove the added value (it's not actually used)
                 OpCode::Pop,
@@ -67,10 +69,10 @@ fn main() {
         )
         .expect("failed to define `main` function");
 
-    let mut vm = Vm::new(program);
+    let mut vm = Vm::new(module);
 
     let start = Instant::now();
     vm.run().expect("failed to run vm");
     let elapsed = start.elapsed();
-    eprintln!("{elapsed:?}")
+    println!("{elapsed:?}")
 }

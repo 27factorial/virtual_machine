@@ -25,9 +25,7 @@ pub enum OpCode {
     /// Corresponds to the PushImmediate instruction.
     Push(Value),
 
-    PushConst,
-
-    PushConstImm(usize),
+    PushConst(usize),
     /// Pop the value at the top of the stack into a register
     Pop,
 
@@ -160,7 +158,7 @@ pub enum OpCode {
     CallImm(Function),
 
     CallBuiltin(usize),
-    /// Call a native function determined by the immediate index pointing to a Program's string
+    /// Call a native function determined by the immediate index pointing to a Module's string
     /// pool.
     CallNative(Symbol),
     /// Set the VM's current frame to the call frame popped from the call stack.
@@ -185,8 +183,7 @@ impl OpCode {
             Op::NoOp => vm.op_nop(),
             Op::Halt => vm.op_halt(),
             Op::Push(value) => vm.op_push(value, frame),
-            Op::PushConst => vm.op_push_const(frame),
-            Op::PushConstImm(index) => vm.op_push_const_imm(index, frame),
+            Op::PushConst(index) => vm.op_push_const(index, frame),
             Op::Pop => vm.op_pop(frame),
             Op::Load(index) => vm.op_load(index, frame),
             Op::Store(index) => vm.op_store(index, frame),
@@ -472,15 +469,8 @@ mod imp {
         }
 
         // pushc
-        pub(super) fn op_push_const(&mut self, frame: &CallFrame) -> OpResult {
-            let index = self.pop_int(frame)?.try_into().vm_result(VmErrorKind::OutOfBounds, frame)?;
-
-            self.op_push_const_imm(index, frame)
-        }
-
-        // pushci
-        pub(super) fn op_push_const_imm(&mut self, index: usize, frame: &CallFrame) -> OpResult {
-            let Some(constant) = self.program.constants.get(index) else {
+        pub(super) fn op_push_const(&mut self, index: usize, frame: &CallFrame) -> OpResult {
+            let Some(constant) = self.module.constants.get(index) else {
                 throw!(VmErrorKind::OutOfBounds, frame);
             };
     

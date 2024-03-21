@@ -1,4 +1,4 @@
-use crate::program::Program;
+use crate::module::Module;
 use crate::utils::FxHashMap;
 use crate::value::Value;
 use crate::vm::function::Function;
@@ -15,7 +15,7 @@ pub mod dict;
 pub mod string;
 
 pub trait VmObject: Any + Debug + Send + Sync + sealed::Upcast {
-    fn register_type(program: &mut Program) -> &Type
+    fn register_type(module: &mut Module) -> &Type
     where
         Self: Sized;
     fn field(&self, name: &str) -> Option<&Value>;
@@ -113,8 +113,8 @@ impl TypeBuilder {
         self
     }
 
-    pub fn register(self, program: &mut Program) -> &Type {
-        program.register_type(self)
+    pub fn register(self, module: &mut Module) -> &Type {
+        module.register_type(self)
     }
 }
 

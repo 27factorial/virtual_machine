@@ -291,7 +291,7 @@ fn get_panic_message(vm: &mut Vm, frame: &CallFrame) -> String {
         Ok(Value::Float(v)) => v.to_string(),
         Ok(Value::Bool(v)) => v.to_string(),
         Ok(Value::Char(v)) => v.to_string(),
-        Ok(Value::Symbol(v)) => vm.program.symbols.get(v).unwrap_or("<no message>").into(),
+        Ok(Value::Symbol(v)) => vm.module.symbols.get(v).unwrap_or("<no message>").into(),
         Ok(Value::Function(v)) => format!("{:x}", v.0),
         Ok(Value::Reference(_)) => todo!("reference to_string"),
         Err(_) => "<no message>".into(),
@@ -988,7 +988,7 @@ fn vmbi_string_from(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         Value::Bool(v) => v.to_string(),
         Value::Char(v) => v.to_string(),
         Value::Function(v) => format!("{:x}", v.0),
-        Value::Symbol(v) => vm.program.symbols.get(v).unwrap_or("").into(),
+        Value::Symbol(v) => vm.module.symbols.get(v).unwrap_or("").into(),
         Value::Reference(_v) => todo!("reference to_string"),
     };
 
@@ -1154,7 +1154,7 @@ fn vmbi_string_push(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         Value::Char(v) => this.push(v),
         Value::Symbol(v) => {
             let s = vm
-                .program
+                .module
                 .symbols
                 .get(v)
                 .vm_result(VmErrorKind::SymbolNotFound, frame)?;

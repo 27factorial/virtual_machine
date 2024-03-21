@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    program::Program,
+    module::Module,
     value::Value,
     vm::{builtin, ops::OpCode},
 };
@@ -44,7 +44,7 @@ impl From<String> for VmString {
 }
 
 impl VmObject for VmString {
-    fn register_type(program: &mut Program) -> &Type
+    fn register_type(module: &mut Module) -> &Type
     where
         Self: Sized,
     {
@@ -76,7 +76,7 @@ impl VmObject for VmString {
             builder.with_method(name, [OpCode::CallBuiltin(builtin), OpCode::Ret]);
         }
 
-        builder.register(program)
+        builder.register(module)
     }
 
     fn field(&self, _: &str) -> Option<&Value> {

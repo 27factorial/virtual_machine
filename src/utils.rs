@@ -5,6 +5,7 @@ use std::hash::{BuildHasherDefault, Hasher};
 
 pub type FxHashMap<K, V> = hashbrown::HashMap<K, V, BuildHasherDefault<FxHasher>>;
 pub type FxEntry<'a, K, V> = hashbrown::hash_map::Entry<'a, K, V, BuildHasherDefault<FxHasher>>;
+pub type FxIndexMap<K, V> = indexmap::IndexMap<K, V, BuildHasherDefault<FxHasher>>;
 pub type IntHashMap<K, V> = hashbrown::HashMap<K, V, BuildHasherDefault<IntHasher>>;
 pub type IntEntry<'a, K, V> = hashbrown::hash_map::Entry<'a, K, V, BuildHasherDefault<IntHasher>>;
 

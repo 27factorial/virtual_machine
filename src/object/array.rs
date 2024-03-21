@@ -1,5 +1,5 @@
 use super::{Type, TypeBuilder, VmObject};
-use crate::program::Program;
+use crate::module::Module;
 use crate::value::Value;
 use crate::vm::builtin;
 use crate::vm::ops::OpCode;
@@ -34,7 +34,7 @@ impl DerefMut for VmArray {
 }
 
 impl VmObject for VmArray {
-    fn register_type(program: &mut Program) -> &Type
+    fn register_type(module: &mut Module) -> &Type
     where
         Self: Sized,
     {
@@ -65,7 +65,7 @@ impl VmObject for VmArray {
             builder.with_method(name, [OpCode::CallBuiltin(builtin), OpCode::Ret]);
         }
 
-        builder.register(program)
+        builder.register(module)
     }
 
     fn field(&self, _: &str) -> Option<&Value> {

@@ -8,7 +8,9 @@ edition = "2021"
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 hashbrown = { version = "0.14", features = ["serde"] }
+indexmap = { version = "2.2.5", features = ["serde"] }
 paste = "1"
+ron = "0.8.1"
 rustc-hash = "1"
 serde = { version = "1", features = ["derive", "rc"] }
 serde_repr = "0.1.18"

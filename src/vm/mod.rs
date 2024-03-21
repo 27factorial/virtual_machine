@@ -1,7 +1,7 @@
 use self::memory::VmStack;
 use self::ops::OpResult;
+use crate::module::{Module, NativeFn};
 use crate::object::VmObject;
-use crate::program::{NativeFn, Program};
 use crate::symbol::Symbol;
 use crate::utils::IntoVmResult;
 use crate::value::Value;
@@ -83,21 +83,21 @@ pub type Result<T> = std::result::Result<T, VmError>;
 pub struct Vm {
     data_stack: VmStack<Value>,
     heap: Heap,
-    program: Program,
+    module: Module,
 }
 
 impl Vm {
-    pub fn new(program: Program) -> Self {
+    pub fn new(module: Module) -> Self {
         Self {
             data_stack: VmStack::new(16),
             heap: Heap::new(1024),
-            program,
+            module,
         }
     }
 
     pub fn run(&mut self) -> Result<()> {
         let &main = self
-            .program
+            .module
             .functions
             .get("main")
             .ok_or_else(|| VmError::new(VmErrorKind::FunctionNotFound, None))?;
@@ -110,7 +110,7 @@ impl Vm {
     pub(crate) fn run_function(&mut self, func: Function, stack_base: usize) -> OpResult {
         let mut call_frame = CallFrame::new(func, stack_base, 0);
 
-        while let Some(opcode) = self.program.functions.get_opcode(call_frame.ip) {
+        while let Some(opcode) = self.module.functions.get_opcode(call_frame.ip) {
             match opcode.execute(self, &mut call_frame)? {
                 Transition::Continue => call_frame.ip += 1,
                 Transition::Jump => {}
@@ -319,9 +319,9 @@ impl Vm {
         symbol: Symbol,
         frame: &CallFrame,
     ) -> Result<Arc<NativeFn>> {
-        match self.program.symbols.get(symbol) {
+        match self.module.symbols.get(symbol) {
             Some(name) => {
-                let entry = self.program.native_functions.raw_entry_mut().from_key(name);
+                let entry = self.module.native_functions.raw_entry_mut().from_key(name);
 
                 match entry {
                     RawEntryMut::Occupied(entry) => Ok(entry.get().clone()),
