@@ -48,7 +48,7 @@ impl VmObject for VmString {
     where
         Self: Sized,
     {
-        let type_name = "Array";
+        let type_name = "String";
 
         let mut builder = TypeBuilder::new(type_name);
 

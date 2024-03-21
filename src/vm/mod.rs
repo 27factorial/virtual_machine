@@ -1,6 +1,6 @@
 use self::memory::VmStack;
 use self::ops::OpResult;
-use crate::module::{Module, NativeFn};
+use crate::module::{Module, NativeFn, ToModule};
 use crate::object::VmObject;
 use crate::symbol::Symbol;
 use crate::utils::IntoVmResult;
@@ -332,6 +332,13 @@ impl Vm {
         }
     }
 
+    pub fn load_module(
+        &mut self,
+        module: impl ToModule,
+    ) {
+        self.module.load_module(module);
+    }
+
     pub fn reset(&mut self) -> Result<()> {
         self.data_stack = VmStack::new(255);
         self.heap = Heap::new(1024);
@@ -419,5 +426,89 @@ impl From<String> for VmPanic {
 impl From<&str> for VmPanic {
     fn from(value: &str) -> Self {
         Self::new(value)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        module::{CoreLib, Io, Module},
+        value::Value,
+        vm::{ops::OpCode, Vm},
+    };
+
+    #[test]
+    fn looping_fn_call() {
+        let mut module = Module::new();
+
+        let main_sym = module.define_symbol("main");
+        let adder_sym = module.define_symbol("adder");
+
+        let adder = module
+            .define_function(adder_sym, [OpCode::Add, OpCode::Ret])
+            .expect("failed to define `adder` function");
+
+        module
+            .define_function(
+                main_sym,
+                [
+                    // Initialize a counter to 1000 and store the counter in local variable 0
+                    OpCode::Push(Value::Int(1000)),
+                    OpCode::ReserveImm(1),
+                    // Load the counter from local variable 0, and if it's zero, jump to the end of
+                    // the program.
+                    OpCode::Load(0),
+                    OpCode::EqImm(Value::Int(0)),
+                    OpCode::JumpCondImm(9),
+                    // else...
+                    // load the value from local variable 0, subtract 1, and store the new counter
+                    // back in the local variable 0.
+                    OpCode::Load(0),
+                    OpCode::SubImm(Value::Int(1)),
+                    OpCode::Store(0),
+                    // Push two 2s onto the stack
+                    OpCode::Push(Value::Int(2)),
+                    OpCode::Dup,
+                    // Call a function which pops them from the stack, adds them, then returns
+                    // OpCode::Add,
+                    OpCode::CallImm(adder),
+                    // Remove the added value (it's not actually used)
+                    OpCode::Pop,
+                    // Jump back to the counter check above
+                    OpCode::JumpImm(-11),
+                    // halt the virtual machine
+                    OpCode::Halt,
+                ],
+            )
+            .expect("failed to define `main` function");
+
+        let mut vm = Vm::new(module);
+
+        vm.run().expect("failed to run vm");
+    }
+
+    #[test]
+    fn loading_modules() {
+        let mut module = Module::new();
+
+        module.load_module(CoreLib);
+        module.load_module(Io);
+
+        let string = module.define_symbol("Hello, World!");
+        let string_new_sym = module.define_symbol("String::from");
+        let print_sym = module.define_symbol("print");
+        let main_sym = module.define_symbol("main");
+
+        module.define_function(main_sym, [
+            OpCode::Push(Value::Symbol(string)),
+            OpCode::ResolveImm(string_new_sym),
+            OpCode::Call,
+            OpCode::ResolveImm(print_sym),
+            OpCode::Call,
+            OpCode::Halt,
+        ]).expect("failed to define main method");
+
+        let mut vm = Vm::new(module);
+        vm.run().expect("failed to run vm");
     }
 }

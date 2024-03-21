@@ -7,16 +7,41 @@ use hashbrown::hash_map::{Entry, RawEntryMut};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    object::{Type, TypeBuilder},
+    object::{array::VmArray, string::VmString, Type, TypeBuilder, VmObject},
     symbol::{Symbol, Symbols},
     utils::{FxHashMap, FxIndexMap},
     value::Value,
     vm::{
+        builtin,
         function::{Function, Functions},
         ops::OpCode,
         CallFrame, Result as VmResult, Vm,
     },
 };
+
+fn relocate_functions(
+    types: &mut FxHashMap<Arc<str>, Type>,
+    functions: &mut FxHashMap<Arc<str>, Function>,
+    offset: usize,
+) {
+    functions
+        .values_mut()
+        .chain(types.values_mut().flat_map(|ty| ty.methods.values_mut()))
+        .for_each(|Function(idx)| *idx += offset);
+}
+
+fn relocate_opcodes<'a>(
+    ops: impl IntoIterator<Item = &'a mut OpCode>,
+    constants_offset: usize,
+    code_offset: usize,
+) {
+    // TODO: Handle CallNative and symbols
+    ops.into_iter().for_each(|opcode| match opcode {
+        OpCode::PushConst(index) => *index += constants_offset,
+        OpCode::CallImm(function) => function.0 += code_offset,
+        _ => {}
+    })
+}
 
 pub type NativeFn = dyn Fn(&mut Vm, &CallFrame) -> VmResult<Value> + 'static;
 
@@ -98,8 +123,10 @@ impl Module {
             name: type_name,
             fields,
             methods: method_ranges,
-            code,
+            mut code,
         } = builder;
+
+        let code_offset = self.functions.code.len();
 
         let Entry::Vacant(entry) = self.types.entry(Arc::clone(&type_name)) else {
             panic!("Attempt to register duplicate type {type_name}");
@@ -109,6 +136,8 @@ impl Module {
 
         let mut methods =
             FxHashMap::with_capacity_and_hasher(method_ranges.len(), Default::default());
+
+        relocate_opcodes(&mut code, 0, code_offset);
 
         for (name, range) in method_ranges {
             self.symbols.get_or_push_iter([&type_name, "::", &name]);
@@ -129,7 +158,7 @@ impl Module {
         ty
     }
 
-    pub(crate) fn load_module(&mut self, other: Self) {
+    pub(crate) fn load_module(&mut self, other: impl ToModule) {
         let Module {
             symbols, // TODO: Handle symbols.
             mut types,
@@ -140,7 +169,7 @@ impl Module {
                     code: mut functions_code,
                 },
             native_functions,
-        } = other;
+        } = other.to_module();
 
         let constants_offset = self.constants.len();
         let code_offset = self.functions.code.len();
@@ -155,22 +184,11 @@ impl Module {
         //
         // TODO: handle extending maps properly. Currently, if a map contains duplicate keys, it
         // just overwrites the one in self.
-
-        // Relocate functions and type methods
-        functions_indices
-            .values_mut()
-            .chain(types.values_mut().flat_map(|ty| ty.methods.values_mut()))
-            .for_each(|Function(offset)| *offset += code_offset);
+        relocate_functions(&mut types, &mut functions_indices, code_offset);
 
         // Search for OpCodes which need relocating (anything directly referencing constants or
         // functions).
-        for opcode in &mut functions_code {
-            match opcode {
-                OpCode::PushConst(index) => *index += constants_offset,
-                OpCode::CallImm(function) => function.0 += code_offset,
-                _ => {}
-            }
-        }
+        relocate_opcodes(&mut functions_code, constants_offset, code_offset);
 
         // Push the new module's content.
         self.constants.extend(constants);
@@ -235,11 +253,65 @@ impl<'a> Path<'a> {
     }
 }
 
-// /// The core library for the PFVM.
-// pub struct CoreLib;
+/// The core library of the PFVM.
+pub struct CoreLib;
 
-// impl ToModule for CoreLib {
-//     fn to_module(self) -> Module {
-        
-//     }
-// }
+impl ToModule for CoreLib {
+    fn to_module(self) -> Module {
+        let mut module = Module::new();
+
+        VmArray::register_type(&mut module);
+        VmString::register_type(&mut module);
+        // VmDictionary::register_type(&mut module);
+
+        module
+    }
+}
+
+pub struct Io;
+
+impl ToModule for Io {
+    fn to_module(self) -> Module {
+        let mut module = Module::new();
+
+        let print_sym = module.define_symbol("print");
+        let println_sym = module.define_symbol("eprintln");
+
+        module
+            .define_function(
+                print_sym,
+                [OpCode::CallBuiltin(builtin::PRINT), OpCode::Ret],
+            )
+            .unwrap();
+        module
+            .define_function(
+                println_sym,
+                [OpCode::CallBuiltin(builtin::PRINTLN), OpCode::Ret],
+            )
+            .unwrap();
+
+        module
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::object::{array::VmArray, string::VmString, VmObject};
+
+    use super::{CoreLib, Module};
+
+    #[test]
+    fn core_loading() {
+        let mut manual_module = Module::new();
+        let mut loading_module = Module::new();
+
+        VmArray::register_type(&mut manual_module);
+        VmString::register_type(&mut manual_module);
+
+        loading_module.load_module(CoreLib);
+
+        assert_eq!(manual_module.functions.code, loading_module.functions.code);
+
+        eprintln!("{:?}", manual_module.functions.code);
+    }
+}

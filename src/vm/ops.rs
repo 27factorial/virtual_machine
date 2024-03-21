@@ -152,6 +152,11 @@ pub enum OpCode {
     /// within the current function.
     JumpCondImm(isize),
 
+    /// Resolves a function or method.
+    Resolve,
+
+    ResolveImm(Symbol),
+
     /// Jump to the first instruction of a function determined by the index in the register.
     Call,
 
@@ -225,6 +230,8 @@ impl OpCode {
             Op::JumpImm(address) => vm.op_jump_imm(address, frame),
             Op::JumpCond => vm.op_jump_cond(frame),
             Op::JumpCondImm(address) => vm.op_jump_cond_imm(address, frame),
+            Op::Resolve => vm.op_resolve(frame),
+            Op::ResolveImm(symbol) => vm.op_resolve_imm(symbol, frame),
             Op::Call => vm.op_call(frame),
             Op::CallImm(symbol) => vm.op_call_imm(symbol, frame),
             Op::CallBuiltin(idx) => vm.op_call_builtin(idx, frame),
@@ -249,6 +256,7 @@ pub enum Transition {
 
 mod imp {
     use super::{OpResult, Transition};
+    use crate::module::Path;
     use crate::throw;
     use crate::utils::IntoVmResult;
     use crate::value::Value;
@@ -969,6 +977,40 @@ mod imp {
             }
         }
 
+        // rslv
+        pub(super) fn op_resolve(&mut self, frame: &CallFrame) -> OpResult {
+            let symbol = self.pop_symbol(frame)?;
+
+            self.op_resolve_imm(symbol, frame)
+        }
+
+        // rslv
+        pub(super) fn op_resolve_imm(&mut self, symbol: Symbol, frame: &CallFrame) -> OpResult {
+            // This is fucking SLOW! Some caching should be done here like I did before.
+            let name = self.module.symbols.get(symbol).vm_result(VmErrorKind::SymbolNotFound, frame)?;
+            let path = Path::new(name).vm_result(VmErrorKind::FunctionNotFound, frame)?;
+
+            let functions = match path.object {
+                Some(name) => {
+                    let ty = self
+                        .module
+                        .types
+                        .get(name)
+                        .vm_result(VmErrorKind::TypeNotFound, frame)?;
+                    &ty.methods
+                }
+                None => &self.module.functions.indices,
+            };
+
+            let function = functions
+                .get(path.member)
+                .vm_result(VmErrorKind::FunctionNotFound, frame)?;
+
+            self.push_value(Value::Function(*function), frame)?;
+
+            Ok(Transition::Continue)
+        }
+
         // call
         pub(super) fn op_call(&mut self, frame: &CallFrame) -> OpResult {
             let func = self.pop_function(frame)?;
@@ -983,6 +1025,7 @@ mod imp {
             self.run_function(func, new_base)
         }
 
+        // callb
         pub(super) fn op_call_builtin(&mut self, index: usize, frame: &CallFrame) -> OpResult {
             let func = BUILTINS
                 .get(index)
