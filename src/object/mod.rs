@@ -3,6 +3,7 @@ use crate::utils::FxHashMap;
 use crate::value::Value;
 use crate::vm::function::Function;
 use crate::vm::gc::GcBox;
+use crate::vm::heap::Collector;
 use crate::vm::ops::OpCode;
 use serde::{Deserialize, Serialize};
 use std::any::{Any, TypeId};
@@ -20,7 +21,7 @@ pub trait VmObject: Any + Debug + Send + Sync + sealed::Upcast {
         Self: Sized;
     fn field(&self, name: &str) -> Option<&Value>;
     fn field_mut(&mut self, name: &str) -> Option<&mut Value>;
-    fn data(&self) -> &[Value];
+    fn collect_data(&self, collector: Collector<'_>);
 
     #[inline(always)]
     fn as_any(&self) -> &dyn Any {

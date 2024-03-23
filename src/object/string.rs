@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     module::Module,
     value::Value,
-    vm::{builtin, ops::OpCode},
+    vm::{builtin, heap::Collector, ops::OpCode},
 };
 
 use super::{Type, TypeBuilder, VmObject};
@@ -87,7 +87,5 @@ impl VmObject for VmString {
         None
     }
 
-    fn data(&self) -> &[Value] {
-        &[]
-    }
+    fn collect_data(&self, _: Collector<'_>) {}
 }

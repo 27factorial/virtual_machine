@@ -5,7 +5,9 @@ use crate::vm::gc::GcBox;
 use serde::{Deserialize, Serialize};
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::VecDeque;
+use std::marker::PhantomData;
 use std::mem;
+use std::ptr::NonNull;
 
 #[derive(Debug)]
 pub struct Heap {
@@ -67,12 +69,12 @@ impl Heap {
         }
     }
 
-    pub fn mark_and_sweep(&mut self, roots: impl IntoIterator<Item = Reference>) {
+    pub(crate) fn mark_and_sweep(&mut self, roots: impl IntoIterator<Item = Reference>) {
         self.mark_from_roots(roots);
         self.sweep();
     }
 
-    pub fn mark_from_roots(&mut self, roots: impl IntoIterator<Item = Reference>) {
+    pub(crate) fn mark_from_roots(&mut self, roots: impl IntoIterator<Item = Reference>) {
         for root in roots {
             let Some(cell) = self.memory.get_mut(root.0).and_then(|opt| opt.as_mut()) else {
                 continue;
@@ -90,7 +92,7 @@ impl Heap {
         todo!()
     }
 
-    pub fn sweep(&mut self) {
+    pub(crate) fn sweep(&mut self) {
         let enumerated = self.memory.iter_mut().enumerate();
 
         for (idx, slot) in enumerated {
@@ -137,9 +139,7 @@ impl Heap {
 
             let object = &*object.get_mut();
 
-            let object_children = object.data().iter().copied().filter_map(Value::reference);
-
-            self.current_children.extend(object_children);
+            object.collect_data(Collector(&mut self.current_children));
 
             for Reference(child_idx) in self.current_children.drain(..) {
                 let cell_opt = self.memory.get_mut(child_idx).and_then(|opt| opt.as_mut());
@@ -154,6 +154,20 @@ impl Heap {
                 }
             }
         }
+    }
+
+    pub fn provide_data_from(&mut self, into_iter: impl IntoIterator<Item = Value>) {
+        let iter = into_iter.into_iter().filter_map(Value::reference);
+        self.current_children.extend(iter);
+    }
+}
+
+#[derive(Debug)]
+pub struct Collector<'a>(&'a mut Vec<Reference>);
+
+impl Collector<'_> {
+    pub fn collect_from(&mut self, iter: impl IntoIterator<Item = Value>) {
+        self.0.extend(iter.into_iter().filter_map(Value::reference));
     }
 }
 

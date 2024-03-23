@@ -1,5 +1,5 @@
 use super::{Type, TypeBuilder, VmObject};
-use crate::module::Module;
+use crate::{module::Module, vm::heap::Collector};
 use crate::value::Value;
 use crate::vm::builtin;
 use crate::vm::ops::OpCode;
@@ -76,7 +76,7 @@ impl VmObject for VmArray {
         None
     }
 
-    fn data(&self) -> &[Value] {
-        &self.0
+    fn collect_data(&self, mut collector: Collector<'_>) {
+        collector.collect_from(self.iter().copied())
     }
 }
