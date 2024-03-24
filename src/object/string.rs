@@ -87,5 +87,5 @@ impl VmObject for VmString {
         None
     }
 
-    fn collect_data(&self, _: Collector<'_>) {}
+    fn gc(&self, _: Collector<'_>) {}
 }

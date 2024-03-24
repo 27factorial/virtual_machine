@@ -139,7 +139,7 @@ impl Heap {
 
             let object = &*object.get_mut();
 
-            object.collect_data(Collector(&mut self.current_children));
+            object.gc(Collector(&mut self.current_children));
 
             for Reference(child_idx) in self.current_children.drain(..) {
                 let cell_opt = self.memory.get_mut(child_idx).and_then(|opt| opt.as_mut());
@@ -154,11 +154,6 @@ impl Heap {
                 }
             }
         }
-    }
-
-    pub fn provide_data_from(&mut self, into_iter: impl IntoIterator<Item = Value>) {
-        let iter = into_iter.into_iter().filter_map(Value::reference);
-        self.current_children.extend(iter);
     }
 }
 

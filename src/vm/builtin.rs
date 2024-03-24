@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use crate::{
-    object::{array::VmArray, string::VmString},
+    object::{array::VmArray, dict::VmDictionary, string::VmString},
     utils::IntoVmResult,
     value::Value,
 };
@@ -1176,6 +1178,154 @@ fn vmbi_string_pop(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         .vm_result(VmErrorKind::OutOfBounds, frame)?;
 
     vm.push_value(Value::Char(value), frame)?;
+    Ok(())
+}
+
+//////////////////////////////////////////////
+// ============== DICTIONARY ============== //
+//////////////////////////////////////////////
+
+fn vmbi_dictionary_new(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.alloc(VmDictionary::new(), frame)?;
+
+    vm.push_value(Value::Reference(this_ref), frame)?;
+    Ok(())
+}
+
+fn vmbi_dictionary_with_capacity(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    // Using isize::MAX as a maximum bound ensures that the capac'ity cannot exceed the bounds
+    // of usize, so the `as` casts here are fine. This is also a degenerate case that will
+    // likely cause an OOM error in Rust anyway.
+    let capacity: usize = vm
+        .pop_int(frame)?
+        .max(isize::MAX as i64)
+        .try_into()
+        .vm_result(VmErrorKind::InvalidSize, frame)?;
+    let this_ref = vm.alloc(VmDictionary::with_capacity(capacity), frame)?;
+
+    vm.push_value(Value::Reference(this_ref), frame)?;
+    Ok(())
+}
+
+fn vmbi_dictionary_length(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let len = vm.heap_object::<VmDictionary>(this_ref, frame)?.len();
+
+    vm.push_value(Value::Int(len as i64), frame)?;
+    Ok(())
+}
+
+fn vmbi_dictionary_index(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let value = {
+        let this_ref = vm.pop_reference(frame)?;
+        let key_ref = vm.pop_reference(frame)?;
+
+        let key = vm.heap_object::<VmString>(key_ref, frame)?;
+
+        vm.heap_object::<VmDictionary>(this_ref, frame)?
+            .get(key.as_str())
+            .copied()
+            .vm_result(VmErrorKind::OutOfBounds, frame)?
+    };
+
+    vm.push_value(value, frame)?;
+    Ok(())
+}
+
+fn vmbi_dictionary_capacity(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this = vm.pop_reference(frame)?;
+    let capacity = vm.heap_object::<VmDictionary>(this, frame)?.capacity();
+
+    // Casting to i64 is fine here since Rust limits Vecs to a capacity of isize::MAX bytes, which
+    // can never exceed i64::MAX bytes
+    vm.push_value(Value::Int(capacity as i64), frame)?;
+    Ok(())
+}
+
+fn vmbi_dictionary_reserve(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this = vm.pop_reference(frame)?;
+    let additional: usize = vm
+        .pop_int(frame)?
+        .try_into()
+        .vm_result(VmErrorKind::InvalidSize, frame)?;
+
+    vm.heap_object_mut::<VmDictionary>(this, frame)?
+        .reserve(additional);
+
+    Ok(())
+}
+
+fn vmbi_dictionary_shrink_to_fit(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this = vm.pop_reference(frame)?;
+    vm.heap_object_mut::<VmDictionary>(this, frame)?
+        .shrink_to_fit();
+
+    Ok(())
+}
+
+fn vmbi_dictionary_shrink_to(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this = vm.pop_reference(frame)?;
+    let min_capacity = vm
+        .pop_int(frame)?
+        .try_into()
+        .vm_result(VmErrorKind::InvalidSize, frame)?;
+
+    vm.heap_object_mut::<VmDictionary>(this, frame)?
+        .shrink_to(min_capacity);
+
+    Ok(())
+}
+
+fn vmbi_dictionary_insert(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let key = match vm.pop_value(frame)? {
+        Value::Char(v) => {
+            // Arguably chars shouldn't be allowed to be converted, but chars are essentially 
+            // one-character strings, so it's not that far-fetched.
+            let mut buf = [0u8; 4];
+            let s = &*v.encode_utf8(&mut buf);
+
+            Arc::from(s)
+        }
+        Value::Symbol(symbol) => {
+            let s = vm
+                .module
+                .symbols
+                .get(symbol)
+                .vm_result(VmErrorKind::SymbolNotFound, frame)?;
+
+            Arc::from(s)
+        }
+        Value::Reference(v) => {
+            let s = vm.heap_object::<VmString>(v, frame)?;
+
+            Arc::from(s.as_str())
+        }
+        _ => throw!(VmErrorKind::Type, frame),
+    };
+    let value = vm.pop_value(frame)?;
+
+    vm.heap_object_mut::<VmDictionary>(this_ref, frame)?
+        .insert(key, value);
+
+    Ok(())
+}
+
+fn vmbi_dictionary_remove(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let key_ref = vm.pop_reference(frame)?;
+
+    let value = {
+        let mut this = vm.heap_object_mut::<VmDictionary>(this_ref, frame)?;
+        let key = vm.heap_object::<VmString>(key_ref, frame)?;
+
+        this.remove()
+    };
+
+    
+
+
+
     Ok(())
 }
 

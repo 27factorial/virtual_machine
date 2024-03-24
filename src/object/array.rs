@@ -1,8 +1,8 @@
 use super::{Type, TypeBuilder, VmObject};
-use crate::{module::Module, vm::heap::Collector};
 use crate::value::Value;
 use crate::vm::builtin;
 use crate::vm::ops::OpCode;
+use crate::{module::Module, vm::heap::Collector};
 use serde::{Deserialize, Serialize};
 use std::ops::{Deref, DerefMut};
 
@@ -76,7 +76,7 @@ impl VmObject for VmArray {
         None
     }
 
-    fn collect_data(&self, mut collector: Collector<'_>) {
+    fn gc(&self, mut collector: Collector<'_>) {
         collector.collect_from(self.iter().copied())
     }
 }

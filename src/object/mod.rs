@@ -21,7 +21,7 @@ pub trait VmObject: Any + Debug + Send + Sync + sealed::Upcast {
         Self: Sized;
     fn field(&self, name: &str) -> Option<&Value>;
     fn field_mut(&mut self, name: &str) -> Option<&mut Value>;
-    fn collect_data(&self, collector: Collector<'_>);
+    fn gc(&self, collector: Collector<'_>);
 
     #[inline(always)]
     fn as_any(&self) -> &dyn Any {
