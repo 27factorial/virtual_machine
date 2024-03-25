@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{hash::Hasher, sync::Arc};
 
 use crate::{
     object::{array::VmArray, dict::VmDictionary, string::VmString},
@@ -1319,12 +1319,10 @@ fn vmbi_dictionary_remove(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         let mut this = vm.heap_object_mut::<VmDictionary>(this_ref, frame)?;
         let key = vm.heap_object::<VmString>(key_ref, frame)?;
 
-        this.remove()
+        this.remove(key.as_str()).vm_result(VmErrorKind::OutOfBounds, frame)?
     };
 
-    
-
-
+    vm.push_value(value, frame)?;
 
     Ok(())
 }
