@@ -256,7 +256,6 @@ pub enum Transition {
 
 mod imp {
     use super::{OpResult, Transition};
-    use crate::module::Path;
     use crate::throw;
     use crate::utils::IntoVmResult;
     use crate::value::Value;
@@ -988,22 +987,9 @@ mod imp {
         pub(super) fn op_resolve_imm(&mut self, symbol: Symbol, frame: &CallFrame) -> OpResult {
             // This is fucking SLOW! Some caching should be done here like I did before.
             let name = self.module.symbols.get(symbol).vm_result(VmErrorKind::SymbolNotFound, frame)?;
-            let path = Path::new(name).vm_result(VmErrorKind::FunctionNotFound, frame)?;
 
-            let functions = match path.object {
-                Some(name) => {
-                    let ty = self
-                        .module
-                        .types
-                        .get(name)
-                        .vm_result(VmErrorKind::TypeNotFound, frame)?;
-                    &ty.methods
-                }
-                None => &self.module.functions.indices,
-            };
-
-            let function = functions
-                .get(path.member)
+            let function = self.module.functions
+                .get(name)
                 .vm_result(VmErrorKind::FunctionNotFound, frame)?;
 
             self.push_value(Value::Function(*function), frame)?;

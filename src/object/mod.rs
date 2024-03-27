@@ -16,7 +16,7 @@ pub mod dict;
 pub mod string;
 
 pub trait VmObject: Any + Debug + Send + Sync + sealed::Upcast {
-    fn register_type(module: &mut Module) -> &Type
+    fn register(module: &mut Module) -> &Type
     where
         Self: Sized;
     fn field(&self, name: &str) -> Option<&Value>;

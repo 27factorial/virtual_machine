@@ -1,11 +1,18 @@
 use crate::{
     module::Module,
     value::Value,
-    vm::{builtin, heap::{Collector, Heap}, ops::OpCode},
+    vm::{
+        builtin,
+        heap::{Collector, Heap},
+        ops::OpCode,
+    },
 };
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
-use std::{ops::{Deref, DerefMut}, sync::Arc};
+use std::{
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
 
 use super::{Type, TypeBuilder, VmObject};
 
@@ -37,11 +44,11 @@ impl DerefMut for VmDictionary {
 }
 
 impl VmObject for VmDictionary {
-    fn register_type(module: &mut Module) -> &Type
+    fn register(module: &mut Module) -> &Type
     where
         Self: Sized,
     {
-        let type_name = "Dictionary";
+        let type_name = "core::collections::Dictionary";
 
         let mut builder = TypeBuilder::new(type_name);
 

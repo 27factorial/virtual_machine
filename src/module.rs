@@ -7,7 +7,7 @@ use hashbrown::hash_map::{Entry, RawEntryMut};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    object::{array::VmArray, string::VmString, Type, TypeBuilder, VmObject},
+    object::{array::VmArray, dict::VmDictionary, string::VmString, Type, TypeBuilder, VmObject},
     symbol::{Symbol, Symbols},
     utils::{FxHashMap, FxIndexMap},
     value::Value,
@@ -146,6 +146,7 @@ impl Module {
             self.functions.code.extend(&code[range]);
             let func = Function::new(start);
 
+            self.functions.indices.insert(Arc::clone(&name), func);
             methods.insert(name, func);
         }
 
@@ -225,34 +226,6 @@ impl Debug for Module {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
-pub struct Path<'a> {
-    pub object: Option<&'a str>,
-    pub member: &'a str,
-}
-
-impl<'a> Path<'a> {
-    pub fn new(path: &'a str) -> Option<Self> {
-        if path.is_empty() {
-            return None;
-        }
-
-        // Attempts to split a string of the form "object::member" or just "member". If there is no
-        // "::" separator, then rsplit_once will return None, and the unwrap_or will cause the
-        // result to be  (object = None, member = path). If the separator is found, rsplit_once
-        // will return Some(("object", "member")). Map turns this into
-        // (object = Some("object"), member = "member"). This means that, if path isn't empty,
-        // We end up with the components of a Path, where there is at least a member and possibly
-        // an object.
-        let (object, member) = path
-            .rsplit_once("::")
-            .map(|(obj, member)| (Some(obj), member))
-            .unwrap_or((None, path));
-
-        Some(Self { object, member })
-    }
-}
-
 /// The core library of the PFVM.
 pub struct CoreLib;
 
@@ -260,9 +233,9 @@ impl ToModule for CoreLib {
     fn to_module(self) -> Module {
         let mut module = Module::new();
 
-        VmArray::register_type(&mut module);
-        VmString::register_type(&mut module);
-        // VmDictionary::register_type(&mut module);
+        VmArray::register(&mut module);
+        VmString::register(&mut module);
+        VmDictionary::register(&mut module);
 
         module
     }
@@ -305,8 +278,8 @@ mod test {
         let mut manual_module = Module::new();
         let mut loading_module = Module::new();
 
-        VmArray::register_type(&mut manual_module);
-        VmString::register_type(&mut manual_module);
+        VmArray::register(&mut manual_module);
+        VmString::register(&mut manual_module);
 
         loading_module.load_module(CoreLib);
 

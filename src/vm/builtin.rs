@@ -1394,5 +1394,5 @@ fn vmbi_println(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 ///////////////////////////////////////////////////
 
 fn vmbi_load_module(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    Ok(())
+    todo!("loading modules");
 }

@@ -44,11 +44,11 @@ impl From<String> for VmString {
 }
 
 impl VmObject for VmString {
-    fn register_type(module: &mut Module) -> &Type
+    fn register(module: &mut Module) -> &Type
     where
         Self: Sized,
     {
-        let type_name = "String";
+        let type_name = "core::collections::String";
 
         let mut builder = TypeBuilder::new(type_name);
 

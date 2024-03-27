@@ -34,11 +34,11 @@ impl DerefMut for VmArray {
 }
 
 impl VmObject for VmArray {
-    fn register_type(module: &mut Module) -> &Type
+    fn register(module: &mut Module) -> &Type
     where
         Self: Sized,
     {
-        let type_name = "Array";
+        let type_name = "core::collections::Array";
 
         let mut builder = TypeBuilder::new(type_name);
 
