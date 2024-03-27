@@ -51,6 +51,7 @@ macro_rules! variant_methods {
     }
 }
 
+#[repr(usize)]
 #[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
 pub enum Value {
     /// A signed 64-bit integer.
@@ -77,4 +78,46 @@ variant_methods! {
     Symbol(Symbol), "a";
     Function(Function), "a";
     Reference(Reference), "a";
+}
+
+impl From<i64> for Value {
+    fn from(value: i64) -> Self {
+        Value::Int(value)
+    }
+}
+
+impl From<f64> for Value {
+    fn from(value: f64) -> Self {
+        Value::Float(value)
+    }
+}
+
+impl From<bool> for Value {
+    fn from(value: bool) -> Self {
+        Value::Bool(value)
+    }
+}
+
+impl From<char> for Value {
+    fn from(value: char) -> Self {
+        Value::Char(value)
+    }
+}
+
+impl From<Symbol> for Value {
+    fn from(value: Symbol) -> Self {
+        Value::Symbol(value)
+    }
+}
+
+impl From<Function> for Value {
+    fn from(value: Function) -> Self {
+        Value::Function(value)
+    }
+}
+
+impl From<Reference> for Value {
+    fn from(value: Reference) -> Self {
+        Value::Reference(value)
+    }
 }

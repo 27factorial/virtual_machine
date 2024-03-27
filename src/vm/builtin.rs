@@ -71,44 +71,44 @@ macro_rules! int_arithmetic_intrinsics {
         $(
             paste! {
                 fn [<vmbi_wrapping_ $name>](vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-                    let rhs = vm.pop_value(frame)?;
-                    let top = vm.top_value_mut(frame)?;
+                    let lhs = vm.pop_value(frame)?;
+                    let rhs = vm.top_value_mut(frame)?;
 
-                    let result = match (&top, rhs) {
-                        (Value::Int(a), Value::Int(b))  => Value::Int(a.[<wrapping_ $name>](b)),
+                    let result = match (lhs, &rhs) {
+                        (Value::Int(a), Value::Int(b))  => Value::Int(a.[<wrapping_ $name>](*b)),
                         _ => throw!(VmErrorKind::Type, frame),
                     };
 
-                    *top = result;
+                    *rhs = result;
                     Ok(())
                 }
 
                 fn [<vmbi_saturating_ $name>](vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-                    let rhs = vm.pop_value(frame)?;
-                    let top = vm.top_value_mut(frame)?;
+                    let lhs = vm.pop_value(frame)?;
+                    let rhs = vm.top_value_mut(frame)?;
 
-                    let result = match (&top, rhs) {
-                        (Value::Int(a), Value::Int(b))  => Value::Int(a.[<saturating_ $name>](b)),
+                    let result = match (lhs, &rhs) {
+                        (Value::Int(a), Value::Int(b))  => Value::Int(a.[<saturating_ $name>](*b)),
                         _ => throw!(VmErrorKind::Type, frame),
                     };
 
-                    *top = result;
+                    *rhs = result;
                     Ok(())
                 }
 
                 fn [<vmbi_overflowing_ $name>](vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-                    let rhs = vm.pop_value(frame)?;
-                    let top = vm.top_value_mut(frame)?;
+                    let lhs = vm.pop_value(frame)?;
+                    let rhs = vm.top_value_mut(frame)?;
 
-                    let (result, flag) = match (&top, rhs) {
+                    let (result, flag) = match (lhs, &rhs) {
                         (Value::Int(a), Value::Int(b))  => {
-                            let (val, flag) = a.[<overflowing_ $name>](b);
+                            let (val, flag) = a.[<overflowing_ $name>](*b);
                             (Value::Int(val), flag)
                         },
                         _ => throw!(VmErrorKind::Type, frame),
                     };
 
-                    *top = result;
+                    *rhs = result;
                     vm.push_value(Value::Bool(flag), frame)?;
                     Ok(())
                 }
@@ -145,9 +145,6 @@ macro_rules! define_builtins {
     (@constant) => {};
     (@replace_expr $_t:tt $sub:expr) => {$sub};
     (@count $($tts:tt)*) => {
-        // Counting tts for const expressions became much simpler after Rust 1.39, since slice's
-        // len method became const. Since pfvm always targets the latest nightly, compatibility
-        // with Rust versions < 1.39 is not a concern.
         <[()]>::len(&[$(define_builtins!(@replace_expr $tts ())),*])
     };
 }
@@ -264,6 +261,7 @@ define_builtins! {
     array_remove,
     array_push,
     array_pop,
+    array_contains,
 
     // String functions
     string_new,
@@ -281,6 +279,20 @@ define_builtins! {
     string_remove,
     string_push,
     string_pop,
+    string_contains,
+
+    // Dictionary functions
+    dictionary_new,
+    dictionary_with_capacity,
+    dictionary_length,
+    dictionary_index,
+    dictionary_capacity,
+    dictionary_reserve,
+    dictionary_shrink_to_fit,
+    dictionary_shrink_to,
+    dictionary_insert,
+    dictionary_remove,
+    dictionary_contains,
 
     // I/O
     print,
@@ -408,31 +420,31 @@ fn vmbi_overflowing_abs(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 }
 
 fn vmbi_wrapping_rem(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    let rhs = vm.pop_value(frame)?;
-    let top = vm.top_value_mut(frame)?;
+    let lhs = vm.pop_value(frame)?;
+    let rhs = vm.top_value_mut(frame)?;
 
-    let result = match (&top, rhs) {
-        (Value::Int(a), Value::Int(b)) => Value::Int(a.wrapping_rem(b)),
+    let result = match (lhs, &rhs) {
+        (Value::Int(a), Value::Int(b)) => Value::Int(a.wrapping_rem(*b)),
         _ => throw!(VmErrorKind::Type, frame),
     };
 
-    *top = result;
+    *rhs = result;
     Ok(())
 }
 
 fn vmbi_overflowing_rem(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    let rhs = vm.pop_value(frame)?;
-    let top = vm.top_value_mut(frame)?;
+    let lhs = vm.pop_value(frame)?;
+    let rhs = vm.top_value_mut(frame)?;
 
-    let (result, flag) = match (&top, rhs) {
+    let (result, flag) = match (lhs, &rhs) {
         (Value::Int(a), Value::Int(b)) => {
-            let (val, flag) = a.overflowing_rem(b);
+            let (val, flag) = a.overflowing_rem(*b);
             (Value::Int(val), flag)
         }
         _ => throw!(VmErrorKind::Type, frame),
     };
 
-    *top = result;
+    *rhs = result;
     vm.push_value(Value::Bool(flag), frame)?;
     Ok(())
 }
@@ -474,41 +486,29 @@ fn vmbi_overflowing_neg(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 // The normal pow function is more complex than a normal instruction, since it has different
 // behaviors if the exponent is an unsigned, signed, or floating point number.
 fn vmbi_pow(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    #[inline(always)]
     // Integer powers (works in the range 0..=u32::MAX for integers and the range
     // i32::MIN..=i32::MAX for floats).
-    fn powi(
-        value: &Value,
-        exponent: impl TryInto<u32> + TryInto<i32>,
-        frame: &CallFrame,
-    ) -> Result<Value> {
-        match value {
-            Value::Int(v) => {
-                let exp: u32 = exponent
-                    .try_into()
-                    .vm_result(VmErrorKind::Arithmetic, frame)?;
-                let result = v
-                    .checked_pow(exp)
-                    .vm_result(VmErrorKind::Arithmetic, frame)?;
-                Ok(Value::Int(result))
-            }
-            Value::Float(v) => {
-                let exp: i32 = exponent
-                    .try_into()
-                    .vm_result(VmErrorKind::Arithmetic, frame)?;
-                Ok(Value::Float(v.powi(exp)))
-            }
-            _ => throw!(VmErrorKind::Type, frame),
+    let base = vm.pop_value(frame)?;
+    let exponent = vm.top_value_mut(frame)?;
+
+    let result = match base {
+        Value::Int(base) => {
+            let &mut Value::Int(exponent) = exponent else {
+                throw!(VmErrorKind::Type, frame);
+            };
+
+            let exp: u32 = exponent
+                .try_into()
+                .vm_result(VmErrorKind::Arithmetic, frame)?;
+
+            let result = base
+                .checked_pow(exp)
+                .vm_result(VmErrorKind::Arithmetic, frame)?;
+
+            Value::Int(result)
         }
-    }
-
-    let exponent = vm.pop_value(frame)?;
-    let top = vm.top_value_mut(frame)?;
-
-    let result = match exponent {
-        Value::Int(exp) => powi(top, exp, frame)?,
         Value::Float(exp) => {
-            let Value::Float(v) = top else {
+            let Value::Float(v) = exponent else {
                 throw!(VmErrorKind::Type, frame);
             };
 
@@ -517,84 +517,68 @@ fn vmbi_pow(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         _ => throw!(VmErrorKind::Type, frame),
     };
 
-    *top = result;
+    *exponent = result;
     Ok(())
 }
 
 fn vmbi_wrapping_pow(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    let exponent = vm.pop_value(frame)?;
-    let top = vm.top_value_mut(frame)?;
+    let this = vm.pop_int(frame)?;
+    let exponent = vm.top_value_mut(frame)?;
 
-    let exponent = match exponent {
-        Value::Int(v) => u32::try_from(v).vm_result(VmErrorKind::Arithmetic, frame)?,
+    let exp = match exponent {
+        Value::Int(v) => u32::try_from(*v).vm_result(VmErrorKind::Arithmetic, frame)?,
         _ => throw!(VmErrorKind::Type, frame),
     };
 
-    let result = match top {
-        Value::Int(v) => Value::Int(v.wrapping_pow(exponent)),
-        _ => throw!(VmErrorKind::Type, frame),
-    };
-
-    *top = result;
+    *exponent = this.wrapping_pow(exp).into();
     Ok(())
 }
 
 fn vmbi_saturating_pow(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    let exponent = vm.pop_value(frame)?;
-    let top = vm.top_value_mut(frame)?;
+    let this = vm.pop_int(frame)?;
+    let exponent = vm.top_value_mut(frame)?;
 
-    let exponent = match exponent {
-        Value::Int(v) => u32::try_from(v).vm_result(VmErrorKind::Arithmetic, frame)?,
+    let exp = match exponent {
+        Value::Int(v) => u32::try_from(*v).vm_result(VmErrorKind::Arithmetic, frame)?,
         _ => throw!(VmErrorKind::Type, frame),
     };
 
-    let result = match top {
-        Value::Int(v) => Value::Int(v.saturating_pow(exponent)),
-        _ => throw!(VmErrorKind::Type, frame),
-    };
-
-    *top = result;
+    *exponent = this.saturating_pow(exp).into();
     Ok(())
 }
 
 fn vmbi_overflowing_pow(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    let exponent = vm.pop_value(frame)?;
-    let top = vm.top_value_mut(frame)?;
+    let this = vm.pop_int(frame)?;
+    let exponent = vm.top_value_mut(frame)?;
 
-    let exponent = match exponent {
-        Value::Int(v) => u32::try_from(v).vm_result(VmErrorKind::Arithmetic, frame)?,
+    let exp = match exponent {
+        Value::Int(v) => u32::try_from(*v).vm_result(VmErrorKind::Arithmetic, frame)?,
         _ => throw!(VmErrorKind::Type, frame),
     };
 
-    let (result, flag) = match top {
-        Value::Int(v) => {
-            let (result, flag) = v.overflowing_pow(exponent);
-            (Value::Int(result), flag)
-        }
-        _ => throw!(VmErrorKind::Type, frame),
-    };
+    let (result, flag) = this.overflowing_pow(exp);
 
-    *top = result;
-    vm.push_value(Value::Bool(flag), frame)?;
+    *exponent = result.into();
+    vm.push_value(flag.into(), frame)?;
     Ok(())
 }
 
 fn vmbi_log(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    let base = vm.pop_value(frame)?;
-    let top = vm.top_value_mut(frame)?;
+    let arg = vm.pop_value(frame)?;
+    let base = vm.top_value_mut(frame)?;
 
-    let result = match (&top, base) {
+    let result = match (arg, &base) {
         (Value::Int(a), Value::Int(b)) => {
             let result = a
-                .checked_ilog(b)
+                .checked_ilog(*b)
                 .vm_result(VmErrorKind::Arithmetic, frame)?;
             Value::Int(result as i64)
         }
-        (Value::Float(a), Value::Float(b)) => Value::Float(a.log(b)),
+        (Value::Float(a), Value::Float(b)) => Value::Float(a.log(*b)),
         _ => throw!(VmErrorKind::Type, frame),
     };
 
-    *top = result;
+    *base = result;
     Ok(())
 }
 
@@ -678,45 +662,45 @@ fn vmbi_is_negative(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 ///////////////////////////////////////////
 
 fn vmbi_min(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    let other = vm.pop_value(frame)?;
-    let top = vm.top_value_mut(frame)?;
+    let this = vm.pop_value(frame)?;
+    let other = vm.top_value_mut(frame)?;
 
-    let result = match (&top, other) {
-        (Value::Int(a), Value::Int(b)) => Value::Int((*a).min(b)),
-        (Value::Float(a), Value::Float(b)) => Value::Float(a.min(b)),
+    let result = match (this, &other) {
+        (Value::Int(a), Value::Int(b)) => Value::Int(a.min(*b)),
+        (Value::Float(a), Value::Float(b)) => Value::Float(a.min(*b)),
         _ => throw!(VmErrorKind::Type, frame),
     };
 
-    *top = result;
+    *other = result;
     Ok(())
 }
 
 fn vmbi_max(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    let other = vm.pop_value(frame)?;
-    let top = vm.top_value_mut(frame)?;
+    let this = vm.pop_value(frame)?;
+    let other = vm.top_value_mut(frame)?;
 
-    let result = match (&top, other) {
-        (Value::Int(a), Value::Int(b)) => Value::Int((*a).max(b)),
-        (Value::Float(a), Value::Float(b)) => Value::Float(a.max(b)),
+    let result = match (this, &other) {
+        (Value::Int(a), Value::Int(b)) => Value::Int(a.max(*b)),
+        (Value::Float(a), Value::Float(b)) => Value::Float(a.max(*b)),
         _ => throw!(VmErrorKind::Type, frame),
     };
 
-    *top = result;
+    *other = result;
     Ok(())
 }
 
 fn vmbi_clamp(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    let max = vm.pop_value(frame)?;
+    let this = vm.pop_value(frame)?;
     let min = vm.pop_value(frame)?;
-    let top = vm.top_value_mut(frame)?;
+    let max = vm.top_value_mut(frame)?;
 
-    let result = match (&top, min, max) {
-        (Value::Int(a), Value::Int(min), Value::Int(max)) => Value::Int((*a).clamp(min, max)),
-        (Value::Float(a), Value::Float(min), Value::Float(max)) => Value::Float(a.clamp(min, max)),
+    let result = match (this, min, &max) {
+        (Value::Int(a), Value::Int(min), Value::Int(max)) => Value::Int(a.clamp(min, *max)),
+        (Value::Float(a), Value::Float(min), Value::Float(max)) => Value::Float(a.clamp(min, *max)),
         _ => throw!(VmErrorKind::Type, frame),
     };
 
-    *top = result;
+    *max = result;
     Ok(())
 }
 
@@ -771,19 +755,19 @@ float_to_bool_intrinsics! {
 }
 
 fn vmbi_atan2(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    let second = vm.pop_value(frame)?;
-    let top = vm.top_value_mut(frame)?;
+    let this = vm.pop_value(frame)?;
+    let arg = vm.top_value_mut(frame)?;
 
-    let Value::Float(arg1) = top else {
+    let Value::Float(arg1) = this else {
         throw!(VmErrorKind::Type, frame);
     };
 
-    let Value::Float(arg2) = second else {
+    let Value::Float(arg2) = arg else {
         throw!(VmErrorKind::Type, frame);
     };
 
-    let result = arg1.atan2(arg2);
-    *arg1 = result;
+    let result = arg1.atan2(*arg2);
+    *arg2 = result;
     Ok(())
 }
 
@@ -969,6 +953,18 @@ fn vmbi_array_pop(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         .vm_result(VmErrorKind::OutOfBounds, frame)?;
 
     vm.push_value(value, frame)?;
+    Ok(())
+}
+
+fn vmbi_array_contains(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let value = vm.pop_value(frame)?;
+
+    let contains = vm
+        .heap_object_mut::<VmArray>(this_ref, frame)?
+        .contains(&value);
+
+    vm.push_value(Value::Bool(contains), frame)?;
     Ok(())
 }
 
@@ -1162,7 +1158,7 @@ fn vmbi_string_push(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
                 .vm_result(VmErrorKind::SymbolNotFound, frame)?;
             this.push_str(s);
         }
-        // Value::Reference(v) => todo!(),
+        Value::Reference(v) => todo!(),
         _ => throw!(VmErrorKind::Type, frame),
     }
 
@@ -1178,6 +1174,33 @@ fn vmbi_string_pop(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         .vm_result(VmErrorKind::OutOfBounds, frame)?;
 
     vm.push_value(Value::Char(value), frame)?;
+    Ok(())
+}
+
+fn vmbi_string_contains(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let value = vm.pop_value(frame)?;
+
+    let contains = {
+        let this = vm.heap_object::<VmString>(this_ref, frame)?;
+
+        match value {
+            Value::Char(v) => this.contains(v),
+            Value::Symbol(v) => {
+                let s = vm
+                    .module
+                    .symbols
+                    .get(v)
+                    .vm_result(VmErrorKind::SymbolNotFound, frame)?;
+                this.contains(s)
+            }
+            Value::Reference(v) => todo!(),
+            _ => throw!(VmErrorKind::Type, frame),
+        }
+    };
+
+    vm.push_value(Value::Bool(contains), frame)?;
+
     Ok(())
 }
 
@@ -1280,8 +1303,8 @@ fn vmbi_dictionary_insert(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this_ref = vm.pop_reference(frame)?;
     let key = match vm.pop_value(frame)? {
         Value::Char(v) => {
-            // Arguably chars shouldn't be allowed to be converted, but chars are essentially 
-            // one-character strings, so it's not that far-fetched.
+            // Arguably chars shouldn't be allowed to be converted, but chars are essentially
+            // one-character strings, so it's not that far-fetched to do an implicit cast here.
             let mut buf = [0u8; 4];
             let s = &*v.encode_utf8(&mut buf);
 
@@ -1319,10 +1342,27 @@ fn vmbi_dictionary_remove(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         let mut this = vm.heap_object_mut::<VmDictionary>(this_ref, frame)?;
         let key = vm.heap_object::<VmString>(key_ref, frame)?;
 
-        this.remove(key.as_str()).vm_result(VmErrorKind::OutOfBounds, frame)?
+        this.remove(key.as_str())
+            .vm_result(VmErrorKind::OutOfBounds, frame)?
     };
 
     vm.push_value(value, frame)?;
+
+    Ok(())
+}
+
+fn vmbi_dictionary_contains(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let key_ref = vm.pop_reference(frame)?;
+
+    let contains = {
+        let this = vm.heap_object::<VmDictionary>(this_ref, frame)?;
+        let key = vm.heap_object::<VmString>(key_ref, frame)?;
+
+        this.contains_key(key.as_str())
+    };
+
+    vm.push_value(Value::Bool(contains), frame)?;
 
     Ok(())
 }

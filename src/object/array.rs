@@ -57,6 +57,7 @@ impl VmObject for VmArray {
             ("remove", builtin::ARRAY_REMOVE),
             ("push", builtin::ARRAY_PUSH),
             ("pop", builtin::ARRAY_POP),
+            ("contains", builtin::ARRAY_CONTAINS),
         ];
 
         for (name, builtin) in builtin_funcs {

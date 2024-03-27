@@ -68,6 +68,7 @@ impl VmObject for VmString {
             ("remove", builtin::STRING_REMOVE),
             ("push", builtin::STRING_PUSH),
             ("pop", builtin::STRING_POP),
+            ("contains", builtin::STRING_CONTAINS),
         ];
 
         for (name, builtin) in builtin_funcs {

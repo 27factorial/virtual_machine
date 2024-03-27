@@ -30,6 +30,11 @@ macro_rules! throw {
 
 pub(crate) static EXPECTED_PANIC: AtomicBool = AtomicBool::new(false);
 
+pub const KILOBYTE: usize = 1024;
+pub const MEGABYTE: usize = 1024 * KILOBYTE;
+pub const GIGABYTE: usize = 1024 * MEGABYTE;
+pub const TERABYTE: usize = 1024 * GIGABYTE;
+
 // Ugly hack to set a temporary panic hook. We only want the custom panic hook while running code
 // on the VM. This may produce unexpected results when used with multithreaded code, but should be
 // fine in the context of this crate.
@@ -89,8 +94,8 @@ pub struct Vm {
 impl Vm {
     pub fn new(module: Module) -> Self {
         Self {
-            data_stack: VmStack::new(16),
-            heap: Heap::new(1024),
+            data_stack: VmStack::with_byte_capacity(8 * MEGABYTE),
+            heap: Heap::new(2 * GIGABYTE),
             module,
         }
     }

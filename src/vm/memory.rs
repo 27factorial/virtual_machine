@@ -1,5 +1,5 @@
 use std::alloc::{self, Layout};
-use std::cmp;
+use std::{cmp, mem};
 use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 use std::iter::FusedIterator;
@@ -66,6 +66,12 @@ impl<T> VmStack<T> {
         let data = unsafe { Box::from_raw(ptr::slice_from_raw_parts_mut(ptr, capacity)) };
 
         Self { data, len: 0 }
+    }
+
+    pub fn with_byte_capacity(capacity: usize) -> Self {
+        let capacity = capacity / mem::size_of::<T>();
+
+        Self::new(capacity)
     }
 
     #[inline(always)]
