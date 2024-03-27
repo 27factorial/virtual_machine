@@ -108,6 +108,25 @@ impl Symbols {
     pub fn get_span(&self, index: usize) -> Option<SymbolSpan> {
         self.indices.get(index).copied()
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = (Symbol, &str)> + '_ {
+        self.indices.iter().map(|span| {
+            let sym = Symbol(span.start);
+            let s = unsafe { self.data.get_unchecked(span.start..span.start + span.len) };
+
+            (sym, s)
+        })
+    }
+
+    pub fn symbols(&self) -> impl Iterator<Item = Symbol> + '_ {
+        self.indices.iter().map(|span| Symbol(span.start))
+    }
+
+    pub fn strs(&self) -> impl Iterator<Item = &str> + '_ {
+        self.indices
+            .iter()
+            .map(|span| unsafe { self.data.get_unchecked(span.start..span.start + span.len) })
+    }
 }
 
 impl Index<Symbol> for Symbols {
@@ -139,5 +158,4 @@ pub struct SymbolSpan {
 #[derive(
     Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize, Deserialize,
 )]
-#[repr(transparent)]
-pub struct Symbol(pub usize);
+pub struct Symbol(pub(crate) usize);

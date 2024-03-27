@@ -983,7 +983,7 @@ mod imp {
             self.op_resolve_imm(symbol, frame)
         }
 
-        // rslv
+        // rslvi
         pub(super) fn op_resolve_imm(&mut self, symbol: Symbol, frame: &CallFrame) -> OpResult {
             // This is fucking SLOW! Some caching should be done here like I did before.
             let name = self.module.symbols.get(symbol).vm_result(VmErrorKind::SymbolNotFound, frame)?;

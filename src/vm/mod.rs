@@ -84,6 +84,8 @@ where
 
 pub type Result<T> = std::result::Result<T, VmError>;
 
+// TODO: implement programs as a map between names and modules.
+
 #[derive(Debug)]
 pub struct Vm {
     data_stack: VmStack<Value>,

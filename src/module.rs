@@ -4,6 +4,7 @@ use std::{
 };
 
 use hashbrown::hash_map::{Entry, RawEntryMut};
+use indexmap::map::{raw_entry_v1::RawEntryMut as RawIndexEntryMut, RawEntryApiV1};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -43,7 +44,7 @@ fn relocate_opcodes<'a>(
     })
 }
 
-pub type NativeFn = dyn Fn(&mut Vm, &CallFrame) -> VmResult<Value> + 'static;
+pub type NativeFn = dyn Fn(&mut Vm, &CallFrame) -> VmResult<Value> + Send + Sync + 'static;
 
 /// A trait for converting types into a module. This can be used to implement libraries written in
 /// Rust that can be loaded into the VM. It's also how the core libraries of the VM are implemented.
@@ -103,7 +104,7 @@ impl Module {
 
     pub fn define_native_function<F>(&mut self, symbol: Symbol, func: F) -> Result<(), F>
     where
-        F: Fn(&mut Vm, &CallFrame) -> VmResult<Value> + 'static,
+        F: Fn(&mut Vm, &CallFrame) -> VmResult<Value> + Send + Sync + 'static,
     {
         if let Some(name) = self.symbols.get(symbol) {
             match self.native_functions.raw_entry_mut().from_key(name) {
@@ -151,7 +152,7 @@ impl Module {
         }
 
         let ty = entry.insert(Type {
-            name: Arc::clone(&type_name),
+            name: type_name,
             fields,
             methods,
         });
@@ -184,7 +185,7 @@ impl Module {
         // could potentially cause quadratic time complexity, but it's unlikely to in practice.
         //
         // TODO: handle extending maps properly. Currently, if a map contains duplicate keys, it
-        // just overwrites the one in self.
+        // just overwrites the one in the current module.
         relocate_functions(&mut types, &mut functions_indices, code_offset);
 
         // Search for OpCodes which need relocating (anything directly referencing constants or
@@ -223,6 +224,36 @@ impl Debug for Module {
             .field("functions", &self.functions)
             .field("native_functions", &NativeFnsDebug(&self.native_functions))
             .finish()
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct Program {
+    modules: FxIndexMap<Arc<str>, Arc<Module>>,
+}
+
+impl Program {
+    pub fn new() -> Self {
+        Self {
+            modules: FxIndexMap::default(),
+        }
+    }
+
+    pub fn load<M: ToModule>(&mut self, name: impl AsRef<str>, module: M) -> Result<(), M> {
+        let name = name.as_ref();
+
+        match self.modules.raw_entry_mut_v1().from_key(name) {
+            RawIndexEntryMut::Vacant(entry) => {
+                entry.insert(Arc::from(name), Arc::new(module.to_module()));
+                Ok(())
+            },
+            RawIndexEntryMut::Occupied(_) => Err(module),
+        }
+    }
+
+    pub fn get(&self, name: impl AsRef<str>) -> Option<Arc<Module>> {
+        let name = name.as_ref();
+        self.modules.get(name).cloned()
     }
 }
 
