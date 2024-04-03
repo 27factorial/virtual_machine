@@ -1,3 +1,5 @@
+use std::fmt::{self, Display};
+
 use crate::vm::heap::Reference;
 use crate::{symbol::Symbol, vm::function::Function};
 use paste::paste;
@@ -119,5 +121,19 @@ impl From<Function> for Value {
 impl From<Reference> for Value {
     fn from(value: Reference) -> Self {
         Value::Reference(value)
+    }
+}
+
+impl Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::Int(v) => write!(f, "{}", v),
+            Value::Float(v) => write!(f, "{}", v),
+            Value::Bool(v) => write!(f, "{}", v),
+            Value::Char(v) => write!(f, "{}", v),
+            Value::Symbol(v) => write!(f, "{}", v.0),
+            Value::Function(v) => write!(f, "f{:x}", v.0),
+            Value::Reference(v) => write!(f, "r{:x}", v.0),
+        }
     }
 }

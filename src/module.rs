@@ -20,30 +20,6 @@ use crate::{
     },
 };
 
-fn relocate_functions(
-    types: &mut FxHashMap<Arc<str>, Type>,
-    functions: &mut FxHashMap<Arc<str>, Function>,
-    offset: usize,
-) {
-    functions
-        .values_mut()
-        .chain(types.values_mut().flat_map(|ty| ty.methods.values_mut()))
-        .for_each(|Function(idx)| *idx += offset);
-}
-
-fn relocate_opcodes<'a>(
-    ops: impl IntoIterator<Item = &'a mut OpCode>,
-    constants_offset: usize,
-    code_offset: usize,
-) {
-    // TODO: Handle CallNative and symbols
-    ops.into_iter().for_each(|opcode| match opcode {
-        OpCode::PushConst(index) => *index += constants_offset,
-        OpCode::CallImm(function) => function.0 += code_offset,
-        _ => {}
-    })
-}
-
 pub type NativeFn = dyn Fn(&mut Vm, &CallFrame) -> VmResult<Value> + Send + Sync + 'static;
 
 /// A trait for converting types into a module. This can be used to implement libraries written in
@@ -124,11 +100,8 @@ impl Module {
             name: type_name,
             fields,
             methods: method_ranges,
-            mut code,
+            code,
         } = builder;
-
-        let code_offset = self.functions.code.len();
-
         let Entry::Vacant(entry) = self.types.entry(Arc::clone(&type_name)) else {
             panic!("Attempt to register duplicate type {type_name}");
         };
@@ -137,8 +110,6 @@ impl Module {
 
         let mut methods =
             FxHashMap::with_capacity_and_hasher(method_ranges.len(), Default::default());
-
-        relocate_opcodes(&mut code, 0, code_offset);
 
         for (name, range) in method_ranges {
             self.symbols.get_or_push_iter([&type_name, "::", &name]);
@@ -158,46 +129,6 @@ impl Module {
         });
 
         ty
-    }
-
-    pub(crate) fn load_module(&mut self, other: impl ToModule) {
-        let Module {
-            symbols, // TODO: Handle symbols.
-            mut types,
-            constants,
-            functions:
-                Functions {
-                    indices: mut functions_indices,
-                    code: mut functions_code,
-                },
-            native_functions,
-        } = other.to_module();
-
-        let constants_offset = self.constants.len();
-        let code_offset = self.functions.code.len();
-
-        // Relocate all OpCodes which use constant indices or immediate Functions.
-        // Modules are loaded at the end of the current module, which means that all indices will
-        // have a constant offset of whatever the old length of the module's field was.
-        //
-        // Since symbols are interned, those will all have to be relocated manually (since each
-        // module's symbol field could have identical symbols, just at different offsets). This
-        // could potentially cause quadratic time complexity, but it's unlikely to in practice.
-        //
-        // TODO: handle extending maps properly. Currently, if a map contains duplicate keys, it
-        // just overwrites the one in the current module.
-        relocate_functions(&mut types, &mut functions_indices, code_offset);
-
-        // Search for OpCodes which need relocating (anything directly referencing constants or
-        // functions).
-        relocate_opcodes(&mut functions_code, constants_offset, code_offset);
-
-        // Push the new module's content.
-        self.constants.extend(constants);
-        self.types.extend(types);
-        self.functions.indices.extend(functions_indices);
-        self.functions.code.extend(functions_code);
-        self.native_functions.extend(native_functions);
     }
 }
 
@@ -229,7 +160,7 @@ impl Debug for Module {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Program {
-    modules: FxIndexMap<Arc<str>, Arc<Module>>,
+    modules: FxIndexMap<Arc<str>, Module>,
 }
 
 impl Program {
@@ -244,16 +175,20 @@ impl Program {
 
         match self.modules.raw_entry_mut_v1().from_key(name) {
             RawIndexEntryMut::Vacant(entry) => {
-                entry.insert(Arc::from(name), Arc::new(module.to_module()));
+                entry.insert(Arc::from(name), module.to_module());
                 Ok(())
-            },
+            }
             RawIndexEntryMut::Occupied(_) => Err(module),
         }
     }
 
-    pub fn get(&self, name: impl AsRef<str>) -> Option<Arc<Module>> {
+    pub fn get(&self, name: impl AsRef<str>) -> Option<&Module> {
         let name = name.as_ref();
-        self.modules.get(name).cloned()
+        self.modules.get(name)
+    }
+
+    pub fn get_index(&self, module: usize) -> Option<&Module> {
+        self.modules.get_index(module).map(|(_, module)| module)
     }
 }
 
@@ -299,23 +234,4 @@ impl ToModule for Io {
 }
 
 #[cfg(test)]
-mod test {
-    use crate::object::{array::VmArray, string::VmString, VmObject};
-
-    use super::{CoreLib, Module};
-
-    #[test]
-    fn core_loading() {
-        let mut manual_module = Module::new();
-        let mut loading_module = Module::new();
-
-        VmArray::register(&mut manual_module);
-        VmString::register(&mut manual_module);
-
-        loading_module.load_module(CoreLib);
-
-        assert_eq!(manual_module.functions.code, loading_module.functions.code);
-
-        eprintln!("{:?}", manual_module.functions.code);
-    }
-}
+mod test {}

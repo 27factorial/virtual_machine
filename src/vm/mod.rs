@@ -96,7 +96,7 @@ pub struct Vm {
 impl Vm {
     pub fn new(module: Module) -> Self {
         Self {
-            data_stack: VmStack::with_byte_capacity(8 * MEGABYTE),
+            data_stack: VmStack::new(8 * MEGABYTE),
             heap: Heap::new(2 * GIGABYTE),
             module,
         }
@@ -339,13 +339,6 @@ impl Vm {
         }
     }
 
-    pub fn load_module(
-        &mut self,
-        module: impl ToModule,
-    ) {
-        self.module.load_module(module);
-    }
-
     pub fn reset(&mut self) -> Result<()> {
         self.data_stack = VmStack::new(255);
         self.heap = Heap::new(1024);
@@ -491,31 +484,6 @@ mod test {
 
         let mut vm = Vm::new(module);
 
-        vm.run().expect("failed to run vm");
-    }
-
-    #[test]
-    fn loading_modules() {
-        let mut module = Module::new();
-
-        module.load_module(CoreLib);
-        module.load_module(Io);
-
-        let string = module.define_symbol("Hello, World!");
-        let string_new_sym = module.define_symbol("String::from");
-        let print_sym = module.define_symbol("print");
-        let main_sym = module.define_symbol("main");
-
-        module.define_function(main_sym, [
-            OpCode::Push(Value::Symbol(string)),
-            OpCode::ResolveImm(string_new_sym),
-            OpCode::Call,
-            OpCode::ResolveImm(print_sym),
-            OpCode::Call,
-            OpCode::Halt,
-        ]).expect("failed to define main method");
-
-        let mut vm = Vm::new(module);
         vm.run().expect("failed to run vm");
     }
 }

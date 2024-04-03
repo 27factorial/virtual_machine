@@ -953,6 +953,7 @@ mod imp {
             if self.pop_bool(frame)? {
                 self.op_jump(frame)
             } else {
+                self.pop_value(frame)?;
                 Ok(Transition::Continue)
             }
 
@@ -972,6 +973,7 @@ mod imp {
             if self.pop_bool(frame)? {
                 self.op_jump_imm(offset, frame)
             } else {
+                self.pop_value(frame)?;
                 Ok(Transition::Continue)
             }
         }

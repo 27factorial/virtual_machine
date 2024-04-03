@@ -58,3 +58,30 @@ impl Functions {
         self.code.get(index)
     }
 }
+
+pub struct ModulePath<'a> {
+    kind: PathKind,
+    module: &'a str,
+    submodule: Option<&'a str>,
+    ty: Option<&'a str>,
+    field: &'a str,
+}
+
+impl<'a> ModulePath<'a> {
+    pub fn new(s: &'a str) -> Option<Self> {
+        let mut split = s.split('/');
+
+        let module = split.next()?;
+
+        if split.next().is_some() {
+            return None;
+        }
+
+        todo!()
+    }
+}
+
+pub enum PathKind {
+    Function,
+    Field,
+}
