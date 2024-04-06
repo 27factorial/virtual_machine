@@ -1,6 +1,6 @@
 use self::memory::VmStack;
 use self::ops::OpResult;
-use crate::module::{Module, NativeFn, ToModule};
+use crate::module::{Module, NativeFn, Program, ToModule};
 use crate::object::VmObject;
 use crate::symbol::Symbol;
 use crate::utils::IntoVmResult;
@@ -10,6 +10,7 @@ use hashbrown::hash_map::RawEntryMut;
 use heap::{Heap, Reference};
 use ops::Transition;
 use std::cell::{Ref, RefMut};
+use std::fmt::Display;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
@@ -107,7 +108,7 @@ impl Vm {
             .module
             .functions
             .get("main")
-            .ok_or_else(|| VmError::new(VmErrorKind::FunctionNotFound, None))?;
+            .vm_result(VmErrorKind::FunctionNotFound, None)?;
 
         with_panic_hook(|| self.run_function(main, 0))?;
 
@@ -375,9 +376,10 @@ pub enum VmErrorKind {
     InvalidObject,
     OutOfBounds,
     InvalidSize,
+    ModuleNotFound,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct CallFrame {
     pub(crate) ip: usize,
     pub(crate) stack_base: usize,
@@ -399,7 +401,7 @@ impl CallFrame {
 pub(crate) struct VmPanic(String);
 
 impl VmPanic {
-    pub fn new(s: impl ToString) -> Self {
+    pub fn new(s: impl Display) -> Self {
         Self(s.to_string())
     }
 
@@ -411,8 +413,7 @@ impl VmPanic {
         if !self.0.is_empty() {
             panic!("{}", self.0);
         } else {
-            // default message from Rust.
-            panic!();
+            panic!("internal error");
         }
     }
 }

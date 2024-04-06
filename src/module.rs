@@ -20,6 +20,61 @@ use crate::{
     },
 };
 
+fn relocate(symbols: &mut Symbols, module: &mut Module, code_offset: usize, const_offset: usize) {
+    let constants = module.constants.iter_mut();
+    let opcodes = module.functions.code.iter_mut();
+    let methods = module
+        .types
+        .values_mut()
+        .flat_map(|ty| ty.methods.values_mut());
+    let mut symbol_map =
+        FxHashMap::with_capacity_and_hasher(module.symbols.len(), Default::default());
+
+    for (symbol, string) in module.symbols.iter() {
+        let new_symbol = symbols.get_or_push(string);
+
+        symbol_map.insert(symbol, new_symbol);
+    }
+
+    for value in constants {
+        match value {
+            Value::Function(Function(n)) => *n += code_offset,
+            Value::Symbol(sym) => {
+                let new_symbol = symbol_map
+                    .get(sym)
+                    .expect("every symbol should be in the map");
+                *sym = *new_symbol
+            }
+            _ => {}
+        }
+    }
+
+    for opcode in opcodes {
+        match opcode {
+            OpCode::Push(Value::Function(Function(n))) => *n += code_offset,
+            OpCode::PushConst(n) => *n += const_offset,
+            OpCode::ResolveImm(sym) => {
+                let new_symbol = symbol_map
+                    .get(sym)
+                    .expect("every symbol should be in the map");
+                *sym = *new_symbol
+            }
+            OpCode::CallImm(Function(n)) => *n += code_offset,
+            OpCode::CallNative(sym) => {
+                let new_symbol = symbol_map
+                    .get(sym)
+                    .expect("every symbol should be in the map");
+                *sym = *new_symbol
+            }
+            _ => {}
+        }
+    }
+
+    for Function(method) in methods {
+        *method += code_offset;
+    }
+}
+
 pub type NativeFn = dyn Fn(&mut Vm, &CallFrame) -> VmResult<Value> + Send + Sync + 'static;
 
 /// A trait for converting types into a module. This can be used to implement libraries written in
@@ -129,6 +184,52 @@ impl Module {
         });
 
         ty
+    }
+
+    pub(crate) fn load_module(&mut self, mut other: Module) {
+        relocate(
+            &mut self.symbols,
+            &mut other,
+            self.functions.code.len(),
+            self.constants.len(),
+        );
+
+        // Types
+        other
+            .types
+            .into_iter()
+            .for_each(|(name, ty)| match self.types.entry(name) {
+                Entry::Occupied(entry) => panic!("Registered duplicate type {}", entry.key()),
+                Entry::Vacant(entry) => {
+                    entry.insert(ty);
+                }
+            });
+
+        // Constants
+        self.constants.extend(other.constants);
+
+        // Functions
+        other
+            .functions
+            .indices
+            .into_iter()
+            .for_each(|(name, func)| match self.functions.indices.entry(name) {
+                Entry::Occupied(entry) => panic!("Registered duplicate function {}", entry.key()),
+                Entry::Vacant(entry) => {
+                    entry.insert(func);
+                }
+            });
+        self.functions.code.extend(other.functions.code);
+
+        // Native functions
+        other.native_functions.into_iter().for_each(|(name, func)| {
+            match self.native_functions.entry(name) {
+                Entry::Occupied(entry) => panic!("Registered duplicate native function {}", entry.key()),
+                Entry::Vacant(entry) => {
+                    entry.insert(func);
+                }
+            }
+        });
     }
 }
 

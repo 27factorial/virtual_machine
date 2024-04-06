@@ -64,7 +64,6 @@ pub enum Value {
     Bool(bool),
     /// A single Unicode scalar value, corresponding to Rust's `char` type.
     Char(char),
-    /// The address of an instruction, stack value, or object field.
     /// The index of a symbol.
     Symbol(Symbol),
     Function(Function),

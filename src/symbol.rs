@@ -95,6 +95,18 @@ impl Symbols {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.indices.len()
+    }
+
+    pub fn byte_len(&self) -> usize {
+        self.data.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn get(&self, symbol: Symbol) -> Option<&str> {
         self.indices.get(symbol.0).map(|span| {
             // SAFETY: if this closure runs, the information in `span` corresponds to a valid
