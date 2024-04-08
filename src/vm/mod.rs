@@ -1,7 +1,6 @@
-use self::function::FnPath;
 use self::memory::VmStack;
 use self::ops::OpResult;
-use crate::module::{Module, NativeFn, ToModule};
+use crate::module::{Module, ModulePath, ModulePathError, NativeFn, ToModule};
 use crate::object::VmObject;
 use crate::symbol::Symbol;
 use crate::utils::IntoVmResult;
@@ -324,10 +323,13 @@ impl Vm {
     pub fn resolve_function(&mut self, symbol: Symbol, frame: &CallFrame) -> Result<&Function> {
         match self.module.symbols.get(symbol) {
             Some(name) => {
-                let path = FnPath::new(name).vm_result(VmErrorKind::InvalidPath, frame)?;
+                let path = ModulePath::new(name).vm_result(VmErrorKind::InvalidPath, frame)?;
 
                 match path {
-                    FnPath::Method { ty, method } => self
+                    ModulePath::FieldOrMethod {
+                        ty,
+                        field_or_method: method,
+                    } => self
                         .module
                         .types
                         .get(ty)
@@ -335,7 +337,7 @@ impl Vm {
                         .methods
                         .get(method)
                         .vm_result(VmErrorKind::FunctionNotFound, frame),
-                    FnPath::Function(func) => self
+                    ModulePath::Function(func) => self
                         .module
                         .functions
                         .indices
@@ -519,46 +521,44 @@ mod test {
         let mut module = CoreLib.to_module();
 
         let main_sym = module.define_symbol("main::main");
-        let array_with_capacity_sym = module.define_symbol("core::collections::Array.with_capacity");
+        let array_with_capacity_sym =
+            module.define_symbol("core::collections::Array.with_capacity");
         let array_push_sym = module.define_symbol("core::collections::Array.push");
 
-        module.define_function(
-            main_sym,
-            [
-                OpCode::Push(5.into()),
-                OpCode::ResolveImm(array_with_capacity_sym),
-                OpCode::Call,
-                OpCode::ResolveImm(array_push_sym),
-                OpCode::ReserveImm(2),
-                OpCode::Push(0.into()),
-                OpCode::Load(0),
-                OpCode::Load(1),
-                OpCode::Call,
-
-                OpCode::Push(1.into()),
-                OpCode::Load(0),
-                OpCode::Load(1),
-                OpCode::Call,
-
-                OpCode::Push(2.into()),
-                OpCode::Load(0),
-                OpCode::Load(1),
-                OpCode::Call,
-
-                OpCode::Push(3.into()),
-                OpCode::Load(0),
-                OpCode::Load(1),
-                OpCode::Call,
-
-                OpCode::Push(4.into()),
-                OpCode::Load(0),
-                OpCode::Load(1),
-                OpCode::Call,
-
-                OpCode::Load(0),
-                OpCode::Dbg(0),
-            ]
-        ).expect("failed to define `main::main` function");
+        module
+            .define_function(
+                main_sym,
+                [
+                    OpCode::Push(5.into()),
+                    OpCode::ResolveImm(array_with_capacity_sym),
+                    OpCode::Call,
+                    OpCode::ResolveImm(array_push_sym),
+                    OpCode::ReserveImm(2),
+                    OpCode::Push(0.into()),
+                    OpCode::Load(0),
+                    OpCode::Load(1),
+                    OpCode::Call,
+                    OpCode::Push(1.into()),
+                    OpCode::Load(0),
+                    OpCode::Load(1),
+                    OpCode::Call,
+                    OpCode::Push(2.into()),
+                    OpCode::Load(0),
+                    OpCode::Load(1),
+                    OpCode::Call,
+                    OpCode::Push(3.into()),
+                    OpCode::Load(0),
+                    OpCode::Load(1),
+                    OpCode::Call,
+                    OpCode::Push(4.into()),
+                    OpCode::Load(0),
+                    OpCode::Load(1),
+                    OpCode::Call,
+                    OpCode::Load(0),
+                    OpCode::Dbg(0),
+                ],
+            )
+            .expect("failed to define `main::main` function");
 
         let mut vm = Vm::new(module);
 

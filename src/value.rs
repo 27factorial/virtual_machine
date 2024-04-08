@@ -124,6 +124,20 @@ impl From<Reference> for Value {
     }
 }
 
+impl From<EqValue> for Value {
+    fn from(value: EqValue) -> Self {
+        match value {
+            EqValue::Int(v) => Self::Int(v),
+            EqValue::Float(v) => Self::Float(f64::from_bits(v)),
+            EqValue::Bool(v) => Self::Bool(v),
+            EqValue::Char(v) => Self::Char(v),
+            EqValue::Symbol(v) => Self::Symbol(v),
+            EqValue::Function(v) => Self::Function(v),
+            EqValue::Reference(v) => Self::Reference(v),
+        }
+    }
+}
+
 impl Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -145,6 +159,63 @@ impl Debug for Value {
         match self {
             Self::Int(v) => write!(f, "Int({})", v),
             Self::Float(v) => write!(f, "Float({})", v),
+            Self::Bool(v) => write!(f, "Bool({})", v),
+            Self::Char(v) => write!(f, "Char({})", v),
+            Self::Symbol(v) => write!(f, "Symbol({})", v.0),
+            Self::Function(v) => write!(f, "Function({})", v.0),
+            Self::Reference(v) => write!(f, "Reference({})", v.0),
+        }
+    }
+}
+
+// This is a special kind of values for cases where total comparison / equality are required.
+// When using this type, Float values should always be checked for NaN, otherwise things may break.
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+pub(crate) enum EqValue {
+    Int(i64),
+    Float(u64),
+    Bool(bool),
+    Char(char),
+    Symbol(Symbol),
+    Function(Function),
+    Reference(Reference),
+}
+
+impl From<Value> for EqValue {
+    fn from(value: Value) -> Self {
+        match value {
+            Value::Int(v) => Self::Int(v),
+            Value::Float(v) => Self::Float(v.to_bits()),
+            Value::Bool(v) => Self::Bool(v),
+            Value::Char(v) => Self::Char(v),
+            Value::Symbol(v) => Self::Symbol(v),
+            Value::Function(v) => Self::Function(v),
+            Value::Reference(v) => Self::Reference(v),
+        }
+    }
+}
+
+impl Display for EqValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Int(v) => write!(f, "{}", v),
+            Self::Float(v) => write!(f, "{}", v),
+            Self::Bool(v) => write!(f, "{}", v),
+            Self::Char(v) => write!(f, "{}", v),
+            Self::Symbol(v) => write!(f, "{}", v.0),
+            Self::Function(v) => write!(f, "func({:#x})", v.0),
+            Self::Reference(v) => write!(f, "ref({:#x})", v.0),
+        }
+    }
+}
+
+impl Debug for EqValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // debug_tuple isn't used here because it will cause line breaks when using the alternate 
+        // Debug flag, which isn't necessary since each variant only has one field.
+        match self {
+            Self::Int(v) => write!(f, "Int({})", v),
+            Self::Float(v) => write!(f, "Float({})", f64::from_bits(*v)),
             Self::Bool(v) => write!(f, "Bool({})", v),
             Self::Char(v) => write!(f, "Char({})", v),
             Self::Symbol(v) => write!(f, "Symbol({})", v.0),

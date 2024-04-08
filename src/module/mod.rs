@@ -6,10 +6,11 @@ use std::{
 use hashbrown::hash_map::{Entry, RawEntryMut};
 use indexmap::map::{raw_entry_v1::RawEntryMut as RawIndexEntryMut, RawEntryApiV1};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 use crate::{
-    module::core::collections::{VmArray, VmDictionary, VmString},
-    object::{ Type, TypeBuilder, VmObject},
+    module::core::collections::{Array, Dict, Str},
+    object::{Type, TypeBuilder, VmObject},
     symbol::{Symbol, Symbols},
     utils::{FxHashMap, FxIndexMap},
     value::Value,
@@ -188,7 +189,7 @@ impl Module {
         ty
     }
 
-    pub(crate) fn load_module(&mut self, mut other: Module) {
+    pub fn load_module(&mut self, mut other: Module) {
         relocate(
             &mut self.symbols,
             &mut other,
@@ -263,6 +264,62 @@ impl Debug for Module {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Error)]
+#[error("\"{0}\" is not a valid path")]
+pub struct ModulePathError<'a>(&'a str);
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub enum ModulePath<'a> {
+    FieldOrMethod {
+        ty: &'a str,
+        field_or_method: &'a str,
+    },
+    Function(&'a str),
+}
+
+impl<'a> ModulePath<'a> {
+    pub fn new(path: &'a str) -> Result<Self, ModulePathError<'a>> {
+        #[inline(always)]
+        fn is_valid_identifier(s: &str) -> bool {
+            s.chars().all(|c| c == '_' || c.is_alphanumeric())
+        }
+
+        let split = path.rsplit_once('.');
+
+        match split {
+            // ".", ".method", or "Type."
+            Some(("", "")) | Some(("", _)) | Some((_, "")) => Err(ModulePathError(path)),
+            Some((ty, field_or_method)) => {
+                let valid_ty = ty
+                    .split("::")
+                    .all(|substr| is_valid_identifier(substr) && !substr.is_empty());
+                let valid_field_or_method = is_valid_identifier(field_or_method);
+
+                if valid_ty && valid_field_or_method {
+                    Ok(ModulePath::FieldOrMethod {
+                        ty,
+                        field_or_method,
+                    })
+                } else {
+                    Err(ModulePathError(path))
+                }
+            }
+            _ if !path.is_empty() => {
+                let valid_function = path
+                    .split("::")
+                    .all(|substr| is_valid_identifier(substr) && !substr.is_empty());
+
+                if valid_function {
+                    Ok(ModulePath::Function(path))
+                } else {
+                    Err(ModulePathError(path))
+                }
+            }
+            _ => Err(ModulePathError(path)),
+        }
+    }
+}
+
 /// The core library of the PFVM.
 pub struct CoreLib;
 
@@ -270,9 +327,9 @@ impl ToModule for CoreLib {
     fn to_module(self) -> Module {
         let mut module = Module::new();
 
-        VmArray::register(&mut module);
-        VmString::register(&mut module);
-        VmDictionary::register(&mut module);
+        Array::register(&mut module);
+        Str::register(&mut module);
+        Dict::register(&mut module);
 
         module
     }
@@ -305,4 +362,65 @@ impl ToModule for Io {
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+    use super::{ModulePath, ModulePathError};
+
+    #[test]
+    fn well_formed_fn_paths() {
+        let a = "a::b::c::Type.field";
+        let b = "d::function";
+
+        assert_eq!(
+            ModulePath::new(a),
+            Ok(ModulePath::FieldOrMethod {
+                ty: "a::b::c::Type",
+                field_or_method: "field",
+            })
+        );
+
+        assert_eq!(ModulePath::new(b), Ok(ModulePath::Function("d::function")));
+    }
+
+    #[test]
+    fn ill_formed_fn_paths() {
+        let only_dot = "a::b::c::.";
+        let missing_type_or_function = "a::b::";
+        let missing_field = "a::b::Type.";
+        let missing_type = "a::b::.field";
+        let duplicate_type = "a::Type.Type.member";
+        let lots_of_dots = "a::Type.........member";
+        let empty_module_component = "a::b::::c::function";
+        let non_alphanumeric_component = "a.b::c::d::function";
+
+        assert_eq!(ModulePath::new(only_dot), Err(ModulePathError(only_dot)));
+        assert_eq!(
+            ModulePath::new(missing_type_or_function),
+            Err(ModulePathError(missing_type_or_function))
+        );
+        assert_eq!(
+            ModulePath::new(missing_field),
+            Err(ModulePathError(missing_field))
+        );
+        assert_eq!(
+            ModulePath::new(missing_type),
+            Err(ModulePathError(missing_type))
+        );
+        assert_eq!(ModulePath::new(""), Err(ModulePathError("")));
+        assert_eq!(
+            ModulePath::new(duplicate_type),
+            Err(ModulePathError(duplicate_type))
+        );
+        assert_eq!(
+            ModulePath::new(lots_of_dots),
+            Err(ModulePathError(lots_of_dots))
+        );
+        assert_eq!(
+            ModulePath::new(empty_module_component),
+            Err(ModulePathError(empty_module_component))
+        );
+        assert_eq!(
+            ModulePath::new(non_alphanumeric_component),
+            Err(ModulePathError(non_alphanumeric_component))
+        );
+    }
+}

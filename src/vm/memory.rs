@@ -619,7 +619,7 @@ mod test {
 
     // SAFETY: it's not lol.
     // #[test]
-    // fn triggers_undefined_behavior_only_use_this_for_testing_miri_out_please_i_beg_you() {
+    // fn triggers_undefined_behavior_only_use_this_for_testing_miri_please_i_beg_you() {
     //     let mut stack = VmStack::new(0);
     //     unsafe { stack.push_unchecked(1); }
     // }

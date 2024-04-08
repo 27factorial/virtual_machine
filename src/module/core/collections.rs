@@ -1,17 +1,17 @@
 use crate::object::{Type, TypeBuilder, VmObject};
-use crate::value::Value;
+use crate::value::{EqValue, Value};
 use crate::vm::builtin;
 use crate::vm::ops::OpCode;
 use crate::{module::Module, vm::heap::Collector};
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 #[derive(Clone, PartialEq, PartialOrd, Debug, Default, Serialize, Deserialize)]
-pub struct VmArray(pub Vec<Value>);
+pub struct Array(pub Vec<Value>);
 
-impl VmArray {
+impl Array {
     pub const fn new() -> Self {
         Self(Vec::new())
     }
@@ -21,7 +21,7 @@ impl VmArray {
     }
 }
 
-impl Deref for VmArray {
+impl Deref for Array {
     type Target = Vec<Value>;
 
     fn deref(&self) -> &Self::Target {
@@ -29,13 +29,13 @@ impl Deref for VmArray {
     }
 }
 
-impl DerefMut for VmArray {
+impl DerefMut for Array {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl VmObject for VmArray {
+impl VmObject for Array {
     fn register(module: &mut Module) -> &Type
     where
         Self: Sized,
@@ -85,9 +85,9 @@ impl VmObject for VmArray {
 }
 
 #[derive(Clone, PartialEq, Debug, Default, Serialize, Deserialize)]
-pub struct VmDictionary(HashMap<Arc<str>, Value>);
+pub struct Dict(HashMap<Arc<str>, Value>);
 
-impl VmDictionary {
+impl Dict {
     pub fn new() -> Self {
         Self(HashMap::new())
     }
@@ -97,7 +97,7 @@ impl VmDictionary {
     }
 }
 
-impl Deref for VmDictionary {
+impl Deref for Dict {
     type Target = HashMap<Arc<str>, Value>;
 
     fn deref(&self) -> &Self::Target {
@@ -105,13 +105,13 @@ impl Deref for VmDictionary {
     }
 }
 
-impl DerefMut for VmDictionary {
+impl DerefMut for Dict {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl VmObject for VmDictionary {
+impl VmObject for Dict {
     fn register(module: &mut Module) -> &Type
     where
         Self: Sized,
@@ -121,17 +121,17 @@ impl VmObject for VmDictionary {
         let mut builder = TypeBuilder::new(type_name);
 
         let builtin_funcs = [
-            ("new", builtin::DICTIONARY_NEW),
-            ("with_capacity", builtin::DICTIONARY_WITH_CAPACITY),
-            ("length", builtin::DICTIONARY_LENGTH),
-            ("index", builtin::DICTIONARY_INDEX),
-            ("capacity", builtin::DICTIONARY_CAPACITY),
-            ("reserve", builtin::DICTIONARY_RESERVE),
-            ("shrink_to_fit", builtin::DICTIONARY_SHRINK_TO_FIT),
-            ("shrink_to", builtin::DICTIONARY_SHRINK_TO),
-            ("insert", builtin::DICTIONARY_INSERT),
-            ("remove", builtin::DICTIONARY_REMOVE),
-            ("contains", builtin::DICTIONARY_CONTAINS),
+            ("new", builtin::DICT_NEW),
+            ("with_capacity", builtin::DICT_WITH_CAPACITY),
+            ("length", builtin::DICT_LENGTH),
+            ("index", builtin::DICT_INDEX),
+            ("capacity", builtin::DICT_CAPACITY),
+            ("reserve", builtin::DICT_RESERVE),
+            ("shrink_to_fit", builtin::DICT_SHRINK_TO_FIT),
+            ("shrink_to", builtin::DICT_SHRINK_TO),
+            ("insert", builtin::DICT_INSERT),
+            ("remove", builtin::DICT_REMOVE),
+            ("contains", builtin::DICT_CONTAINS),
         ];
 
         for (name, builtin) in builtin_funcs {
@@ -156,10 +156,14 @@ impl VmObject for VmDictionary {
     }
 }
 
-#[derive(Clone, PartialEq, PartialOrd, Debug, Default, Serialize, Deserialize)]
-pub struct VmString(pub String);
+#[derive(Clone, Eq, PartialEq, Debug, Default)]
+pub struct Set(HashSet<EqValue>);
 
-impl VmString {
+
+#[derive(Clone, PartialEq, PartialOrd, Debug, Default, Serialize, Deserialize)]
+pub struct Str(pub String);
+
+impl Str {
     pub const fn new() -> Self {
         Self(String::new())
     }
@@ -169,7 +173,7 @@ impl VmString {
     }
 }
 
-impl Deref for VmString {
+impl Deref for Str {
     type Target = String;
 
     fn deref(&self) -> &Self::Target {
@@ -177,44 +181,44 @@ impl Deref for VmString {
     }
 }
 
-impl DerefMut for VmString {
+impl DerefMut for Str {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl From<String> for VmString {
+impl From<String> for Str {
     fn from(value: String) -> Self {
         Self(value)
     }
 }
 
-impl VmObject for VmString {
+impl VmObject for Str {
     fn register(module: &mut Module) -> &Type
     where
         Self: Sized,
     {
-        let type_name = "core::collections::String";
+        let type_name = "core::collections::Str";
 
         let mut builder = TypeBuilder::new(type_name);
 
         let builtin_funcs = [
-            ("new", builtin::STRING_NEW),
-            ("from", builtin::STRING_FROM),
-            ("with_capacity", builtin::STRING_WITH_CAPACITY),
-            ("length", builtin::STRING_LENGTH),
-            ("index_byte", builtin::STRING_INDEX_BYTE),
-            ("index_char", builtin::STRING_INDEX_CHAR),
-            ("capacity", builtin::STRING_CAPACITY),
-            ("reserve", builtin::STRING_RESERVE),
-            ("shrink_to_fit", builtin::STRING_SHRINK_TO_FIT),
-            ("shrink_to", builtin::STRING_SHRINK_TO),
-            ("truncate", builtin::STRING_TRUNCATE),
-            ("insert", builtin::STRING_INSERT),
-            ("remove", builtin::STRING_REMOVE),
-            ("push", builtin::STRING_PUSH),
-            ("pop", builtin::STRING_POP),
-            ("contains", builtin::STRING_CONTAINS),
+            ("new", builtin::STR_NEW),
+            ("from", builtin::STR_FROM),
+            ("with_capacity", builtin::STR_WITH_CAPACITY),
+            ("length", builtin::STR_LENGTH),
+            ("index_byte", builtin::STR_INDEX_BYTE),
+            ("index_char", builtin::STR_INDEX_CHAR),
+            ("capacity", builtin::STR_CAPACITY),
+            ("reserve", builtin::STR_RESERVE),
+            ("shrink_to_fit", builtin::STR_SHRINK_TO_FIT),
+            ("shrink_to", builtin::STR_SHRINK_TO),
+            ("truncate", builtin::STR_TRUNCATE),
+            ("insert", builtin::STR_INSERT),
+            ("remove", builtin::STR_REMOVE),
+            ("push", builtin::STR_PUSH),
+            ("pop", builtin::STR_POP),
+            ("contains", builtin::STR_CONTAINS),
         ];
 
         for (name, builtin) in builtin_funcs {
