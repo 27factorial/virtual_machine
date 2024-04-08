@@ -2,8 +2,8 @@ use super::ops::OpCode;
 use crate::utils::FxHashMap;
 use hashbrown::hash_map::RawEntryMut;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use std::sync::Arc;
+use thiserror::Error;
 
 #[derive(
     Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize, Deserialize,
@@ -60,133 +60,101 @@ impl Functions {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Error)]
+#[error("\"{0}\" is not a valid path")]
+pub struct FnPathError<'a>(&'a str);
+
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct Path<'a> {
-    pub(crate) module: &'a str,
-    pub(crate) ty: Option<&'a str>,
-    pub(crate) field_or_func: &'a str,
+pub enum FnPath<'a> {
+    Method { ty: &'a str, method: &'a str },
+    Function(&'a str),
 }
 
-impl<'a> Path<'a> {
-    pub fn new(path: &'a str) -> Result<Self, PathError> {
+impl<'a> FnPath<'a> {
+    pub fn new(path: &'a str) -> Result<Self, FnPathError<'a>> {
         #[inline(always)]
-        fn str_is_alphanumeric(s: &str) -> bool {
-            s.chars().all(char::is_alphanumeric)
+        fn is_valid_identifier(s: &str) -> bool {
+            s.chars().all(|c| c == '_' || c.is_alphanumeric())
         }
 
-        if path.is_empty() {
-            return Err(PathError(path));
+        let split = path.rsplit_once('.');
+
+        match split {
+            // ".", ".method", or "Type."
+            Some(("", "")) | Some(("", _)) | Some((_, "")) => Err(FnPathError(path)),
+            Some((ty, method)) => {
+                let valid_ty = ty
+                    .split("::")
+                    .all(|substr| is_valid_identifier(substr) && !substr.is_empty());
+                let valid_method = is_valid_identifier(method);
+
+                if valid_ty && valid_method {
+                    Ok(FnPath::Method { ty, method })
+                } else {
+                    Err(FnPathError(path))
+                }
+            }
+            _ if !path.is_empty() => {
+                let valid_function = path
+                    .split("::")
+                    .all(|substr| is_valid_identifier(substr) && !substr.is_empty());
+
+                if valid_function {
+                    Ok(FnPath::Function(path))
+                } else {
+                    Err(FnPathError(path))
+                }
+            }
+            _ => Err(FnPathError(path)),
         }
-
-        // Paths generally take the form of either:
-        // 1. module::and::submodules::function
-        // 2. module::and::submodules::Type.field_or_method
-        // Modules are followed by either a function, or a Type.field_or_method pair.
-        let (module, rest) = path.rsplit_once("::").ok_or(PathError(path))?;
-
-        let (ty, field_or_func) = match rest.split_once('.') {
-            Some((ty, field_or_func)) if !ty.is_empty() && !field_or_func.is_empty() => {
-                // Type.field_or_method
-                (Some(ty), field_or_func)
-            }
-            _ if !rest.is_empty() => {
-                // function
-                (None, rest)
-            }
-            _ => {
-                // empty case
-                return Err(PathError(path));
-            }
-        };
-
-        // Requirements for a valid path:
-        // 1. When the module is split by the :: separator,
-        //    - All of the elements in the iterator must be entirely alphanumerical.
-        //    - None of the elements can be empty.
-        // 2. There is no type component, or if there is, it must be alphanumeric.
-        // 3. The field or free function name must be alphanumeric.
-        let valid = module
-            .split("::")
-            .all(|sub| str_is_alphanumeric(sub) && !sub.is_empty())
-            && (ty.is_none() || ty.is_some_and(str_is_alphanumeric))
-            && str_is_alphanumeric(field_or_func);
-
-        if !valid {
-            return Err(PathError(path));
-        }
-
-        Ok(Self {
-            module,
-            ty,
-            field_or_func,
-        })
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Error)]
-#[error("\"{0}\" is not a valid path")]
-pub struct PathError<'a>(&'a str);
-
 #[cfg(test)]
 mod test {
-    use super::{Path, PathError};
+    use crate::vm::function::{FnPath, FnPathError};
 
     #[test]
-    fn well_formed_paths() {
+    fn well_formed_fn_paths() {
         let a = "a::b::c::Type.field";
         let b = "d::function";
 
         assert_eq!(
-            Path::new(a),
-            Ok(Path {
-                module: "a::b::c",
-                ty: Some("Type"),
-                field_or_func: "field"
+            FnPath::new(a),
+            Ok(FnPath::Method {
+                ty: "a::b::c::Type",
+                method: "field",
             })
         );
 
-        assert_eq!(
-            Path::new(b),
-            Ok(Path {
-                module: "d",
-                ty: None,
-                field_or_func: "function",
-            })
-        );
+        assert_eq!(FnPath::new(b), Ok(FnPath::Function("d::function")));
     }
 
     #[test]
-    fn ill_formed_paths() {
-        let a = "a::b::c::.";
-        let b = "a::b::";
-        let c = "a::b::Type.";
-        let d = "a::b::.field";
-        let e = "Type.method";
-        let f = "a::Type.Type.member";
-        let g = "a::Type.........member";
+    fn ill_formed_fn_paths() {
+        let only_dot = "a::b::c::.";
+        let missing_type_or_function = "a::b::";
+        let missing_field = "a::b::Type.";
+        let missing_type = "a::b::.field";
+        let duplicate_type = "a::Type.Type.member";
+        let lots_of_dots = "a::Type.........member";
+        let empty_module_component = "a::b::::c::function";
+        let non_alphanumeric_component = "a.b::c::d::function";
 
+        assert_eq!(FnPath::new(only_dot), Err(FnPathError(only_dot)));
         assert_eq!(
-            Path::new(a),
-            Err(PathError(a))
+            FnPath::new(missing_type_or_function),
+            Err(FnPathError(missing_type_or_function))
         );
+        assert_eq!(FnPath::new(missing_field), Err(FnPathError(missing_field)));
+        assert_eq!(FnPath::new(missing_type), Err(FnPathError(missing_type)));
+        assert_eq!(FnPath::new(""), Err(FnPathError("")));
+        assert_eq!(FnPath::new(duplicate_type), Err(FnPathError(duplicate_type)));
+        assert_eq!(FnPath::new(lots_of_dots), Err(FnPathError(lots_of_dots)));
         assert_eq!(
-            Path::new(b),
-            Err(PathError(b))
+            FnPath::new(empty_module_component),
+            Err(FnPathError(empty_module_component))
         );
-        assert_eq!(Path::new(c), Err(PathError(c)));
-        assert_eq!(Path::new(d), Err(PathError(d)));
-        assert_eq!(
-            Path::new(e),
-            Err(PathError(e))
-        );
-        assert_eq!(Path::new(""), Err(PathError("")));
-        assert_eq!(
-            Path::new(f),
-            Err(PathError(f))
-        );
-        assert_eq!(
-            Path::new(g),
-            Err(PathError(g))
-        );
+        assert_eq!(FnPath::new(non_alphanumeric_component), Err(FnPathError(non_alphanumeric_component)));
     }
 }

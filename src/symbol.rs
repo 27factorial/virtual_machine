@@ -122,8 +122,8 @@ impl Symbols {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (Symbol, &str)> + '_ {
-        self.indices.iter().map(|span| {
-            let sym = Symbol(span.start);
+        self.indices.iter().enumerate().map(|(idx, span)| {
+            let sym = Symbol(idx);
             let s = unsafe { self.data.get_unchecked(span.start..span.start + span.len) };
 
             (sym, s)
@@ -131,7 +131,7 @@ impl Symbols {
     }
 
     pub fn symbols(&self) -> impl Iterator<Item = Symbol> + '_ {
-        self.indices.iter().map(|span| Symbol(span.start))
+        self.indices.iter().enumerate().map(|(idx, _)| Symbol(idx))
     }
 
     pub fn strs(&self) -> impl Iterator<Item = &str> + '_ {

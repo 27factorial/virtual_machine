@@ -523,8 +523,11 @@ mod imp {
             }
         }
 
-        pub(super) fn op_dup(&mut self, _: &CallFrame) -> OpResult {
-            // TODO: Handle error states. This can panic.
+        pub(super) fn op_dup(&mut self, frame: &CallFrame) -> OpResult {
+            if self.data_stack.is_empty() {
+                throw!(VmErrorKind::StackOverflow, frame);
+            }
+
             self.data_stack.copy_to_top(self.data_stack.len() - 1);
 
             Ok(Transition::Continue)
@@ -987,13 +990,9 @@ mod imp {
         // rslvi
         pub(super) fn op_resolve_imm(&mut self, symbol: Symbol, frame: &CallFrame) -> OpResult {
             // This is fucking SLOW! Some caching should be done here like I did before.
-            let name = self.module.symbols.get(symbol).vm_result(VmErrorKind::SymbolNotFound, frame)?;
+            let &function = self.resolve_function(symbol, frame)?;
 
-            let function = self.module.functions
-                .get(name)
-                .vm_result(VmErrorKind::FunctionNotFound, frame)?;
-
-            self.push_value(Value::Function(*function), frame)?;
+            self.push_value(Value::Function(function), frame)?;
 
             Ok(Transition::Continue)
         }
@@ -1108,7 +1107,7 @@ mod imp {
                         None => eprintln!("<invalid>"),
                     }
                 }
-                value => eprintln!("stack[{index:#x}]: {value:?}"),
+                value => eprintln!("stack[{index:#x}]: {value}"),
             }
             Ok(Transition::Continue)
         }

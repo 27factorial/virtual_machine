@@ -1,6 +1,7 @@
+use self::function::FnPath;
 use self::memory::VmStack;
 use self::ops::OpResult;
-use crate::module::{Module, NativeFn, Program, ToModule};
+use crate::module::{Module, NativeFn, ToModule};
 use crate::object::VmObject;
 use crate::symbol::Symbol;
 use crate::utils::IntoVmResult;
@@ -85,8 +86,6 @@ where
 
 pub type Result<T> = std::result::Result<T, VmError>;
 
-// TODO: implement programs as a map between names and modules.
-
 #[derive(Debug)]
 pub struct Vm {
     data_stack: VmStack<Value>,
@@ -107,7 +106,7 @@ impl Vm {
         let &main = self
             .module
             .functions
-            .get("main")
+            .get("main::main")
             .vm_result(VmErrorKind::FunctionNotFound, None)?;
 
         with_panic_hook(|| self.run_function(main, 0))?;
@@ -322,6 +321,32 @@ impl Vm {
         }
     }
 
+    pub fn resolve_function(&mut self, symbol: Symbol, frame: &CallFrame) -> Result<&Function> {
+        match self.module.symbols.get(symbol) {
+            Some(name) => {
+                let path = FnPath::new(name).vm_result(VmErrorKind::InvalidPath, frame)?;
+
+                match path {
+                    FnPath::Method { ty, method } => self
+                        .module
+                        .types
+                        .get(ty)
+                        .vm_result(VmErrorKind::TypeNotFound, frame)?
+                        .methods
+                        .get(method)
+                        .vm_result(VmErrorKind::FunctionNotFound, frame),
+                    FnPath::Function(func) => self
+                        .module
+                        .functions
+                        .indices
+                        .get(func)
+                        .vm_result(VmErrorKind::FunctionNotFound, frame),
+                }
+            }
+            None => throw!(VmErrorKind::SymbolNotFound, frame),
+        }
+    }
+
     pub fn resolve_native_function(
         &mut self,
         symbol: Symbol,
@@ -377,6 +402,7 @@ pub enum VmErrorKind {
     OutOfBounds,
     InvalidSize,
     ModuleNotFound,
+    InvalidPath,
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
@@ -433,7 +459,7 @@ impl From<&str> for VmPanic {
 #[cfg(test)]
 mod test {
     use crate::{
-        module::{CoreLib, Io, Module},
+        module::{CoreLib, Io, Module, ToModule},
         value::Value,
         vm::{ops::OpCode, Vm},
     };
@@ -442,8 +468,8 @@ mod test {
     fn looping_fn_call() {
         let mut module = Module::new();
 
-        let main_sym = module.define_symbol("main");
-        let adder_sym = module.define_symbol("adder");
+        let main_sym = module.define_symbol("main::main");
+        let adder_sym = module.define_symbol("main::adder");
 
         let adder = module
             .define_function(adder_sym, [OpCode::Add, OpCode::Ret])
@@ -482,6 +508,57 @@ mod test {
                 ],
             )
             .expect("failed to define `main` function");
+
+        let mut vm = Vm::new(module);
+
+        vm.run().expect("failed to run vm");
+    }
+
+    #[test]
+    fn function_and_method_resolution() {
+        let mut module = CoreLib.to_module();
+
+        let main_sym = module.define_symbol("main::main");
+        let array_with_capacity_sym = module.define_symbol("core::collections::Array.with_capacity");
+        let array_push_sym = module.define_symbol("core::collections::Array.push");
+
+        module.define_function(
+            main_sym,
+            [
+                OpCode::Push(5.into()),
+                OpCode::ResolveImm(array_with_capacity_sym),
+                OpCode::Call,
+                OpCode::ResolveImm(array_push_sym),
+                OpCode::ReserveImm(2),
+                OpCode::Push(0.into()),
+                OpCode::Load(0),
+                OpCode::Load(1),
+                OpCode::Call,
+
+                OpCode::Push(1.into()),
+                OpCode::Load(0),
+                OpCode::Load(1),
+                OpCode::Call,
+
+                OpCode::Push(2.into()),
+                OpCode::Load(0),
+                OpCode::Load(1),
+                OpCode::Call,
+
+                OpCode::Push(3.into()),
+                OpCode::Load(0),
+                OpCode::Load(1),
+                OpCode::Call,
+
+                OpCode::Push(4.into()),
+                OpCode::Load(0),
+                OpCode::Load(1),
+                OpCode::Call,
+
+                OpCode::Load(0),
+                OpCode::Dbg(0),
+            ]
+        ).expect("failed to define `main::main` function");
 
         let mut vm = Vm::new(module);
 

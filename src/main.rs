@@ -28,8 +28,8 @@ const VALID_MAGIC: [u8; 4] = *b"PFVM";
 fn main() {
     let mut module = Module::new();
 
-    let main_sym = module.define_symbol("main");
-    let adder_sym = module.define_symbol("adder");
+    let main_sym = module.define_symbol("main::main");
+    let adder_sym = module.define_symbol("main::adder");
 
     let adder = module
         .define_function(adder_sym, [OpCode::Add, OpCode::Ret])

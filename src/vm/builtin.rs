@@ -1,7 +1,7 @@
 use std::{hash::Hasher, sync::Arc};
 
 use crate::{
-    object::{array::VmArray, dict::VmDictionary, string::VmString},
+    module::core::collections::{VmArray, VmDictionary, VmString},
     utils::IntoVmResult,
     value::Value,
 };
@@ -788,7 +788,7 @@ fn vmbi_array_with_capacity(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     // likely cause an OOM error in Rust anyway.
     let capacity: usize = vm
         .pop_int(frame)?
-        .max(isize::MAX as i64)
+        .min(isize::MAX as i64)
         .try_into()
         .vm_result(VmErrorKind::InvalidSize, frame)?;
     let this_ref = vm.alloc(VmArray::with_capacity(capacity), frame)?;

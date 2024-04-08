@@ -11,10 +11,6 @@ use std::fmt::Debug;
 use std::ops::Range;
 use std::sync::Arc;
 
-pub mod array;
-pub mod dict;
-pub mod string;
-
 pub trait VmObject: Any + Debug + Send + Sync + sealed::Upcast {
     fn register(module: &mut Module) -> &Type
     where

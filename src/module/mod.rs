@@ -8,7 +8,8 @@ use indexmap::map::{raw_entry_v1::RawEntryMut as RawIndexEntryMut, RawEntryApiV1
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    object::{array::VmArray, dict::VmDictionary, string::VmString, Type, TypeBuilder, VmObject},
+    module::core::collections::{VmArray, VmDictionary, VmString},
+    object::{ Type, TypeBuilder, VmObject},
     symbol::{Symbol, Symbols},
     utils::{FxHashMap, FxIndexMap},
     value::Value,
@@ -19,6 +20,8 @@ use crate::{
         CallFrame, Result as VmResult, Vm,
     },
 };
+
+pub mod core;
 
 fn relocate(symbols: &mut Symbols, module: &mut Module, code_offset: usize, const_offset: usize) {
     let constants = module.constants.iter_mut();
@@ -167,13 +170,12 @@ impl Module {
             FxHashMap::with_capacity_and_hasher(method_ranges.len(), Default::default());
 
         for (name, range) in method_ranges {
-            self.symbols.get_or_push_iter([&type_name, "::", &name]);
+            self.symbols.get_or_push_iter([&type_name, ".", &name]);
 
             let start = self.functions.code.len();
             self.functions.code.extend(&code[range]);
             let func = Function::new(start);
 
-            self.functions.indices.insert(Arc::clone(&name), func);
             methods.insert(name, func);
         }
 
@@ -224,7 +226,9 @@ impl Module {
         // Native functions
         other.native_functions.into_iter().for_each(|(name, func)| {
             match self.native_functions.entry(name) {
-                Entry::Occupied(entry) => panic!("Registered duplicate native function {}", entry.key()),
+                Entry::Occupied(entry) => {
+                    panic!("Registered duplicate native function {}", entry.key())
+                }
                 Entry::Vacant(entry) => {
                     entry.insert(func);
                 }
@@ -259,40 +263,6 @@ impl Debug for Module {
     }
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct Program {
-    modules: FxIndexMap<Arc<str>, Module>,
-}
-
-impl Program {
-    pub fn new() -> Self {
-        Self {
-            modules: FxIndexMap::default(),
-        }
-    }
-
-    pub fn load<M: ToModule>(&mut self, name: impl AsRef<str>, module: M) -> Result<(), M> {
-        let name = name.as_ref();
-
-        match self.modules.raw_entry_mut_v1().from_key(name) {
-            RawIndexEntryMut::Vacant(entry) => {
-                entry.insert(Arc::from(name), module.to_module());
-                Ok(())
-            }
-            RawIndexEntryMut::Occupied(_) => Err(module),
-        }
-    }
-
-    pub fn get(&self, name: impl AsRef<str>) -> Option<&Module> {
-        let name = name.as_ref();
-        self.modules.get(name)
-    }
-
-    pub fn get_index(&self, module: usize) -> Option<&Module> {
-        self.modules.get_index(module).map(|(_, module)| module)
-    }
-}
-
 /// The core library of the PFVM.
 pub struct CoreLib;
 
@@ -315,7 +285,7 @@ impl ToModule for Io {
         let mut module = Module::new();
 
         let print_sym = module.define_symbol("print");
-        let println_sym = module.define_symbol("eprintln");
+        let println_sym = module.define_symbol("println");
 
         module
             .define_function(

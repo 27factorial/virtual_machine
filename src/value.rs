@@ -1,4 +1,4 @@
-use std::fmt::{self, Display};
+use std::fmt::{self, Debug, Display};
 
 use crate::vm::heap::Reference;
 use crate::{symbol::Symbol, vm::function::Function};
@@ -54,7 +54,7 @@ macro_rules! variant_methods {
 }
 
 #[repr(usize)]
-#[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum Value {
     /// A signed 64-bit integer.
     Int(i64),
@@ -66,6 +66,7 @@ pub enum Value {
     Char(char),
     /// The index of a symbol.
     Symbol(Symbol),
+    // A reference to a function.
     Function(Function),
     /// An object reference, referring to some data in the object heap.
     Reference(Reference),
@@ -83,56 +84,72 @@ variant_methods! {
 
 impl From<i64> for Value {
     fn from(value: i64) -> Self {
-        Value::Int(value)
+        Self::Int(value)
     }
 }
 
 impl From<f64> for Value {
     fn from(value: f64) -> Self {
-        Value::Float(value)
+        Self::Float(value)
     }
 }
 
 impl From<bool> for Value {
     fn from(value: bool) -> Self {
-        Value::Bool(value)
+        Self::Bool(value)
     }
 }
 
 impl From<char> for Value {
     fn from(value: char) -> Self {
-        Value::Char(value)
+        Self::Char(value)
     }
 }
 
 impl From<Symbol> for Value {
     fn from(value: Symbol) -> Self {
-        Value::Symbol(value)
+        Self::Symbol(value)
     }
 }
 
 impl From<Function> for Value {
     fn from(value: Function) -> Self {
-        Value::Function(value)
+        Self::Function(value)
     }
 }
 
 impl From<Reference> for Value {
     fn from(value: Reference) -> Self {
-        Value::Reference(value)
+        Self::Reference(value)
     }
 }
 
 impl Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Value::Int(v) => write!(f, "{}", v),
-            Value::Float(v) => write!(f, "{}", v),
-            Value::Bool(v) => write!(f, "{}", v),
-            Value::Char(v) => write!(f, "{}", v),
-            Value::Symbol(v) => write!(f, "{}", v.0),
-            Value::Function(v) => write!(f, "f{:x}", v.0),
-            Value::Reference(v) => write!(f, "r{:x}", v.0),
+            Self::Int(v) => write!(f, "{}", v),
+            Self::Float(v) => write!(f, "{}", v),
+            Self::Bool(v) => write!(f, "{}", v),
+            Self::Char(v) => write!(f, "{}", v),
+            Self::Symbol(v) => write!(f, "{}", v.0),
+            Self::Function(v) => write!(f, "func({:#x})", v.0),
+            Self::Reference(v) => write!(f, "ref({:#x})", v.0),
+        }
+    }
+}
+
+impl Debug for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // debug_tuple isn't used here because it will cause line breaks when using the alternate 
+        // Debug flag, which isn't necessary since each variant only has one field.
+        match self {
+            Self::Int(v) => write!(f, "Int({})", v),
+            Self::Float(v) => write!(f, "Float({})", v),
+            Self::Bool(v) => write!(f, "Bool({})", v),
+            Self::Char(v) => write!(f, "Char({})", v),
+            Self::Symbol(v) => write!(f, "Symbol({})", v.0),
+            Self::Function(v) => write!(f, "Function({})", v.0),
+            Self::Reference(v) => write!(f, "Reference({})", v.0),
         }
     }
 }
