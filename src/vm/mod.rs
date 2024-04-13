@@ -461,7 +461,7 @@ impl From<&str> for VmPanic {
 #[cfg(test)]
 mod test {
     use crate::{
-        module::{CoreLib, Io, Module, ToModule},
+        module::{core::CoreLib, Module, ToModule},
         value::Value,
         vm::{ops::OpCode, Vm},
     };

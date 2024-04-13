@@ -8,6 +8,8 @@
 #![deny(fuzzy_provenance_casts)]
 // Forces the use of unsafe blocks for unsafe operations, even when inside of an unsafe function.
 #![deny(unsafe_op_in_unsafe_fn)]
+// Allows the define_builtins macro to work in crate::vm::builtin.
+#![recursion_limit = "256"]
 
 use module::Module;
 use std::time::Instant;

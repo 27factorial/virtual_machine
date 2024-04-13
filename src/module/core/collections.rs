@@ -143,12 +143,12 @@ impl VmObject for Dict {
         builder.register(module)
     }
 
-    fn field(&self, name: &str) -> Option<&Value> {
-        self.0.get(name)
+    fn field(&self, _: &str) -> Option<&Value> {
+        None
     }
 
-    fn field_mut(&mut self, name: &str) -> Option<&mut Value> {
-        self.0.get_mut(name)
+    fn field_mut(&mut self, _: &str) -> Option<&mut Value> {
+        None
     }
 
     fn gc(&self, mut collector: Collector<'_>) {
@@ -157,8 +157,81 @@ impl VmObject for Dict {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
-pub struct Set(HashSet<EqValue>);
+pub struct Set(pub HashSet<EqValue>);
 
+impl Set {
+    pub fn new() -> Self {
+        Self(HashSet::new())
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(HashSet::with_capacity(capacity))
+    }
+}
+
+impl Deref for Set {
+    type Target = HashSet<EqValue>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Set {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl VmObject for Set {
+    fn register(module: &mut Module) -> &Type
+    where
+        Self: Sized,
+    {
+        let type_name = "core::collections::Set";
+
+        let mut builder = TypeBuilder::new(type_name);
+
+        let builtin_funcs = [
+            ("new", builtin::SET_NEW),
+            ("with_capacity", builtin::SET_WITH_CAPACITY),
+            ("length", builtin::SET_LENGTH),
+            ("index", builtin::SET_INDEX),
+            ("capacity", builtin::SET_CAPACITY),
+            ("reserve", builtin::SET_RESERVE),
+            ("shrink_to_fit", builtin::SET_SHRINK_TO_FIT),
+            ("shrink_to", builtin::SET_SHRINK_TO),
+            ("insert", builtin::SET_INSERT),
+            ("remove", builtin::SET_REMOVE),
+            ("contains", builtin::SET_CONTAINS),
+            ("is_disjoint", builtin::SET_IS_DISJOINT),
+            ("difference", builtin::SET_DIFFERENCE),
+            ("symmetric_difference", builtin::SET_SYMMETRIC_DIFFERENCE),
+            ("intersection", builtin::SET_INTERSECTION),
+            ("union", builtin::SET_UNION),
+        ];
+
+        for (name, builtin) in builtin_funcs {
+            // methods on Array simply forward to the built-in implementation, so the methods are
+            // pretty trivial.
+            builder.with_method(name, [OpCode::CallBuiltin(builtin), OpCode::Ret]);
+        }
+
+        builder.register(module)
+    }
+
+    fn field(&self, _: &str) -> Option<&Value> {
+        None
+    }
+
+    fn field_mut(&mut self, _: &str) -> Option<&mut Value> {
+        None
+    }
+
+    fn gc(&self, mut collector: Collector<'_>) {
+        collector.collect_from(self.iter().map(|ev| Value::from(*ev)))
+    }
+}
 
 #[derive(Clone, PartialEq, PartialOrd, Debug, Default, Serialize, Deserialize)]
 pub struct Str(pub String);

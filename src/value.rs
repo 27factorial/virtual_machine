@@ -171,7 +171,7 @@ impl Debug for Value {
 // This is a special kind of values for cases where total comparison / equality are required.
 // When using this type, Float values should always be checked for NaN, otherwise things may break.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
-pub(crate) enum EqValue {
+pub enum EqValue {
     Int(i64),
     Float(u64),
     Bool(bool),
@@ -212,7 +212,7 @@ impl Display for EqValue {
 impl Debug for EqValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // debug_tuple isn't used here because it will cause line breaks when using the alternate 
-        // Debug flag, which isn't necessary since each variant only has one field.
+        // Debug flag, which isn't necessary since each variant only has one primitive field.
         match self {
             Self::Int(v) => write!(f, "Int({})", v),
             Self::Float(v) => write!(f, "Float({})", f64::from_bits(*v)),

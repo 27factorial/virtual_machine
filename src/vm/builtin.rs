@@ -1,9 +1,9 @@
 use std::{hash::Hasher, sync::Arc};
 
 use crate::{
-    module::core::collections::{Array, Dict, Str},
+    module::core::collections::{Array, Dict, Set, Str},
     utils::IntoVmResult,
-    value::Value,
+    value::{EqValue, Value},
 };
 
 use super::{CallFrame, Result, Vm, VmErrorKind, VmPanic};
@@ -293,6 +293,24 @@ define_builtins! {
     dict_insert,
     dict_remove,
     dict_contains,
+
+    //
+    set_new,
+    set_with_capacity,
+    set_length,
+    set_index,
+    set_capacity,
+    set_reserve,
+    set_shrink_to_fit,
+    set_shrink_to,
+    set_insert,
+    set_remove,
+    set_contains,
+    set_is_disjoint,
+    set_difference,
+    set_symmetric_difference,
+    set_intersection,
+    set_union,
 
     // I/O
     print,
@@ -968,9 +986,9 @@ fn vmbi_array_contains(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     Ok(())
 }
 
-//////////////////////////////////////////
-// ============== STRING ============== //
-//////////////////////////////////////////
+///////////////////////////////////////
+// ============== STR ============== //
+///////////////////////////////////////
 
 fn vmbi_str_new(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this_ref = vm.alloc(Str::new(), frame)?;
@@ -1203,9 +1221,9 @@ fn vmbi_str_contains(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     Ok(())
 }
 
-//////////////////////////////////////////////
-// ============== DICTIONARY ============== //
-//////////////////////////////////////////////
+////////////////////////////////////////
+// ============== DICT ============== //
+////////////////////////////////////////
 
 fn vmbi_dict_new(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this_ref = vm.alloc(Dict::new(), frame)?;
@@ -1360,6 +1378,227 @@ fn vmbi_dict_contains(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     };
 
     vm.push_value(Value::Bool(contains), frame)?;
+
+    Ok(())
+}
+
+///////////////////////////////////////
+// ============== SET ============== //
+///////////////////////////////////////
+
+fn vmbi_set_new(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.alloc(Set::new(), frame)?;
+
+    vm.push_value(Value::Reference(this_ref), frame)?;
+    Ok(())
+}
+
+fn vmbi_set_with_capacity(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    // Using isize::MAX as a maximum bound ensures that the capac'ity cannot exceed the bounds
+    // of usize, so the `as` casts here are fine. This is also a degenerate case that will
+    // likely cause an OOM error in Rust anyway.
+    let capacity: usize = vm
+        .pop_int(frame)?
+        .max(isize::MAX as i64)
+        .try_into()
+        .vm_result(VmErrorKind::InvalidSize, frame)?;
+    let this_ref = vm.alloc(Set::with_capacity(capacity), frame)?;
+
+    vm.push_value(Value::Reference(this_ref), frame)?;
+    Ok(())
+}
+
+fn vmbi_set_length(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let len = vm.heap_object::<Set>(this_ref, frame)?.len();
+
+    vm.push_value(Value::Int(len as i64), frame)?;
+    Ok(())
+}
+
+fn vmbi_set_index(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let key = vm.pop_value(frame)?;
+
+    let value = vm
+        .heap_object::<Set>(this_ref, frame)?
+        .get(&EqValue::from(key))
+        .copied()
+        .vm_result(VmErrorKind::OutOfBounds, frame)?;
+
+    vm.push_value(value.into(), frame)?;
+    Ok(())
+}
+
+fn vmbi_set_capacity(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this = vm.pop_reference(frame)?;
+    let capacity = vm.heap_object::<Set>(this, frame)?.capacity();
+
+    // Casting to i64 is fine here since Rust limits Vecs to a capacity of isize::MAX bytes, which
+    // can never exceed i64::MAX bytes
+    vm.push_value(Value::Int(capacity as i64), frame)?;
+    Ok(())
+}
+
+fn vmbi_set_reserve(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this = vm.pop_reference(frame)?;
+    let additional: usize = vm
+        .pop_int(frame)?
+        .try_into()
+        .vm_result(VmErrorKind::InvalidSize, frame)?;
+
+    vm.heap_object_mut::<Set>(this, frame)?.reserve(additional);
+
+    Ok(())
+}
+
+fn vmbi_set_shrink_to_fit(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this = vm.pop_reference(frame)?;
+    vm.heap_object_mut::<Set>(this, frame)?.shrink_to_fit();
+
+    Ok(())
+}
+
+fn vmbi_set_shrink_to(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this = vm.pop_reference(frame)?;
+    let min_capacity = vm
+        .pop_int(frame)?
+        .try_into()
+        .vm_result(VmErrorKind::InvalidSize, frame)?;
+
+    vm.heap_object_mut::<Set>(this, frame)?
+        .shrink_to(min_capacity);
+
+    Ok(())
+}
+
+fn vmbi_set_insert(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let key = vm.pop_value(frame)?;
+
+    if matches!(key, Value::Float(v) if v.is_nan()) {
+        throw!(VmErrorKind::)
+    }
+
+    let inserted = vm
+        .heap_object_mut::<Set>(this_ref, frame)?
+        .insert(key.into());
+
+    vm.push_value(inserted.into(), frame)?;
+
+    Ok(())
+}
+
+fn vmbi_set_remove(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let key = vm.pop_value(frame)?;
+
+    let removed = vm
+        .heap_object_mut::<Set>(this_ref, frame)?
+        .remove(&EqValue::from(key));
+
+    vm.push_value(removed.into(), frame)?;
+
+    Ok(())
+}
+
+fn vmbi_set_contains(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let key = vm.pop_value(frame)?;
+
+    let contains = vm
+        .heap_object::<Set>(this_ref, frame)?
+        .contains(&EqValue::from(key));
+
+    vm.push_value(Value::Bool(contains), frame)?;
+
+    Ok(())
+}
+
+fn vmbi_set_is_disjoint(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let other_ref = vm.pop_reference(frame)?;
+
+    let is_disjoint = {
+        let this = vm.heap_object::<Set>(this_ref, frame)?;
+        let other = vm.heap_object::<Set>(other_ref, frame)?;
+
+        this.is_disjoint(&other)
+    };
+
+    vm.push_value(is_disjoint.into(), frame)?;
+
+    Ok(())
+}
+
+fn vmbi_set_difference(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let other_ref = vm.pop_reference(frame)?;
+
+    let difference = {
+        let this = vm.heap_object::<Set>(this_ref, frame)?;
+        let other = vm.heap_object::<Set>(other_ref, frame)?;
+
+        Set(this.difference(&other).copied().collect())
+    };
+
+    let difference_ref = vm.alloc(difference, frame)?;
+
+    vm.push_value(difference_ref.into(), frame)?;
+
+    Ok(())
+}
+
+fn vmbi_set_symmetric_difference(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let other_ref = vm.pop_reference(frame)?;
+
+    let symmetric_difference = {
+        let this = vm.heap_object::<Set>(this_ref, frame)?;
+        let other = vm.heap_object::<Set>(other_ref, frame)?;
+
+        Set(this.symmetric_difference(&other).copied().collect())
+    };
+
+    let symmetric_difference_ref = vm.alloc(symmetric_difference, frame)?;
+
+    vm.push_value(symmetric_difference_ref.into(), frame)?;
+
+    Ok(())
+}
+
+fn vmbi_set_intersection(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let other_ref = vm.pop_reference(frame)?;
+
+    let symmetric_intersection = {
+        let this = vm.heap_object::<Set>(this_ref, frame)?;
+        let other = vm.heap_object::<Set>(other_ref, frame)?;
+
+        Set(this.intersection(&other).copied().collect())
+    };
+
+    let intersection_ref = vm.alloc(symmetric_intersection, frame)?;
+
+    vm.push_value(intersection_ref.into(), frame)?;
+
+    Ok(())
+}
+
+fn vmbi_set_union(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
+    let this_ref = vm.pop_reference(frame)?;
+    let other_ref = vm.pop_reference(frame)?;
+
+    let union = {
+        let this = vm.heap_object::<Set>(this_ref, frame)?;
+        let other = vm.heap_object::<Set>(other_ref, frame)?;
+
+        Set(this.union(&other).copied().collect())
+    };
+
+    let union_ref = vm.alloc(union, frame)?;
+
+    vm.push_value(union_ref.into(), frame)?;
 
     Ok(())
 }
