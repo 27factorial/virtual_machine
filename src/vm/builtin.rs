@@ -1477,7 +1477,7 @@ fn vmbi_set_insert(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let key = vm.pop_value(frame)?;
 
     if matches!(key, Value::Float(v) if v.is_nan()) {
-        throw!(VmErrorKind::)
+        throw!(VmErrorKind::InvalidObject, frame)
     }
 
     let inserted = vm

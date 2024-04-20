@@ -20,6 +20,7 @@ pub mod gc;
 pub mod heap;
 pub mod memory;
 pub mod ops;
+pub mod throwable;
 
 /// A convenience macro for the expression `return Err(VmError::new(kind, frame))`
 #[macro_export]
