@@ -264,7 +264,7 @@ impl Vm {
         let obj_ref = self
             .heap
             .get(obj)
-            .vm_result(VmErrorKind::InvalidObject, frame)?;
+            .vm_result(VmErrorKind::InvalidReference, frame)?;
 
         Ref::filter_map(obj_ref, |obj| obj.downcast_ref()).vm_result(VmErrorKind::Type, frame)
     }
@@ -277,7 +277,7 @@ impl Vm {
         let obj_ref = self
             .heap
             .get_mut(obj)
-            .vm_result(VmErrorKind::InvalidObject, frame)?;
+            .vm_result(VmErrorKind::InvalidReference, frame)?;
 
         RefMut::filter_map(obj_ref, |obj| obj.downcast_mut()).vm_result(VmErrorKind::Type, frame)
     }
@@ -401,7 +401,7 @@ pub enum VmErrorKind {
     FunctionNotFound,
     SymbolNotFound,
     TypeNotFound,
-    InvalidObject,
+    InvalidReference,
     OutOfBounds,
     InvalidSize,
     ModuleNotFound,

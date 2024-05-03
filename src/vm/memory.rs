@@ -22,6 +22,14 @@ fn capacity_overflow() -> ! {
     panic!("capacity overflow");
 }
 
+// Converts an index starting at the end of a slice to the index starting at the beginning of a
+// slice. This means that the first item in a stack will always be the item at the end of the 
+// internal slice. Use this to be less error prone when calculating indices from the end of a slice.
+#[inline(always)]
+fn stack_index(len: usize, index: usize) -> usize {
+    len - index - 1
+}
+
 #[inline(always)]
 unsafe fn copy_elem<T: Copy>(ptr: *mut [MaybeUninit<T>], src_index: usize, dest_index: usize) {
     let ptr = ptr as *mut MaybeUninit<T>;
@@ -136,7 +144,7 @@ impl<T> VmStack<T> {
 
     pub fn top(&self) -> Option<&T> {
         if !self.is_empty() {
-            let item = unsafe { self.get_unchecked(self.len() - 1) };
+            let item = unsafe { self.get_unchecked(stack_index(self.len(), 0)) };
             Some(item)
         } else {
             None
@@ -145,7 +153,7 @@ impl<T> VmStack<T> {
 
     pub fn top_mut(&mut self) -> Option<&mut T> {
         if !self.is_empty() {
-            let item = unsafe { self.get_unchecked_mut(self.len() - 1) };
+            let item = unsafe { self.get_unchecked_mut(stack_index(self.len(), 0)) };
             Some(item)
         } else {
             None
@@ -154,7 +162,7 @@ impl<T> VmStack<T> {
 
     pub fn get(&self, index: usize) -> Option<&T> {
         if index < self.len() {
-            let item = unsafe { self.get_unchecked(index) };
+            let item = unsafe { self.get_unchecked(stack_index(self.len(), index)) };
             Some(item)
         } else {
             None
@@ -163,7 +171,7 @@ impl<T> VmStack<T> {
 
     pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
         if index < self.len() {
-            let item = unsafe { self.get_unchecked_mut(index) };
+            let item = unsafe { self.get_unchecked_mut(stack_index(self.len(), index)) };
             Some(item)
         } else {
             None
@@ -315,7 +323,7 @@ impl<T> Index<usize> for VmStack<T> {
     fn index(&self, index: usize) -> &Self::Output {
         if index < self.len() {
             // SAFETY: values at an index in the range 0..self.len() are always initialized.
-            unsafe { self.get_unchecked(index) }
+            unsafe { self.get_unchecked(stack_index(self.len(), index)) }
         } else {
             bounds_check_failed(self.len(), index)
         }
@@ -326,7 +334,7 @@ impl<T> IndexMut<usize> for VmStack<T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         if index < self.len() {
             // SAFETY: values at an index in the range 0..self.len() are always initialized.
-            unsafe { self.get_unchecked_mut(index) }
+            unsafe { self.get_unchecked_mut(stack_index(self.len(), index)) }
         } else {
             bounds_check_failed(self.len(), index)
         }
@@ -512,7 +520,7 @@ mod test {
         stack.push(420usize).unwrap();
         stack.push(69).unwrap();
 
-        assert_eq!(stack.get(0), Some(&420));
+        assert_eq!(stack.get(0), Some(&69));
         assert!(stack.get(2).is_none());
 
         *stack.get_mut(1).unwrap() = 69420;
