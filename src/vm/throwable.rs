@@ -11,7 +11,7 @@ use crate::{module::ModulePathError, symbol::Symbol};
 
 use super::{function::Function, heap::Reference, ops::OpCode, CallFrame};
 
-/// A trait for exceptions and errors. Exceptions are recoverable, while Errors are not.
+/// A trait for exceptions. Exceptions are errors which can be recovered from.
 pub trait Exception: StdError {
     fn as_error(&self) -> &dyn StdError;
     fn clone_dyn(&self) -> Box<dyn Exception>;
@@ -130,7 +130,7 @@ impl fmt::Display for VmErrorData {
             Self::SymbolNotFound(Symbol(symbol)) => write!(f, "symbol {symbol:x} not found"),
             Self::TypeNotFound(name) => write!(f, "type {name} not found"),
             Self::InvalidReference(Reference(reference)) => write!(f, "nonexistent reference {reference:x}"),
-            Self::InvalidSize(size) => write!(f, "tried to allocate {size} bytes"),
+            Self::InvalidSize(size) => write!(f, "tried to allocate a structure of {size} bytes, when max allowed size is {} bytes", isize::MAX),
             Self::ModuleNotFound(module) => write!(f, "module `{module}` not found"),
             Self::InvalidPath(path) => write!(f, "`{path}` is not a valid path"),
             Self::Exception(ex) => write!(f, "unhandled exception: {}", ex.as_error())

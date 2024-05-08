@@ -169,6 +169,10 @@ pub enum OpCode {
     /// Set the VM's current frame to the call frame popped from the call stack.
     Ret,
 
+    Throw(Symbol),
+
+    RegHandler(Function),
+
     CastInt,
     CastFloat,
     CastBool,
@@ -237,6 +241,8 @@ impl OpCode {
             Op::CallBuiltin(idx) => vm.op_call_builtin(idx, frame),
             Op::CallNative(index) => vm.op_call_native(index, frame),
             Op::Ret => vm.op_ret(frame),
+            Op::Throw(_) => todo!(),
+            Op::RegHandler(_) => todo!(),
             Op::CastInt => vm.op_cast_int(frame),
             Op::CastFloat => vm.op_cast_float(frame),
             Op::CastBool => vm.op_cast_bool(frame),
