@@ -18,14 +18,6 @@ pub trait IntoVmResult: sealed::Sealed {
     fn exception(self, exception: impl Into<Exception>) -> VmResult<Self::Ok>;
 
     fn with_exception(self, exception: impl FnOnce() -> Exception) -> VmResult<Self::Ok>;
-
-    fn payload(self, payload: impl ExceptionPayload) -> VmResult<Self::Ok> {
-        self.exception(payload)
-    }
-
-    fn with_payload<P: ExceptionPayload>(self, payload: impl FnOnce() -> P) -> VmResult<Self::Ok> {
-        self.with_exception(|| payload().into())
-    }
 }
 
 impl<T> IntoVmResult for Option<T> {

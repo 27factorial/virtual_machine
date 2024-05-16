@@ -28,43 +28,9 @@ pub mod ops;
 /// A convenience macro for the expression `return Err(VmError::new(kind, frame))`
 #[macro_export]
 macro_rules! throw {
-    (
-        $ex:expr $(
-            => {
-                $($builder_field:ident : $builder_expr:expr),+ $(,)?
-            }
-        )?
-    ) => {{
-        return Err(exception!($ex $( => { $($builder_field : $builder_expr),+ })?))
+    ($ex:expr) => {{
+        return Err($ex);
     }};
-}
-
-macro_rules! exception {
-    (
-        $ex:expr $(
-            => {
-                $($builder_field:ident : $builder_expr:expr),+ $(,)?
-            }
-        )?
-    ) => {{
-        let ex = $crate::vm::exception::Exception::new($ex);
-        $(
-            $(
-                let ex = exception!(@builder ex, $builder_field : $builder_expr);
-            )+
-        )?
-
-        ex
-    }};
-    (@builder $ex:expr, function : $func:expr) => {
-        $crate::vm::exception::Exception::with_function($ex, $func)
-    };
-    (@builder $ex:expr, frame : $frame:expr) => {
-        $crate::vm::exception::Exception::with_frame($ex, $frame)
-    };
-    (@builder $ex:expr, backtrace : $backtrace:expr) => {
-        $crate::vm::exception::Exception::with_backtrace($ex, $backtrace)
-    };
 }
 
 /// Catch an exception or propagate another error.
@@ -173,24 +139,20 @@ impl Vm {
 
     pub fn push_value(&mut self, value: Value, frame: &CallFrame) -> Result<()> {
         self.data_stack.push(value).with_exception(|| {
-            exception! {
-                VmExceptionPayload::StackOverflow(self.data_stack.len()) => {
-                    frame: frame.clone(),
-                    backtrace: Backtrace::capture(),
-                }
-            }
+            VmExceptionPayload::StackOverflow(self.data_stack.len())
+                .into()
+                .with_frame(frame.clone())
+                .with_backtrace(Backtrace::capture())
         })
     }
 
     pub fn pop_value(&mut self, frame: &CallFrame) -> Result<Value> {
         if self.data_stack.len() != frame.stack_base + frame.locals {
             self.data_stack.pop().with_exception(|| {
-                exception! {
-                    VmExceptionPayload::StackUnderflow(frame.stack_base + frame.locals) => {
-                        frame: frame.clone(),
-                        backtrace: Backtrace::capture(),
-                    }
-                }
+                VmExceptionPayload::StackUnderflow(frame.stack_base + frame.locals)
+                    .into()
+                    .with_frame(frame.clone())
+                    .with_backtrace(Backtrace::capture())
             })
         } else {
             throw! {
