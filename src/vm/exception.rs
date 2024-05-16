@@ -18,6 +18,13 @@ pub trait ExceptionPayload: StdError + sealed::CastToError + 'static {
     /// still handle the error in other ways regardless of what this function returns.
     fn is_fatal(&self) -> bool;
 
+    fn into_exception(self) -> Exception
+    where
+        Self: Sized,
+    {
+        Exception::new(self)
+    }
+
     /// Casts the exception to a native `Error` trait object, for easy integration with code
     /// expecting Rust's Error trait.
     fn as_error(&self) -> &(dyn StdError + 'static) {
@@ -30,12 +37,6 @@ pub trait ExceptionPayload: StdError + sealed::CastToError + 'static {
 
     fn into_error(self: Box<Self>) -> Box<dyn StdError> {
         self.cast_into_error()
-    }
-}
-
-impl<T: ExceptionPayload> From<T> for Exception {
-    fn from(value: T) -> Self {
-        Exception::new(value)
     }
 }
 
@@ -105,6 +106,12 @@ impl Exception {
     }
 }
 
+impl ExceptionPayload for Exception {
+    fn is_fatal(&self) -> bool {
+        self.exception.is_fatal()
+    }
+}
+
 impl fmt::Display for Exception {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let intro = if self.exception.is_fatal() {
@@ -132,7 +139,7 @@ impl fmt::Display for Exception {
                     String::from("\n\nNative stack traces are not supported on this platform.")
                 }
                 BacktraceStatus::Disabled => String::from(
-                    "\n\nNative stack traces are disabled. set RUST_LIB_BACKTRACE=1 to enable them.",
+                    "\n\nNative stack traces are disabled. set the `RUST_LIB_BACKTRACE=1` environment variable to enable.",
                 ),
                 BacktraceStatus::Captured => format!("\n\nNative stack trace:\n{backtrace}"),
                 _ => String::from("\n\nNative stack trace support status could not be determined."),

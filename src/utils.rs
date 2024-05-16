@@ -1,10 +1,14 @@
 use crate::vm::{
     exception::{Exception, ExceptionPayload},
-    CallFrame, Result as VmResult, VmError, VmErrorKind,
+    CallFrame, Result as VmResult,
 };
 use rustc_hash::FxHasher;
 use serde::{Deserialize, Serialize};
-use std::hash::{BuildHasherDefault, Hasher};
+use std::{
+    backtrace::Backtrace,
+    hash::{BuildHasherDefault, Hasher},
+    sync::Arc,
+};
 
 pub type FxHashMap<K, V> = hashbrown::HashMap<K, V, BuildHasherDefault<FxHasher>>;
 pub type FxEntry<'a, K, V> = hashbrown::hash_map::Entry<'a, K, V, BuildHasherDefault<FxHasher>>;
@@ -18,6 +22,12 @@ pub trait IntoVmResult: sealed::Sealed {
     fn exception(self, exception: impl Into<Exception>) -> VmResult<Self::Ok>;
 
     fn with_exception(self, exception: impl FnOnce() -> Exception) -> VmResult<Self::Ok>;
+}
+
+pub trait VmResultExt: sealed::Sealed {
+    fn with_function<T: Into<Arc<str>>>(self, func: impl FnOnce() -> T) -> Self;
+    fn with_frame<T: Into<CallFrame>>(self, frame: impl FnOnce() -> T) -> Self;
+    fn with_backtrace<T: Into<Backtrace>>(self, backtrace: impl FnOnce() -> T) -> Self;
 }
 
 impl<T> IntoVmResult for Option<T> {
@@ -57,6 +67,20 @@ impl<T, E> IntoVmResult for Result<T, E> {
             Ok(val) => Ok(val),
             _ => Err(exception()),
         }
+    }
+}
+
+impl<T> VmResultExt for VmResult<T> {
+    fn with_function<S: Into<Arc<str>>>(self, func: impl FnOnce() -> S) -> Self {
+        self.map_err(|ex| ex.with_function(func().into()))
+    }
+
+    fn with_frame<C: Into<CallFrame>>(self, frame: impl FnOnce() -> C) -> Self {
+        self.map_err(|ex| ex.with_frame(frame().into()))
+    }
+
+    fn with_backtrace<B: Into<Backtrace>>(self, backtrace: impl FnOnce() -> B) -> Self {
+        self.map_err(|ex| ex.with_backtrace(backtrace().into()))
     }
 }
 

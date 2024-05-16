@@ -15,20 +15,28 @@ pub struct Heap {
     free_indices: VecDeque<usize>,
     worklist: Vec<usize>,
     current_children: Vec<Reference>,
-    byte_len: usize,
-    byte_capacity: usize,
+    size: usize,
+    capacity: usize,
 }
 
 impl Heap {
-    pub fn new(byte_capacity: usize) -> Self {
+    pub fn new(capacity: usize) -> Self {
         Self {
             memory: Vec::new(),
             free_indices: VecDeque::new(),
             worklist: Vec::new(),
             current_children: Vec::new(),
-            byte_len: 0,
-            byte_capacity,
+            size: 0,
+            capacity,
         }
+    }
+
+    pub fn size(&self) -> usize {
+        self.size
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.capacity
     }
 
     pub fn alloc<T: VmObject>(&mut self, value: T) -> Result<Reference, T> {
@@ -37,10 +45,10 @@ impl Heap {
                 // A previous Option was in the slot at self.memory[idx], so the size of the
                 // Option<GcBox<..>> itself is already accounted for. The only other data being
                 // added is the heap data of size size_of::<T>().
-                let required_space = self.byte_len + mem::size_of::<T>();
+                let required_space = self.size + mem::size_of::<T>();
 
-                if required_space <= self.byte_capacity {
-                    self.byte_len = required_space;
+                if required_space <= self.capacity {
+                    self.size = required_space;
 
                     // Remove the index we used from free_indices.
                     self.free_indices.pop_front();
@@ -53,14 +61,14 @@ impl Heap {
                 }
             }
             None => {
-                let required_space = self.byte_len
+                let required_space = self.size
                     + mem::size_of::<Option<GcBox<dyn VmObject>>>()
                     + mem::size_of::<T>();
 
-                if required_space <= self.byte_capacity {
+                if required_space <= self.capacity {
                     let idx = self.memory.len();
                     self.memory.push(Some(RefCell::new(gc_box!(value))));
-                    self.byte_len = required_space;
+                    self.size = required_space;
                     Ok(Reference(idx))
                 } else {
                     Err(value)

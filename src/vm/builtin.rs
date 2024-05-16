@@ -6,7 +6,7 @@ use crate::{
     value::{EqValue, Value},
 };
 
-use super::{CallFrame, Result, Vm, VmPanic};
+use super::{exception::ExceptionPayload, CallFrame, Result, Vm, VmExceptionPayload, VmPanic};
 use crate::throw;
 use paste::paste;
 
@@ -15,8 +15,14 @@ macro_rules! float_intrinsics {
         $(
             paste! {
                 fn [<vmbi_ $name>](vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-                    let Value::Float(top) = vm.top_value_mut(frame)? else {
-                        throw!(VmErrorKind::Type, frame);
+                    let top = match vm.top_value_mut(frame)? {
+                        Value::Float(v) => v,
+                        value => throw!(VmExceptionPayload::Type {
+                            expected: Value::FLOAT_TYPE_NAME.into(),
+                            actual: value.type_name().into()
+                        }
+                        .into_exception()
+                        .with_frame(frame.clone())),
                     };
 
                     *top = top.$name();
@@ -34,8 +40,14 @@ macro_rules! float_to_bool_intrinsics {
                 fn [<vmbi_ $name>](vm: &mut Vm, frame: &CallFrame) -> Result<()> {
                     let top = vm.top_value_mut(frame)?;
 
-                    let Value::Float(arg) = top else {
-                        throw!(VmErrorKind::Type, frame);
+                    let arg = match top {
+                        Value::Float(v) => v,
+                        value => throw!(VmExceptionPayload::Type {
+                            expected: Value::FLOAT_TYPE_NAME.into(),
+                            actual: value.type_name().into()
+                        }
+                        .into_exception()
+                        .with_frame(frame.clone())),
                     };
 
                     *top = Value::Bool(arg.$name());
@@ -55,7 +67,12 @@ macro_rules! count_intrinsics {
 
                     let count = match top {
                         Value::Int(v) => v.$name() as i64,
-                        _ => throw!(VmErrorKind::Type, frame)
+                        value => throw!(VmExceptionPayload::Type {
+                            expected: Value::INT_TYPE_NAME.into(),
+                            actual: value.type_name().into()
+                        }
+                        .into_exception()
+                        .with_frame(frame.clone())),
                     };
 
                     *top = Value::Int(count);
@@ -76,7 +93,12 @@ macro_rules! int_arithmetic_intrinsics {
 
                     let result = match (lhs, &rhs) {
                         (Value::Int(a), Value::Int(b))  => Value::Int(a.[<wrapping_ $name>](*b)),
-                        _ => throw!(VmErrorKind::Type, frame),
+                        value => throw!(VmExceptionPayload::Type {
+                            expected: Value::INT_TYPE_NAME.into(),
+                            actual: value.type_name().into()
+                        }
+                        .into_exception()
+                        .with_frame(frame.clone())),
                     };
 
                     *rhs = result;
@@ -89,7 +111,12 @@ macro_rules! int_arithmetic_intrinsics {
 
                     let result = match (lhs, &rhs) {
                         (Value::Int(a), Value::Int(b))  => Value::Int(a.[<saturating_ $name>](*b)),
-                        _ => throw!(VmErrorKind::Type, frame),
+                        _ => throw!(VmExceptionPayload::Type {
+                            expected: Value::INT_TYPE_NAME.into(),
+                            actual: value.type_name().into()
+                        }
+                        .into_exception()
+                        .with_frame(frame.clone())),
                     };
 
                     *rhs = result;
@@ -294,7 +321,7 @@ define_builtins! {
     dict_remove,
     dict_contains,
 
-    //
+    // Set functions
     set_new,
     set_with_capacity,
     set_length,

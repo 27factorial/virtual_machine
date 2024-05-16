@@ -10,6 +10,10 @@ macro_rules! variant_methods {
         impl Value {
             paste! {
                 $(
+                    pub const [<$variant:upper _TYPE_NAME>]: &'static str = stringify!($variant);
+                )+
+
+                $(
                     #[doc = "Returns `true` if the `Value` is " $article " `" $variant "`."]
                     pub fn [<is_ $variant:lower>](self) -> bool {
                         matches!(self, Self::$variant(_))
@@ -75,13 +79,13 @@ pub enum Value {
 impl Value {
     pub fn type_name(&self) -> &'static str {
         match self {
-            Value::Int(_) => "Int",
-            Value::Float(_) => "Float",
-            Value::Bool(_) => "Bool",
-            Value::Char(_) => "Char",
-            Value::Symbol(_) => "Symbol",
-            Value::Function(_) => "Function",
-            Value::Reference(_) => "Reference",
+            Self::Int(_) => Self::INT_TYPE_NAME,
+            Self::Float(_) => Self::FLOAT_TYPE_NAME,
+            Self::Bool(_) => Self::BOOL_TYPE_NAME,
+            Self::Char(_) => Self::CHAR_TYPE_NAME,
+            Self::Symbol(_) => Self::SYMBOL_TYPE_NAME,
+            Self::Function(_) => Self::FUNCTION_TYPE_NAME,
+            Self::Reference(_) => Self::REFERENCE_TYPE_NAME,
         }
     }
 }

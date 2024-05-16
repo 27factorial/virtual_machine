@@ -12,9 +12,9 @@ use heap::{Heap, Reference};
 use ops::Transition;
 use std::backtrace::Backtrace;
 use std::cell::{Ref, RefMut};
-use std::fmt;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::{fmt, mem};
 use thiserror::Error;
 
 pub mod builtin;
@@ -111,11 +111,9 @@ impl Vm {
     }
 
     pub fn run(&mut self) -> Result<()> {
-        let &main = self
-            .module
-            .functions
-            .get("main::main")
-            .with_payload(|| VmExceptionPayload::FunctionNotFound("main::main".into()))?;
+        let &main = self.module.functions.get("main::main").with_exception(|| {
+            VmExceptionPayload::FunctionNotFound("main::main".into()).into_exception()
+        })?;
 
         with_panic_hook(|| self.run_function(main, 0))?;
 
@@ -140,9 +138,8 @@ impl Vm {
     pub fn push_value(&mut self, value: Value, frame: &CallFrame) -> Result<()> {
         self.data_stack.push(value).with_exception(|| {
             VmExceptionPayload::StackOverflow(self.data_stack.len())
-                .into()
+                .into_exception()
                 .with_frame(frame.clone())
-                .with_backtrace(Backtrace::capture())
         })
     }
 
@@ -150,17 +147,15 @@ impl Vm {
         if self.data_stack.len() != frame.stack_base + frame.locals {
             self.data_stack.pop().with_exception(|| {
                 VmExceptionPayload::StackUnderflow(frame.stack_base + frame.locals)
-                    .into()
+                    .into_exception()
                     .with_frame(frame.clone())
-                    .with_backtrace(Backtrace::capture())
             })
         } else {
-            throw! {
-                VmExceptionPayload::StackUnderflow(frame.stack_base + frame.locals) => {
-                    frame: frame.clone(),
-                    backtrace: Backtrace::capture(),
-                }
-            }
+            throw!(
+                VmExceptionPayload::StackUnderflow(frame.stack_base + frame.locals)
+                    .into_exception()
+                    .with_frame(frame.clone())
+            )
         }
     }
 
@@ -170,109 +165,209 @@ impl Vm {
             .len()
             .checked_sub(1)
             .and_then(|last| last.checked_sub(index))
-            .exception(VmErrorKind::OutOfBounds, frame)?;
+            .with_exception(|| {
+                VmExceptionPayload::InvalidStackIndex {
+                    index,
+                    min: frame.stack_base,
+                    max: frame.stack_base + frame.locals,
+                }
+                .into_exception()
+                .with_frame(frame.clone())
+            })?;
 
-        self.data_stack
-            .get(index)
-            .cloned()
-            .exception(VmErrorKind::OutOfBounds, frame)
+        self.data_stack.get(index).cloned().with_exception(|| {
+            VmExceptionPayload::InvalidStackIndex {
+                index,
+                min: frame.stack_base,
+                max: frame.stack_base + frame.locals,
+            }
+            .into_exception()
+            .with_frame(frame.clone())
+        })
     }
 
     pub fn pop_int(&mut self, frame: &CallFrame) -> Result<i64> {
-        self.pop_value(frame)?
-            .int()
-            .exception(VmErrorKind::Type, frame)
+        match self.pop_value(frame)? {
+            Value::Int(v) => Ok(v),
+            value => throw!(VmExceptionPayload::Type {
+                expected: Value::INT_TYPE_NAME.into(),
+                actual: value.type_name().into()
+            }
+            .into_exception()
+            .with_frame(frame.clone())),
+        }
     }
 
     pub fn get_int(&self, index: usize, frame: &CallFrame) -> Result<i64> {
-        self.get_value(index, frame)?
-            .int()
-            .exception(VmErrorKind::Type, frame)
+        match self.get_value(index, frame)? {
+            Value::Int(v) => Ok(v),
+            value => throw!(VmExceptionPayload::Type {
+                expected: Value::INT_TYPE_NAME.into(),
+                actual: value.type_name().into()
+            }
+            .into_exception()
+            .with_frame(frame.clone())),
+        }
     }
 
     pub fn pop_float(&mut self, frame: &CallFrame) -> Result<f64> {
-        self.pop_value(frame)?
-            .float()
-            .exception(VmErrorKind::Type, frame)
+        match self.pop_value(frame)? {
+            Value::Float(v) => Ok(v),
+            value => throw!(VmExceptionPayload::Type {
+                expected: Value::FLOAT_TYPE_NAME.into(),
+                actual: value.type_name().into()
+            }
+            .into_exception()
+            .with_frame(frame.clone())),
+        }
     }
 
     pub fn get_float(&self, index: usize, frame: &CallFrame) -> Result<f64> {
-        self.get_value(index, frame)?
-            .float()
-            .exception(VmErrorKind::Type, frame)
+        match self.get_value(index, frame)? {
+            Value::Float(v) => Ok(v),
+            value => throw!(VmExceptionPayload::Type {
+                expected: Value::FLOAT_TYPE_NAME.into(),
+                actual: value.type_name().into()
+            }
+            .into_exception()
+            .with_frame(frame.clone())),
+        }
     }
 
     pub fn pop_bool(&mut self, frame: &CallFrame) -> Result<bool> {
-        self.pop_value(frame)?
-            .bool()
-            .exception(VmErrorKind::Type, frame)
+        match self.pop_value(frame)? {
+            Value::Bool(v) => Ok(v),
+            value => throw!(VmExceptionPayload::Type {
+                expected: Value::BOOL_TYPE_NAME.into(),
+                actual: value.type_name().into()
+            }
+            .into_exception()
+            .with_frame(frame.clone())),
+        }
     }
 
     pub fn get_bool(&self, index: usize, frame: &CallFrame) -> Result<bool> {
-        self.get_value(index, frame)?
-            .bool()
-            .exception(VmErrorKind::Type, frame)
+        match self.get_value(index, frame)? {
+            Value::Bool(v) => Ok(v),
+            value => throw!(VmExceptionPayload::Type {
+                expected: Value::BOOL_TYPE_NAME.into(),
+                actual: value.type_name().into()
+            }
+            .into_exception()
+            .with_frame(frame.clone())),
+        }
     }
 
     pub fn pop_char(&mut self, frame: &CallFrame) -> Result<char> {
-        self.pop_value(frame)?
-            .char()
-            .exception(VmErrorKind::Type, frame)
+        match self.pop_value(frame)? {
+            Value::Char(v) => Ok(v),
+            value => throw!(VmExceptionPayload::Type {
+                expected: Value::CHAR_TYPE_NAME.into(),
+                actual: value.type_name().into()
+            }
+            .into_exception()
+            .with_frame(frame.clone())),
+        }
     }
 
     pub fn get_char(&self, index: usize, frame: &CallFrame) -> Result<char> {
-        self.get_value(index, frame)?
-            .char()
-            .exception(VmErrorKind::Type, frame)
+        match self.get_value(index, frame)? {
+            Value::Char(v) => Ok(v),
+            value => throw!(VmExceptionPayload::Type {
+                expected: Value::CHAR_TYPE_NAME.into(),
+                actual: value.type_name().into()
+            }
+            .into_exception()
+            .with_frame(frame.clone())),
+        }
     }
 
     pub fn pop_function(&mut self, frame: &CallFrame) -> Result<Function> {
-        self.pop_value(frame)?
-            .function()
-            .exception(VmErrorKind::Type, frame)
+        match self.pop_value(frame)? {
+            Value::Function(v) => Ok(v),
+            value => throw!(VmExceptionPayload::Type {
+                expected: Value::FUNCTION_TYPE_NAME.into(),
+                actual: value.type_name().into()
+            }
+            .into_exception()
+            .with_frame(frame.clone())),
+        }
     }
 
     pub fn get_function(&self, index: usize, frame: &CallFrame) -> Result<Function> {
-        self.get_value(index, frame)?
-            .function()
-            .exception(VmErrorKind::Type, frame)
+        match self.get_value(index, frame)? {
+            Value::Function(v) => Ok(v),
+            value => throw!(VmExceptionPayload::Type {
+                expected: Value::FUNCTION_TYPE_NAME.into(),
+                actual: value.type_name().into()
+            }
+            .into_exception()
+            .with_frame(frame.clone())),
+        }
     }
 
     pub fn pop_symbol(&mut self, frame: &CallFrame) -> Result<Symbol> {
-        self.pop_value(frame)?
-            .symbol()
-            .exception(VmErrorKind::Type, frame)
+        match self.pop_value(frame)? {
+            Value::Symbol(v) => Ok(v),
+            value => throw!(VmExceptionPayload::Type {
+                expected: Value::SYMBOL_TYPE_NAME.into(),
+                actual: value.type_name().into()
+            }
+            .into_exception()
+            .with_frame(frame.clone())),
+        }
     }
 
     pub fn get_symbol(&self, index: usize, frame: &CallFrame) -> Result<Symbol> {
-        self.get_value(index, frame)?
-            .symbol()
-            .exception(VmErrorKind::Type, frame)
+        match self.get_value(index, frame)? {
+            Value::Symbol(v) => Ok(v),
+            value => throw!(VmExceptionPayload::Type {
+                expected: Value::SYMBOL_TYPE_NAME.into(),
+                actual: value.type_name().into()
+            }
+            .into_exception()
+            .with_frame(frame.clone())),
+        }
     }
 
     pub fn pop_reference(&mut self, frame: &CallFrame) -> Result<Reference> {
-        self.pop_value(frame)?
-            .reference()
-            .exception(VmErrorKind::Type, frame)
+        match self.pop_value(frame)? {
+            Value::Reference(v) => Ok(v),
+            value => throw!(VmExceptionPayload::Type {
+                expected: Value::REFERENCE_TYPE_NAME.into(),
+                actual: value.type_name().into()
+            }
+            .into_exception()
+            .with_frame(frame.clone())),
+        }
     }
 
     pub fn get_reference(&self, index: usize, frame: &CallFrame) -> Result<Reference> {
-        self.get_value(index, frame)?
-            .reference()
-            .exception(VmErrorKind::Type, frame)
+        match self.get_value(index, frame)? {
+            Value::Reference(v) => Ok(v),
+            value => throw!(VmExceptionPayload::Type {
+                expected: Value::REFERENCE_TYPE_NAME.into(),
+                actual: value.type_name().into()
+            }
+            .into_exception()
+            .with_frame(frame.clone())),
+        }
     }
 
     pub fn top_value(&self, frame: &CallFrame) -> Result<Value> {
-        self.data_stack
-            .top()
-            .copied()
-            .exception(VmErrorKind::OutOfBounds, frame)
+        self.data_stack.top().copied().with_exception(|| {
+            VmExceptionPayload::StackEmpty
+                .into_exception()
+                .with_frame(frame.clone())
+        })
     }
 
     pub fn top_value_mut(&mut self, frame: &CallFrame) -> Result<&mut Value> {
-        self.data_stack
-            .top_mut()
-            .exception(VmErrorKind::OutOfBounds, frame)
+        self.data_stack.top_mut().with_exception(|| {
+            VmExceptionPayload::StackEmpty
+                .into_exception()
+                .with_frame(frame.clone())
+        })
     }
 
     pub fn heap_object<T: VmObject>(
@@ -280,12 +375,21 @@ impl Vm {
         obj: Reference,
         frame: &CallFrame,
     ) -> Result<Ref<'_, T>> {
-        let obj_ref = self
-            .heap
-            .get(obj)
-            .exception(VmErrorKind::InvalidReference, frame)?;
+        let obj_ref = self.heap.get(obj).with_exception(|| {
+            VmExceptionPayload::InvalidReference(obj)
+                .into_exception()
+                .with_frame(frame.clone())
+        })?;
+        // .exception(VmErrorKind::InvalidReference, frame)?;
 
-        Ref::filter_map(obj_ref, |obj| obj.downcast_ref()).exception(VmErrorKind::Type, frame)
+        Ref::filter_map(obj_ref, |obj| obj.downcast_ref()).with_exception(|| {
+            VmExceptionPayload::Type {
+                expected: "TODO: type name here".into(),
+                actual: "TODO: type name here".into(),
+            }
+            .into_exception()
+            .with_frame(frame.clone())
+        })
     }
 
     pub fn heap_object_mut<T: VmObject>(
@@ -293,12 +397,20 @@ impl Vm {
         obj: Reference,
         frame: &CallFrame,
     ) -> Result<RefMut<'_, T>> {
-        let obj_ref = self
-            .heap
-            .get_mut(obj)
-            .exception(VmErrorKind::InvalidReference, frame)?;
+        let obj_ref = self.heap.get_mut(obj).with_exception(|| {
+            VmExceptionPayload::InvalidReference(obj)
+                .into_exception()
+                .with_frame(frame.clone())
+        })?;
 
-        RefMut::filter_map(obj_ref, |obj| obj.downcast_mut()).exception(VmErrorKind::Type, frame)
+        RefMut::filter_map(obj_ref, |obj| obj.downcast_mut()).with_exception(|| {
+            VmExceptionPayload::Type {
+                expected: "TODO: type name here".into(),
+                actual: "TODO: type name here".into(),
+            }
+            .into_exception()
+            .with_frame(frame.clone())
+        })
     }
 
     pub fn set_reserved(&mut self, n: usize, frame: &mut CallFrame) -> Result<()> {
@@ -306,7 +418,9 @@ impl Vm {
             frame.locals = n;
             Ok(())
         } else {
-            throw!(VmErrorKind::OutOfBounds, &*frame);
+            throw!(VmExceptionPayload::StackOverflow(self.data_stack.len())
+                .into_exception()
+                .with_frame(frame.clone()))
         }
     }
 
@@ -333,9 +447,14 @@ impl Vm {
                 self.heap
                     .mark_and_sweep(self.data_stack.iter().copied().filter_map(Value::reference));
 
-                self.heap
-                    .alloc(value)
-                    .exception(VmErrorKind::OutOfMemory, frame)
+                self.heap.alloc(value).with_exception(|| {
+                    VmExceptionPayload::OutOfMemory {
+                        requested: mem::size_of::<T>(),
+                        available: self.heap.capacity() - self.heap.size(),
+                    }
+                    .into_exception()
+                    .with_frame(frame.clone())
+                })
             }
         }
     }
@@ -347,7 +466,11 @@ impl Vm {
     ) -> Result<(&str, &Function)> {
         match self.module.symbols.get(symbol) {
             Some(name) => {
-                let path = ModulePath::new(name).exception(VmErrorKind::InvalidPath, frame)?;
+                let path = ModulePath::new(name).with_exception(|| {
+                    VmExceptionPayload::InvalidPath(name.into())
+                        .into_exception()
+                        .with_frame(frame.clone())
+                })?;
 
                 match path {
                     ModulePath::FieldOrMethod {
@@ -357,21 +480,35 @@ impl Vm {
                         .module
                         .types
                         .get(ty)
-                        .exception(VmErrorKind::TypeNotFound, frame)?
+                        .with_exception(|| {
+                            VmExceptionPayload::TypeNotFound(ty.into())
+                                .into_exception()
+                                .with_frame(frame.clone())
+                        })?
                         .methods
                         .get(method)
-                        .exception(VmErrorKind::FunctionNotFound, frame)
+                        .with_exception(|| {
+                            VmExceptionPayload::FunctionNotFound(name.into())
+                                .into_exception()
+                                .with_frame(frame.clone())
+                        })
                         .map(|func| (name, func)),
                     ModulePath::Function(func) => self
                         .module
                         .functions
                         .indices
                         .get(func)
-                        .exception(VmErrorKind::FunctionNotFound, frame)
+                        .with_exception(|| {
+                            VmExceptionPayload::FunctionNotFound(func.into())
+                                .into_exception()
+                                .with_frame(frame.clone())
+                        })
                         .map(|func| (name, func)),
                 }
             }
-            None => throw!(VmErrorKind::SymbolNotFound, frame),
+            None => throw!(VmExceptionPayload::SymbolNotFound(symbol)
+                .into_exception()
+                .with_frame(frame.clone())),
         }
     }
 
@@ -386,10 +523,15 @@ impl Vm {
 
                 match entry {
                     RawEntryMut::Occupied(entry) => Ok(entry.get().clone()),
-                    RawEntryMut::Vacant(_) => throw!(VmErrorKind::FunctionNotFound, frame),
+                    RawEntryMut::Vacant(_) => {
+                        throw!(VmExceptionPayload::FunctionNotFound(name.into())
+                            .into_exception()
+                            .with_frame(frame.clone()))
+                    }
                 }
             }
-            None => throw!(VmErrorKind::SymbolNotFound, frame),
+            None => throw!(VmExceptionPayload::SymbolNotFound(symbol).into_exception()
+            .with_frame(frame.clone())),
         }
     }
 
@@ -446,6 +588,14 @@ pub enum VmExceptionPayload {
         isize::MAX
     )]
     InvalidSize(usize),
+    #[error("attempted to access stack index {index} (valid range: ({min}, {max}])")]
+    InvalidStackIndex {
+        index: usize,
+        min: usize,
+        max: usize,
+    },
+    #[error("attempted to get top of stack when the stack was empty")]
+    StackEmpty,
     #[error("module `{0}` not found")]
     ModuleNotFound(Arc<str>),
     #[error("`{0}` is not a valid path")]
@@ -455,25 +605,38 @@ pub enum VmExceptionPayload {
 impl ExceptionPayload for VmExceptionPayload {
     fn is_fatal(&self) -> bool {
         match self {
-            VmExceptionPayload::Type {
+            Self::Type {
                 expected: _,
                 actual: _,
             } => false,
-            VmExceptionPayload::Arithmetic => false,
-            VmExceptionPayload::StackOverflow(_) => true,
-            VmExceptionPayload::StackUnderflow(_) => true,
-            VmExceptionPayload::OutOfMemory {
+            Self::Arithmetic => false,
+            Self::StackOverflow(_) => true,
+            Self::StackUnderflow(_) => true,
+            Self::OutOfMemory {
                 requested: _,
                 available: _,
             } => true,
-            VmExceptionPayload::FunctionNotFound(_) => false,
-            VmExceptionPayload::SymbolNotFound(_) => true,
-            VmExceptionPayload::TypeNotFound(_) => true,
-            VmExceptionPayload::InvalidReference(_) => true,
-            VmExceptionPayload::InvalidSize(_) => false,
-            VmExceptionPayload::ModuleNotFound(_) => false,
-            VmExceptionPayload::InvalidPath(_) => false,
+            Self::FunctionNotFound(_) => false,
+            Self::SymbolNotFound(_) => true,
+            Self::TypeNotFound(_) => true,
+            Self::InvalidReference(_) => true,
+            Self::InvalidSize(_) => false,
+            Self::InvalidStackIndex {
+                index: _,
+                min: _,
+                max: _,
+            } => true,
+            Self::StackEmpty => true,
+            Self::ModuleNotFound(_) => false,
+            Self::InvalidPath(_) => false,
         }
+    }
+
+    fn into_exception(self) -> Exception
+    where
+        Self: Sized,
+    {
+        Exception::new(self).with_backtrace(Backtrace::capture())
     }
 }
 
