@@ -58,7 +58,7 @@ macro_rules! variant_methods {
 pub enum Value {
     /// A signed 64-bit integer.
     Int(i64),
-    /// A double precision IEEE 754 floating point value (a.k.a. double, f64).
+    /// A double precision IEEE 754-2008 floating point value (a.k.a. double, f64).
     Float(f64),
     /// A boolean value which can be true or false.
     Bool(bool),
@@ -70,6 +70,20 @@ pub enum Value {
     Function(Function),
     /// An object reference, referring to some data in the object heap.
     Reference(Reference),
+}
+
+impl Value {
+    pub fn type_name(&self) -> &'static str {
+        match self {
+            Value::Int(_) => "Int",
+            Value::Float(_) => "Float",
+            Value::Bool(_) => "Bool",
+            Value::Char(_) => "Char",
+            Value::Symbol(_) => "Symbol",
+            Value::Function(_) => "Function",
+            Value::Reference(_) => "Reference",
+        }
+    }
 }
 
 variant_methods! {

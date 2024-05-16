@@ -25,7 +25,7 @@ pub mod utils;
 pub mod value;
 pub mod vm;
 
-const VALID_MAGIC: [u8; 4] = *b"PFVM";
+const VALID_MAGIC: [u8; 4] = *b"\x1BFAC";
 
 fn main() {
     let mut module = Module::new();

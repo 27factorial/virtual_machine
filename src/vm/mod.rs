@@ -1,3 +1,4 @@
+use self::exception::{Exception, ExceptionPayload};
 use self::memory::VmStack;
 use self::ops::OpResult;
 use crate::module::{Module, ModulePath, ModulePathError, NativeFn, ToModule};
@@ -9,25 +10,66 @@ use function::Function;
 use hashbrown::hash_map::RawEntryMut;
 use heap::{Heap, Reference};
 use ops::Transition;
+use std::backtrace::Backtrace;
 use std::cell::{Ref, RefMut};
-use std::fmt::Display;
+use std::fmt;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use thiserror::Error;
 
 pub mod builtin;
+pub mod exception;
 pub mod function;
 pub mod gc;
 pub mod heap;
 pub mod memory;
 pub mod ops;
-pub mod throwable;
 
 /// A convenience macro for the expression `return Err(VmError::new(kind, frame))`
 #[macro_export]
 macro_rules! throw {
-    ($kind:path, $frame:expr) => {
-        return ::std::result::Result::Err($crate::vm::VmError::new($kind, $frame))
+    (
+        $ex:expr $(
+            => {
+                $($builder_field:ident : $builder_expr:expr),+ $(,)?
+            }
+        )?
+    ) => {{
+        return Err(exception!($ex $( => { $($builder_field : $builder_expr),+ })?))
+    }};
+}
+
+macro_rules! exception {
+    (
+        $ex:expr $(
+            => {
+                $($builder_field:ident : $builder_expr:expr),+ $(,)?
+            }
+        )?
+    ) => {{
+        let ex = $crate::vm::exception::Exception::new($ex);
+        $(
+            $(
+                let ex = exception!(@builder ex, $builder_field : $builder_expr);
+            )+
+        )?
+
+        ex
+    }};
+    (@builder $ex:expr, function : $func:expr) => {
+        $crate::vm::exception::Exception::with_function($ex, $func)
     };
+    (@builder $ex:expr, frame : $frame:expr) => {
+        $crate::vm::exception::Exception::with_frame($ex, $frame)
+    };
+    (@builder $ex:expr, backtrace : $backtrace:expr) => {
+        $crate::vm::exception::Exception::with_backtrace($ex, $backtrace)
+    };
+}
+
+/// Catch an exception or propagate another error.
+macro_rules! catch {
+    ($e:expr) => {};
 }
 
 pub(crate) static EXPECTED_PANIC: AtomicBool = AtomicBool::new(false);
@@ -84,7 +126,7 @@ where
     ret
 }
 
-pub type Result<T> = std::result::Result<T, VmError>;
+pub type Result<T> = std::result::Result<T, Exception>;
 
 #[derive(Debug)]
 pub struct Vm {
@@ -107,7 +149,7 @@ impl Vm {
             .module
             .functions
             .get("main::main")
-            .vm_result(VmErrorKind::FunctionNotFound, None)?;
+            .with_payload(|| VmExceptionPayload::FunctionNotFound("main::main".into()))?;
 
         with_panic_hook(|| self.run_function(main, 0))?;
 
@@ -130,18 +172,33 @@ impl Vm {
     }
 
     pub fn push_value(&mut self, value: Value, frame: &CallFrame) -> Result<()> {
-        self.data_stack
-            .push(value)
-            .vm_result(VmErrorKind::StackOverflow, frame)
+        self.data_stack.push(value).with_exception(|| {
+            exception! {
+                VmExceptionPayload::StackOverflow(self.data_stack.len()) => {
+                    frame: frame.clone(),
+                    backtrace: Backtrace::capture(),
+                }
+            }
+        })
     }
 
     pub fn pop_value(&mut self, frame: &CallFrame) -> Result<Value> {
         if self.data_stack.len() != frame.stack_base + frame.locals {
-            self.data_stack
-                .pop()
-                .vm_result(VmErrorKind::StackUnderflow, frame)
+            self.data_stack.pop().with_exception(|| {
+                exception! {
+                    VmExceptionPayload::StackUnderflow(frame.stack_base + frame.locals) => {
+                        frame: frame.clone(),
+                        backtrace: Backtrace::capture(),
+                    }
+                }
+            })
         } else {
-            throw!(VmErrorKind::StackUnderflow, frame);
+            throw! {
+                VmExceptionPayload::StackUnderflow(frame.stack_base + frame.locals) => {
+                    frame: frame.clone(),
+                    backtrace: Backtrace::capture(),
+                }
+            }
         }
     }
 
@@ -151,109 +208,109 @@ impl Vm {
             .len()
             .checked_sub(1)
             .and_then(|last| last.checked_sub(index))
-            .vm_result(VmErrorKind::OutOfBounds, frame)?;
+            .exception(VmErrorKind::OutOfBounds, frame)?;
 
         self.data_stack
             .get(index)
             .cloned()
-            .vm_result(VmErrorKind::OutOfBounds, frame)
+            .exception(VmErrorKind::OutOfBounds, frame)
     }
 
     pub fn pop_int(&mut self, frame: &CallFrame) -> Result<i64> {
         self.pop_value(frame)?
             .int()
-            .vm_result(VmErrorKind::Type, frame)
+            .exception(VmErrorKind::Type, frame)
     }
 
     pub fn get_int(&self, index: usize, frame: &CallFrame) -> Result<i64> {
         self.get_value(index, frame)?
             .int()
-            .vm_result(VmErrorKind::Type, frame)
+            .exception(VmErrorKind::Type, frame)
     }
 
     pub fn pop_float(&mut self, frame: &CallFrame) -> Result<f64> {
         self.pop_value(frame)?
             .float()
-            .vm_result(VmErrorKind::Type, frame)
+            .exception(VmErrorKind::Type, frame)
     }
 
     pub fn get_float(&self, index: usize, frame: &CallFrame) -> Result<f64> {
         self.get_value(index, frame)?
             .float()
-            .vm_result(VmErrorKind::Type, frame)
+            .exception(VmErrorKind::Type, frame)
     }
 
     pub fn pop_bool(&mut self, frame: &CallFrame) -> Result<bool> {
         self.pop_value(frame)?
             .bool()
-            .vm_result(VmErrorKind::Type, frame)
+            .exception(VmErrorKind::Type, frame)
     }
 
     pub fn get_bool(&self, index: usize, frame: &CallFrame) -> Result<bool> {
         self.get_value(index, frame)?
             .bool()
-            .vm_result(VmErrorKind::Type, frame)
+            .exception(VmErrorKind::Type, frame)
     }
 
     pub fn pop_char(&mut self, frame: &CallFrame) -> Result<char> {
         self.pop_value(frame)?
             .char()
-            .vm_result(VmErrorKind::Type, frame)
+            .exception(VmErrorKind::Type, frame)
     }
 
     pub fn get_char(&self, index: usize, frame: &CallFrame) -> Result<char> {
         self.get_value(index, frame)?
             .char()
-            .vm_result(VmErrorKind::Type, frame)
+            .exception(VmErrorKind::Type, frame)
     }
 
     pub fn pop_function(&mut self, frame: &CallFrame) -> Result<Function> {
         self.pop_value(frame)?
             .function()
-            .vm_result(VmErrorKind::Type, frame)
+            .exception(VmErrorKind::Type, frame)
     }
 
     pub fn get_function(&self, index: usize, frame: &CallFrame) -> Result<Function> {
         self.get_value(index, frame)?
             .function()
-            .vm_result(VmErrorKind::Type, frame)
+            .exception(VmErrorKind::Type, frame)
     }
 
     pub fn pop_symbol(&mut self, frame: &CallFrame) -> Result<Symbol> {
         self.pop_value(frame)?
             .symbol()
-            .vm_result(VmErrorKind::Type, frame)
+            .exception(VmErrorKind::Type, frame)
     }
 
     pub fn get_symbol(&self, index: usize, frame: &CallFrame) -> Result<Symbol> {
         self.get_value(index, frame)?
             .symbol()
-            .vm_result(VmErrorKind::Type, frame)
+            .exception(VmErrorKind::Type, frame)
     }
 
     pub fn pop_reference(&mut self, frame: &CallFrame) -> Result<Reference> {
         self.pop_value(frame)?
             .reference()
-            .vm_result(VmErrorKind::Type, frame)
+            .exception(VmErrorKind::Type, frame)
     }
 
     pub fn get_reference(&self, index: usize, frame: &CallFrame) -> Result<Reference> {
         self.get_value(index, frame)?
             .reference()
-            .vm_result(VmErrorKind::Type, frame)
+            .exception(VmErrorKind::Type, frame)
     }
 
     pub fn top_value(&self, frame: &CallFrame) -> Result<Value> {
         self.data_stack
             .top()
             .copied()
-            .vm_result(VmErrorKind::OutOfBounds, frame)
+            .exception(VmErrorKind::OutOfBounds, frame)
     }
 
     pub fn top_value_mut(&mut self, frame: &CallFrame) -> Result<&mut Value> {
         self.data_stack
             .top_mut()
-            .vm_result(VmErrorKind::OutOfBounds, frame)
+            .exception(VmErrorKind::OutOfBounds, frame)
     }
 
     pub fn heap_object<T: VmObject>(
@@ -264,9 +321,9 @@ impl Vm {
         let obj_ref = self
             .heap
             .get(obj)
-            .vm_result(VmErrorKind::InvalidReference, frame)?;
+            .exception(VmErrorKind::InvalidReference, frame)?;
 
-        Ref::filter_map(obj_ref, |obj| obj.downcast_ref()).vm_result(VmErrorKind::Type, frame)
+        Ref::filter_map(obj_ref, |obj| obj.downcast_ref()).exception(VmErrorKind::Type, frame)
     }
 
     pub fn heap_object_mut<T: VmObject>(
@@ -277,9 +334,9 @@ impl Vm {
         let obj_ref = self
             .heap
             .get_mut(obj)
-            .vm_result(VmErrorKind::InvalidReference, frame)?;
+            .exception(VmErrorKind::InvalidReference, frame)?;
 
-        RefMut::filter_map(obj_ref, |obj| obj.downcast_mut()).vm_result(VmErrorKind::Type, frame)
+        RefMut::filter_map(obj_ref, |obj| obj.downcast_mut()).exception(VmErrorKind::Type, frame)
     }
 
     pub fn set_reserved(&mut self, n: usize, frame: &mut CallFrame) -> Result<()> {
@@ -316,15 +373,19 @@ impl Vm {
 
                 self.heap
                     .alloc(value)
-                    .vm_result(VmErrorKind::OutOfMemory, frame)
+                    .exception(VmErrorKind::OutOfMemory, frame)
             }
         }
     }
 
-    pub fn resolve_function(&mut self, symbol: Symbol, frame: &CallFrame) -> Result<&Function> {
+    pub fn resolve_function(
+        &mut self,
+        symbol: Symbol,
+        frame: &CallFrame,
+    ) -> Result<(&str, &Function)> {
         match self.module.symbols.get(symbol) {
             Some(name) => {
-                let path = ModulePath::new(name).vm_result(VmErrorKind::InvalidPath, frame)?;
+                let path = ModulePath::new(name).exception(VmErrorKind::InvalidPath, frame)?;
 
                 match path {
                     ModulePath::FieldOrMethod {
@@ -334,16 +395,18 @@ impl Vm {
                         .module
                         .types
                         .get(ty)
-                        .vm_result(VmErrorKind::TypeNotFound, frame)?
+                        .exception(VmErrorKind::TypeNotFound, frame)?
                         .methods
                         .get(method)
-                        .vm_result(VmErrorKind::FunctionNotFound, frame),
+                        .exception(VmErrorKind::FunctionNotFound, frame)
+                        .map(|func| (name, func)),
                     ModulePath::Function(func) => self
                         .module
                         .functions
                         .indices
                         .get(func)
-                        .vm_result(VmErrorKind::FunctionNotFound, frame),
+                        .exception(VmErrorKind::FunctionNotFound, frame)
+                        .map(|func| (name, func)),
                 }
             }
             None => throw!(VmErrorKind::SymbolNotFound, frame),
@@ -376,38 +439,6 @@ impl Vm {
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
-pub struct VmError {
-    kind: VmErrorKind,
-    frame: Option<CallFrame>,
-}
-
-impl VmError {
-    pub fn new<'a>(kind: VmErrorKind, frame: impl Into<Option<&'a CallFrame>>) -> Self {
-        Self {
-            kind,
-            frame: frame.into().cloned(),
-        }
-    }
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum VmErrorKind {
-    Type,
-    Arithmetic,
-    StackOverflow,
-    StackUnderflow,
-    OutOfMemory,
-    FunctionNotFound,
-    SymbolNotFound,
-    TypeNotFound,
-    InvalidReference,
-    OutOfBounds,
-    InvalidSize,
-    ModuleNotFound,
-    InvalidPath,
-}
-
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct CallFrame {
     pub(crate) ip: usize,
@@ -425,12 +456,71 @@ impl CallFrame {
     }
 }
 
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Error)]
+pub enum VmExceptionPayload {
+    #[error("expected type `{expected}`, got `{actual}`")]
+    Type {
+        expected: Arc<str>,
+        actual: Arc<str>,
+    },
+    #[error("arithmetic underflow or overflow")]
+    Arithmetic,
+    #[error("overflowed beyond {0} stack values")]
+    StackOverflow(usize),
+    #[error("underflowed below minimum stack element {0}")]
+    StackUnderflow(usize),
+    #[error("tried to allocate {requested} bytes but only {available} bytes are available")]
+    OutOfMemory { requested: usize, available: usize },
+    #[error("function `{0}` not found")]
+    FunctionNotFound(Arc<str>),
+    #[error("symbol {:x} not found", (.0).0)]
+    SymbolNotFound(Symbol),
+    #[error("type {0} not found")]
+    TypeNotFound(Arc<str>),
+    #[error("nonexistent reference {:x}", (.0).0)]
+    InvalidReference(Reference),
+    #[error(
+        "tried to allocate a structure of {0} bytes, when max allowed size is {} bytes",
+        isize::MAX
+    )]
+    InvalidSize(usize),
+    #[error("module `{0}` not found")]
+    ModuleNotFound(Arc<str>),
+    #[error("`{0}` is not a valid path")]
+    InvalidPath(Arc<str>),
+}
+
+impl ExceptionPayload for VmExceptionPayload {
+    fn is_fatal(&self) -> bool {
+        match self {
+            VmExceptionPayload::Type {
+                expected: _,
+                actual: _,
+            } => false,
+            VmExceptionPayload::Arithmetic => false,
+            VmExceptionPayload::StackOverflow(_) => true,
+            VmExceptionPayload::StackUnderflow(_) => true,
+            VmExceptionPayload::OutOfMemory {
+                requested: _,
+                available: _,
+            } => true,
+            VmExceptionPayload::FunctionNotFound(_) => false,
+            VmExceptionPayload::SymbolNotFound(_) => true,
+            VmExceptionPayload::TypeNotFound(_) => true,
+            VmExceptionPayload::InvalidReference(_) => true,
+            VmExceptionPayload::InvalidSize(_) => false,
+            VmExceptionPayload::ModuleNotFound(_) => false,
+            VmExceptionPayload::InvalidPath(_) => false,
+        }
+    }
+}
+
 #[repr(transparent)]
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub(crate) struct VmPanic(String);
 
 impl VmPanic {
-    pub fn new(s: impl Display) -> Self {
+    pub fn new(s: impl fmt::Display) -> Self {
         Self(s.to_string())
     }
 

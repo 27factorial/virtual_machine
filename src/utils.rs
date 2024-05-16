@@ -1,4 +1,7 @@
-use crate::vm::{CallFrame, Result as VmResult, VmError, VmErrorKind};
+use crate::vm::{
+    exception::{Exception, ExceptionPayload},
+    CallFrame, Result as VmResult, VmError, VmErrorKind,
+};
 use rustc_hash::FxHasher;
 use serde::{Deserialize, Serialize};
 use std::hash::{BuildHasherDefault, Hasher};
@@ -12,25 +15,35 @@ pub type IntEntry<'a, K, V> = hashbrown::hash_map::Entry<'a, K, V, BuildHasherDe
 pub trait IntoVmResult: sealed::Sealed {
     type Ok;
 
-    fn vm_result<'a>(
-        self,
-        kind: VmErrorKind,
-        frame: impl Into<Option<&'a CallFrame>>,
-    ) -> VmResult<Self::Ok>;
+    fn exception(self, exception: impl Into<Exception>) -> VmResult<Self::Ok>;
+
+    fn with_exception(self, exception: impl FnOnce() -> Exception) -> VmResult<Self::Ok>;
+
+    fn payload(self, payload: impl ExceptionPayload) -> VmResult<Self::Ok> {
+        self.exception(payload)
+    }
+
+    fn with_payload<P: ExceptionPayload>(self, payload: impl FnOnce() -> P) -> VmResult<Self::Ok> {
+        self.with_exception(|| payload().into())
+    }
 }
 
 impl<T> IntoVmResult for Option<T> {
     type Ok = T;
 
     #[inline]
-    fn vm_result<'a>(
-        self,
-        kind: VmErrorKind,
-        frame: impl Into<Option<&'a CallFrame>>,
-    ) -> VmResult<T> {
+    fn exception(self, exception: impl Into<Exception>) -> VmResult<T> {
         match self {
-            Some(t) => Ok(t),
-            None => Err(VmError::new(kind, frame)),
+            Some(val) => Ok(val),
+            None => Err(exception.into()),
+        }
+    }
+
+    #[inline]
+    fn with_exception(self, exception: impl FnOnce() -> Exception) -> VmResult<T> {
+        match self {
+            Some(val) => Ok(val),
+            None => Err(exception()),
         }
     }
 }
@@ -39,14 +52,18 @@ impl<T, E> IntoVmResult for Result<T, E> {
     type Ok = T;
 
     #[inline]
-    fn vm_result<'a>(
-        self,
-        kind: VmErrorKind,
-        frame: impl Into<Option<&'a CallFrame>>,
-    ) -> VmResult<T> {
+    fn exception(self, exception: impl Into<Exception>) -> VmResult<T> {
         match self {
-            Ok(t) => Ok(t),
-            Err(_) => Err(VmError::new(kind, frame)),
+            Ok(val) => Ok(val),
+            _ => Err(exception.into()),
+        }
+    }
+
+    #[inline]
+    fn with_exception(self, exception: impl FnOnce() -> Exception) -> VmResult<T> {
+        match self {
+            Ok(val) => Ok(val),
+            _ => Err(exception()),
         }
     }
 }
@@ -138,7 +155,7 @@ impl Hasher for IntHasher {
 }
 
 mod sealed {
-    pub trait Sealed {}
+    pub trait Sealed: Sized {}
 
     impl<T> Sealed for Option<T> {}
     impl<T, E> Sealed for Result<T, E> {}

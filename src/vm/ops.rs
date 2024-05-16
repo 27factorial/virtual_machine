@@ -171,7 +171,9 @@ pub enum OpCode {
 
     Throw(Symbol),
 
-    RegHandler(Function),
+    SetHandler(Function),
+
+    DelHandler,
 
     CastInt,
     CastFloat,
@@ -242,7 +244,8 @@ impl OpCode {
             Op::CallNative(index) => vm.op_call_native(index, frame),
             Op::Ret => vm.op_ret(frame),
             Op::Throw(_) => todo!(),
-            Op::RegHandler(_) => todo!(),
+            Op::SetHandler(_) => todo!(),
+            Op::DelHandler => todo!(),
             Op::CastInt => vm.op_cast_int(frame),
             Op::CastFloat => vm.op_cast_float(frame),
             Op::CastBool => vm.op_cast_bool(frame),
@@ -489,7 +492,7 @@ mod imp {
     
             self.data_stack
                 .push_from_ref(constant)
-                .vm_result(VmErrorKind::StackOverflow, frame)?;
+                .exception_result(VmErrorKind::StackOverflow, frame)?;
 
             Ok(Transition::Continue)
         }
@@ -542,7 +545,7 @@ mod imp {
         // rsrv
         pub(super) fn op_reserve(&mut self, frame: &mut CallFrame) -> OpResult {
             let n: usize = match self.pop_value(frame)? {
-                Value::Int(n) => n.try_into().vm_result(VmErrorKind::OutOfBounds, &*frame)?,
+                Value::Int(n) => n.try_into().exception_result(VmErrorKind::OutOfBounds, &*frame)?,
                 _ => throw!(VmErrorKind::Type, &*frame),
             };
 
@@ -928,7 +931,7 @@ mod imp {
             let address = self
                 .pop_int(frame)?
                 .try_into()
-                .vm_result(VmErrorKind::OutOfBounds, &*frame)?;
+                .exception_result(VmErrorKind::OutOfBounds, &*frame)?;
 
             self.op_jump_imm(address, frame)
         }
@@ -938,20 +941,20 @@ mod imp {
             let positive = offset.is_positive();
             let offset: usize = offset
                 .checked_abs()
-                .vm_result(VmErrorKind::OutOfBounds, &*frame)?
+                .exception_result(VmErrorKind::OutOfBounds, &*frame)?
                 .try_into()
-                .vm_result(VmErrorKind::OutOfBounds, &*frame)?;
+                .exception_result(VmErrorKind::OutOfBounds, &*frame)?;
 
             frame.ip = if positive {
                 frame
                     .ip
                     .checked_add(offset)
-                    .vm_result(VmErrorKind::OutOfBounds, &*frame)?
+                    .exception_result(VmErrorKind::OutOfBounds, &*frame)?
             } else {
                 frame
                     .ip
                     .checked_sub(offset)
-                    .vm_result(VmErrorKind::OutOfBounds, &*frame)?
+                    .exception_result(VmErrorKind::OutOfBounds, &*frame)?
             };
 
             Ok(Transition::Jump)
@@ -1021,7 +1024,7 @@ mod imp {
         pub(super) fn op_call_builtin(&mut self, index: usize, frame: &CallFrame) -> OpResult {
             let func = BUILTINS
                 .get(index)
-                .vm_result(VmErrorKind::FunctionNotFound, frame)?;
+                .exception_result(VmErrorKind::FunctionNotFound, frame)?;
 
             func(self, frame)?;
             Ok(Transition::Continue)
