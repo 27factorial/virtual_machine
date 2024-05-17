@@ -1,13 +1,14 @@
 use std::{hash::Hasher, sync::Arc};
 
 use crate::{
-    module::core::collections::{Array, Dict, Set, Str},
+    module::core::collections::{Array, ArrayExceptionPayload, Dict, Set, Str},
     utils::IntoVmResult,
     value::{EqValue, Value},
 };
 
 use super::{exception::ExceptionPayload, CallFrame, Result, Vm, VmExceptionPayload, VmPanic};
 use crate::throw;
+use const_format::concatcp;
 use paste::paste;
 
 macro_rules! float_intrinsics {
@@ -88,11 +89,17 @@ macro_rules! int_arithmetic_intrinsics {
         $(
             paste! {
                 fn [<vmbi_wrapping_ $name>](vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-                    let lhs = vm.pop_value(frame)?;
+                    let lhs = vm.pop_value(frame)?.int_or_else(|value| VmExceptionPayload::Type {
+                        expected: Value::INT_TYPE_NAME.into(),
+                        actual: value.type_name().into()
+                    }
+                    .into_exception()
+                    .with_frame(frame.clone()))?;
+
                     let rhs = vm.top_value_mut(frame)?;
 
-                    let result = match (lhs, &rhs) {
-                        (Value::Int(a), Value::Int(b))  => Value::Int(a.[<wrapping_ $name>](*b)),
+                    let result = match &rhs {
+                        Value::Int(b)  => Value::Int(lhs.[<wrapping_ $name>](*b)),
                         value => throw!(VmExceptionPayload::Type {
                             expected: Value::INT_TYPE_NAME.into(),
                             actual: value.type_name().into()
@@ -106,12 +113,18 @@ macro_rules! int_arithmetic_intrinsics {
                 }
 
                 fn [<vmbi_saturating_ $name>](vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-                    let lhs = vm.pop_value(frame)?;
+                    let lhs = vm.pop_value(frame)?.int_or_else(|value| VmExceptionPayload::Type {
+                        expected: Value::INT_TYPE_NAME.into(),
+                        actual: value.type_name().into()
+                    }
+                    .into_exception()
+                    .with_frame(frame.clone()))?;
+
                     let rhs = vm.top_value_mut(frame)?;
 
-                    let result = match (lhs, &rhs) {
-                        (Value::Int(a), Value::Int(b))  => Value::Int(a.[<saturating_ $name>](*b)),
-                        _ => throw!(VmExceptionPayload::Type {
+                    let result = match &rhs {
+                        Value::Int(b)  => Value::Int(lhs.[<saturating_ $name>](*b)),
+                        value => throw!(VmExceptionPayload::Type {
                             expected: Value::INT_TYPE_NAME.into(),
                             actual: value.type_name().into()
                         }
@@ -124,15 +137,26 @@ macro_rules! int_arithmetic_intrinsics {
                 }
 
                 fn [<vmbi_overflowing_ $name>](vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-                    let lhs = vm.pop_value(frame)?;
+                    let lhs = vm.pop_value(frame)?.int_or_else(|value| VmExceptionPayload::Type {
+                        expected: Value::INT_TYPE_NAME.into(),
+                        actual: value.type_name().into()
+                    }
+                    .into_exception()
+                    .with_frame(frame.clone()))?;
+
                     let rhs = vm.top_value_mut(frame)?;
 
-                    let (result, flag) = match (lhs, &rhs) {
-                        (Value::Int(a), Value::Int(b))  => {
-                            let (val, flag) = a.[<overflowing_ $name>](*b);
+                    let (result, flag) = match &rhs {
+                        Value::Int(b)  => {
+                            let (val, flag) = lhs.[<overflowing_ $name>](*b);
                             (Value::Int(val), flag)
                         },
-                        _ => throw!(VmErrorKind::Type, frame),
+                        value => throw!(VmExceptionPayload::Type {
+                            expected: Value::INT_TYPE_NAME.into(),
+                            actual: value.type_name().into()
+                        }
+                        .into_exception()
+                        .with_frame(frame.clone())),
                     };
 
                     *rhs = result;
@@ -417,7 +441,12 @@ fn vmbi_abs(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let value = match top {
         Value::Int(v) => Value::Int(v.abs()),
         Value::Float(v) => Value::Float(v.abs()),
-        _ => throw!(VmErrorKind::Type, frame),
+        value => throw!(VmExceptionPayload::Type {
+            expected: concatcp!(Value::INT_TYPE_NAME, " | ", Value::FLOAT_TYPE_NAME).into(),
+            actual: value.type_name().into()
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
 
     *top = value;
@@ -429,7 +458,12 @@ fn vmbi_wrapping_abs(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
     let result = match top {
         Value::Int(v) => Value::Int(v.wrapping_abs()),
-        _ => throw!(VmErrorKind::Type, frame),
+        value => throw!(VmExceptionPayload::Type {
+            expected: Value::INT_TYPE_NAME.into(),
+            actual: value.type_name().into()
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
 
     *top = result;
@@ -441,7 +475,12 @@ fn vmbi_saturating_abs(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
     let result = match top {
         Value::Int(v) => Value::Int(v.saturating_abs()),
-        _ => throw!(VmErrorKind::Type, frame),
+        value => throw!(VmExceptionPayload::Type {
+            expected: Value::INT_TYPE_NAME.into(),
+            actual: value.type_name().into()
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
 
     *top = result;
@@ -456,7 +495,12 @@ fn vmbi_overflowing_abs(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
             let (val, flag) = v.overflowing_abs();
             (Value::Int(val), flag)
         }
-        _ => throw!(VmErrorKind::Type, frame),
+        value => throw!(VmExceptionPayload::Type {
+            expected: Value::INT_TYPE_NAME.into(),
+            actual: value.type_name().into()
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
 
     *top = result;
@@ -465,12 +509,25 @@ fn vmbi_overflowing_abs(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 }
 
 fn vmbi_wrapping_rem(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    let lhs = vm.pop_value(frame)?;
+    let lhs = vm.pop_value(frame)?.int_or_else(|value| {
+        VmExceptionPayload::Type {
+            expected: Value::INT_TYPE_NAME.into(),
+            actual: value.type_name().into(),
+        }
+        .into_exception()
+        .with_frame(frame.clone())
+    })?;
+
     let rhs = vm.top_value_mut(frame)?;
 
-    let result = match (lhs, &rhs) {
-        (Value::Int(a), Value::Int(b)) => Value::Int(a.wrapping_rem(*b)),
-        _ => throw!(VmErrorKind::Type, frame),
+    let result = match &rhs {
+        Value::Int(b) => Value::Int(lhs.wrapping_rem(*b)),
+        value => throw!(VmExceptionPayload::Type {
+            expected: Value::INT_TYPE_NAME.into(),
+            actual: value.type_name().into()
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
 
     *rhs = result;
@@ -478,15 +535,28 @@ fn vmbi_wrapping_rem(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 }
 
 fn vmbi_overflowing_rem(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    let lhs = vm.pop_value(frame)?;
+    let lhs = vm.pop_value(frame)?.int_or_else(|value| {
+        VmExceptionPayload::Type {
+            expected: Value::INT_TYPE_NAME.into(),
+            actual: value.type_name().into(),
+        }
+        .into_exception()
+        .with_frame(frame.clone())
+    })?;
+
     let rhs = vm.top_value_mut(frame)?;
 
-    let (result, flag) = match (lhs, &rhs) {
-        (Value::Int(a), Value::Int(b)) => {
-            let (val, flag) = a.overflowing_rem(*b);
+    let (result, flag) = match &rhs {
+        Value::Int(b) => {
+            let (val, flag) = lhs.overflowing_rem(*b);
             (Value::Int(val), flag)
         }
-        _ => throw!(VmErrorKind::Type, frame),
+        value => throw!(VmExceptionPayload::Type {
+            expected: Value::INT_TYPE_NAME.into(),
+            actual: value.type_name().into()
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
 
     *rhs = result;
@@ -495,9 +565,14 @@ fn vmbi_overflowing_rem(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 }
 
 fn vmbi_wrapping_neg(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    let Value::Int(top) = vm.top_value_mut(frame)? else {
-        throw!(VmErrorKind::Type, frame);
-    };
+    let top = vm.top_value_mut(frame)?.int_ref_mut_or_else(|value| {
+        VmExceptionPayload::Type {
+            expected: Value::INT_TYPE_NAME.into(),
+            actual: value.type_name().into(),
+        }
+        .into_exception()
+        .with_frame(frame.clone())
+    })?;
 
     let result = top.wrapping_neg();
 
@@ -506,9 +581,14 @@ fn vmbi_wrapping_neg(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 }
 
 fn vmbi_saturating_neg(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    let Value::Int(top) = vm.top_value_mut(frame)? else {
-        throw!(VmErrorKind::Type, frame);
-    };
+    let top = vm.top_value_mut(frame)?.int_ref_mut_or_else(|value| {
+        VmExceptionPayload::Type {
+            expected: Value::INT_TYPE_NAME.into(),
+            actual: value.type_name().into(),
+        }
+        .into_exception()
+        .with_frame(frame.clone())
+    })?;
 
     let result = top.saturating_neg();
 
@@ -517,9 +597,14 @@ fn vmbi_saturating_neg(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 }
 
 fn vmbi_overflowing_neg(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    let Value::Int(top) = vm.top_value_mut(frame)? else {
-        throw!(VmErrorKind::Type, frame);
-    };
+    let top = vm.top_value_mut(frame)?.int_ref_mut_or_else(|value| {
+        VmExceptionPayload::Type {
+            expected: Value::INT_TYPE_NAME.into(),
+            actual: value.type_name().into(),
+        }
+        .into_exception()
+        .with_frame(frame.clone())
+    })?;
 
     let (result, flag) = top.overflowing_neg();
 
@@ -538,28 +623,47 @@ fn vmbi_pow(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
     let result = match base {
         Value::Int(base) => {
-            let &mut Value::Int(exponent) = exponent else {
-                throw!(VmErrorKind::Type, frame);
-            };
+            let exponent = exponent.int_or_else(|value| {
+                VmExceptionPayload::Type {
+                    expected: Value::INT_TYPE_NAME.into(),
+                    actual: value.type_name().into(),
+                }
+                .into_exception()
+                .with_frame(frame.clone())
+            })?;
 
-            let exp: u32 = exponent
-                .try_into()
-                .exception_result(VmErrorKind::Arithmetic, frame)?;
+            let exp: u32 = exponent.try_into().with_exception(|| {
+                VmExceptionPayload::Arithmetic
+                    .into_exception()
+                    .with_frame(frame.clone())
+            })?;
 
-            let result = base
-                .checked_pow(exp)
-                .exception_result(VmErrorKind::Arithmetic, frame)?;
+            let result = base.checked_pow(exp).with_exception(|| {
+                VmExceptionPayload::Arithmetic
+                    .into_exception()
+                    .with_frame(frame.clone())
+            })?;
 
             Value::Int(result)
         }
-        Value::Float(exp) => {
-            let Value::Float(v) = exponent else {
-                throw!(VmErrorKind::Type, frame);
-            };
+        Value::Float(base) => {
+            let exponent = exponent.float_or_else(|value| {
+                VmExceptionPayload::Type {
+                    expected: Value::FLOAT_TYPE_NAME.into(),
+                    actual: value.type_name().into(),
+                }
+                .into_exception()
+                .with_frame(frame.clone())
+            })?;
 
-            Value::Float(v.powf(exp))
+            Value::Float(base.powf(exponent))
         }
-        _ => throw!(VmErrorKind::Type, frame),
+        value => throw!(VmExceptionPayload::Type {
+            expected: concatcp!(Value::INT_TYPE_NAME, " | ", Value::FLOAT_TYPE_NAME).into(),
+            actual: value.type_name().into()
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
 
     *exponent = result;
@@ -571,8 +675,17 @@ fn vmbi_wrapping_pow(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let exponent = vm.top_value_mut(frame)?;
 
     let exp = match exponent {
-        Value::Int(v) => u32::try_from(*v).exception_result(VmErrorKind::Arithmetic, frame)?,
-        _ => throw!(VmErrorKind::Type, frame),
+        Value::Int(v) => u32::try_from(*v).with_exception(|| {
+            VmExceptionPayload::Arithmetic
+                .into_exception()
+                .with_frame(frame.clone())
+        })?,
+        value => throw!(VmExceptionPayload::Type {
+            expected: Value::INT_TYPE_NAME.into(),
+            actual: value.type_name().into(),
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
 
     *exponent = this.wrapping_pow(exp).into();
@@ -584,8 +697,17 @@ fn vmbi_saturating_pow(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let exponent = vm.top_value_mut(frame)?;
 
     let exp = match exponent {
-        Value::Int(v) => u32::try_from(*v).exception_result(VmErrorKind::Arithmetic, frame)?,
-        _ => throw!(VmErrorKind::Type, frame),
+        Value::Int(v) => u32::try_from(*v).with_exception(|| {
+            VmExceptionPayload::Arithmetic
+                .into_exception()
+                .with_frame(frame.clone())
+        })?,
+        value => throw!(VmExceptionPayload::Type {
+            expected: Value::INT_TYPE_NAME.into(),
+            actual: value.type_name().into(),
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
 
     *exponent = this.saturating_pow(exp).into();
@@ -597,8 +719,17 @@ fn vmbi_overflowing_pow(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let exponent = vm.top_value_mut(frame)?;
 
     let exp = match exponent {
-        Value::Int(v) => u32::try_from(*v).exception_result(VmErrorKind::Arithmetic, frame)?,
-        _ => throw!(VmErrorKind::Type, frame),
+        Value::Int(v) => u32::try_from(*v).with_exception(|| {
+            VmExceptionPayload::Arithmetic
+                .into_exception()
+                .with_frame(frame.clone())
+        })?,
+        value => throw!(VmExceptionPayload::Type {
+            expected: Value::INT_TYPE_NAME.into(),
+            actual: value.type_name().into(),
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
 
     let (result, flag) = this.overflowing_pow(exp);
@@ -612,15 +743,42 @@ fn vmbi_log(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let arg = vm.pop_value(frame)?;
     let base = vm.top_value_mut(frame)?;
 
-    let result = match (arg, &base) {
-        (Value::Int(a), Value::Int(b)) => {
-            let result = a
-                .checked_ilog(*b)
-                .exception_result(VmErrorKind::Arithmetic, frame)?;
+    let result = match arg {
+        Value::Int(a) => {
+            let b = base.int_or_else(|value| {
+                VmExceptionPayload::Type {
+                    expected: Value::INT_TYPE_NAME.into(),
+                    actual: value.type_name().into(),
+                }
+                .into_exception()
+                .with_frame(frame.clone())
+            })?;
+
+            let result = a.checked_ilog(b).with_exception(|| {
+                VmExceptionPayload::Arithmetic
+                    .into_exception()
+                    .with_frame(frame.clone())
+            })?;
             Value::Int(result as i64)
         }
-        (Value::Float(a), Value::Float(b)) => Value::Float(a.log(*b)),
-        _ => throw!(VmErrorKind::Type, frame),
+        Value::Float(a) => {
+            let b = base.float_or_else(|value| {
+                VmExceptionPayload::Type {
+                    expected: Value::FLOAT_TYPE_NAME.into(),
+                    actual: value.type_name().into(),
+                }
+                .into_exception()
+                .with_frame(frame.clone())
+            })?;
+
+            Value::Float(a.log(b))
+        }
+        value => throw!(VmExceptionPayload::Type {
+            expected: concatcp!(Value::INT_TYPE_NAME, " | ", Value::FLOAT_TYPE_NAME).into(),
+            actual: value.type_name().into()
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
 
     *base = result;
@@ -632,13 +790,21 @@ fn vmbi_log2(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
     let result = match top {
         Value::Int(a) => {
-            let result = a
-                .checked_ilog2()
-                .exception_result(VmErrorKind::Arithmetic, frame)?;
+            let result = a.checked_ilog2().with_exception(|| {
+                VmExceptionPayload::Arithmetic
+                    .into_exception()
+                    .with_frame(frame.clone())
+            })?;
+
             Value::Int(result as i64)
         }
         Value::Float(a) => Value::Float(a.log2()),
-        _ => throw!(VmErrorKind::Type, frame),
+        value => throw!(VmExceptionPayload::Type {
+            expected: concatcp!(Value::INT_TYPE_NAME, " | ", Value::FLOAT_TYPE_NAME).into(),
+            actual: value.type_name().into()
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
 
     *top = result;
@@ -650,13 +816,20 @@ fn vmbi_log10(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
     let result = match top {
         Value::Int(a) => {
-            let result = a
-                .checked_ilog10()
-                .exception_result(VmErrorKind::Arithmetic, frame)?;
+            let result = a.checked_ilog10().with_exception(|| {
+                VmExceptionPayload::Arithmetic
+                    .into_exception()
+                    .with_frame(frame.clone())
+            })?;
             Value::Int(result as i64)
         }
         Value::Float(a) => Value::Float(a.log10()),
-        _ => throw!(VmErrorKind::Type, frame),
+        value => throw!(VmExceptionPayload::Type {
+            expected: concatcp!(Value::INT_TYPE_NAME, " | ", Value::FLOAT_TYPE_NAME).into(),
+            actual: value.type_name().into()
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
 
     *top = result;
@@ -669,7 +842,12 @@ fn vmbi_signum(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let result = match top {
         Value::Int(a) => Value::Int(a.signum()),
         Value::Float(a) => Value::Float(a.signum()),
-        _ => throw!(VmErrorKind::Type, frame),
+        value => throw!(VmExceptionPayload::Type {
+            expected: concatcp!(Value::INT_TYPE_NAME, " | ", Value::FLOAT_TYPE_NAME).into(),
+            actual: value.type_name().into()
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
 
     *top = result;
@@ -682,7 +860,12 @@ fn vmbi_is_positive(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let result = match top {
         Value::Int(a) => Value::Bool(a.is_positive()),
         Value::Float(a) => Value::Bool(a.is_sign_positive()),
-        _ => throw!(VmErrorKind::Type, frame),
+        value => throw!(VmExceptionPayload::Type {
+            expected: concatcp!(Value::INT_TYPE_NAME, " | ", Value::FLOAT_TYPE_NAME).into(),
+            actual: value.type_name().into()
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
 
     *top = result;
@@ -695,7 +878,12 @@ fn vmbi_is_negative(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let result = match top {
         Value::Int(a) => Value::Bool(a.is_negative()),
         Value::Float(a) => Value::Bool(a.is_sign_negative()),
-        _ => throw!(VmErrorKind::Type, frame),
+        value => throw!(VmExceptionPayload::Type {
+            expected: concatcp!(Value::INT_TYPE_NAME, " | ", Value::FLOAT_TYPE_NAME).into(),
+            actual: value.type_name().into()
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
 
     *top = result;
@@ -710,10 +898,37 @@ fn vmbi_min(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this = vm.pop_value(frame)?;
     let other = vm.top_value_mut(frame)?;
 
-    let result = match (this, &other) {
-        (Value::Int(a), Value::Int(b)) => Value::Int(a.min(*b)),
-        (Value::Float(a), Value::Float(b)) => Value::Float(a.min(*b)),
-        _ => throw!(VmErrorKind::Type, frame),
+    let result = match this {
+        Value::Int(a) => {
+            let b = other.int_ref_or_else(|value| {
+                VmExceptionPayload::Type {
+                    expected: Value::INT_TYPE_NAME.into(),
+                    actual: value.type_name().into(),
+                }
+                .into_exception()
+                .with_frame(frame.clone())
+            })?;
+
+            Value::Int(a.min(*b))
+        }
+        Value::Float(a) => {
+            let b = other.float_ref_or_else(|value| {
+                VmExceptionPayload::Type {
+                    expected: Value::FLOAT_TYPE_NAME.into(),
+                    actual: value.type_name().into(),
+                }
+                .into_exception()
+                .with_frame(frame.clone())
+            })?;
+
+            Value::Float(a.min(*b))
+        }
+        value => throw!(VmExceptionPayload::Type {
+            expected: concatcp!(Value::INT_TYPE_NAME, " | ", Value::FLOAT_TYPE_NAME).into(),
+            actual: value.type_name().into(),
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
 
     *other = result;
@@ -724,10 +939,37 @@ fn vmbi_max(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this = vm.pop_value(frame)?;
     let other = vm.top_value_mut(frame)?;
 
-    let result = match (this, &other) {
-        (Value::Int(a), Value::Int(b)) => Value::Int(a.max(*b)),
-        (Value::Float(a), Value::Float(b)) => Value::Float(a.max(*b)),
-        _ => throw!(VmErrorKind::Type, frame),
+    let result = match this {
+        Value::Int(a) => {
+            let b = other.int_ref_or_else(|value| {
+                VmExceptionPayload::Type {
+                    expected: Value::INT_TYPE_NAME.into(),
+                    actual: value.type_name().into(),
+                }
+                .into_exception()
+                .with_frame(frame.clone())
+            })?;
+
+            Value::Int(a.max(*b))
+        }
+        Value::Float(a) => {
+            let b = other.float_ref_or_else(|value| {
+                VmExceptionPayload::Type {
+                    expected: Value::FLOAT_TYPE_NAME.into(),
+                    actual: value.type_name().into(),
+                }
+                .into_exception()
+                .with_frame(frame.clone())
+            })?;
+
+            Value::Float(a.max(*b))
+        }
+        value => throw!(VmExceptionPayload::Type {
+            expected: concatcp!(Value::INT_TYPE_NAME, " | ", Value::FLOAT_TYPE_NAME).into(),
+            actual: value.type_name().into(),
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
 
     *other = result;
@@ -739,10 +981,55 @@ fn vmbi_clamp(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let min = vm.pop_value(frame)?;
     let max = vm.top_value_mut(frame)?;
 
-    let result = match (this, min, &max) {
-        (Value::Int(a), Value::Int(min), Value::Int(max)) => Value::Int(a.clamp(min, *max)),
-        (Value::Float(a), Value::Float(min), Value::Float(max)) => Value::Float(a.clamp(min, *max)),
-        _ => throw!(VmErrorKind::Type, frame),
+    let result = match this {
+        Value::Int(this) => {
+            let min = min.int_or_else(|value| {
+                VmExceptionPayload::Type {
+                    expected: Value::INT_TYPE_NAME.into(),
+                    actual: value.type_name().into(),
+                }
+                .into_exception()
+                .with_frame(frame.clone())
+            })?;
+
+            let max = max.int_or_else(|value| {
+                VmExceptionPayload::Type {
+                    expected: Value::INT_TYPE_NAME.into(),
+                    actual: value.type_name().into(),
+                }
+                .into_exception()
+                .with_frame(frame.clone())
+            })?;
+
+            Value::Int(this.clamp(min, max))
+        }
+        Value::Float(this) => {
+            let min = min.float_or_else(|value| {
+                VmExceptionPayload::Type {
+                    expected: Value::FLOAT_TYPE_NAME.into(),
+                    actual: value.type_name().into(),
+                }
+                .into_exception()
+                .with_frame(frame.clone())
+            })?;
+
+            let max = max.float_or_else(|value| {
+                VmExceptionPayload::Type {
+                    expected: Value::FLOAT_TYPE_NAME.into(),
+                    actual: value.type_name().into(),
+                }
+                .into_exception()
+                .with_frame(frame.clone())
+            })?;
+
+            Value::Float(this.clamp(min, max))
+        }
+        value => throw!(VmExceptionPayload::Type {
+            expected: concatcp!(Value::INT_TYPE_NAME, " | ", Value::FLOAT_TYPE_NAME).into(),
+            actual: value.type_name().into(),
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
 
     *max = result;
@@ -803,13 +1090,23 @@ fn vmbi_atan2(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this = vm.pop_value(frame)?;
     let arg = vm.top_value_mut(frame)?;
 
-    let Value::Float(arg1) = this else {
-        throw!(VmErrorKind::Type, frame);
-    };
+    let arg1 = this.float_or_else(|value| {
+        VmExceptionPayload::Type {
+            expected: Value::FLOAT_TYPE_NAME.into(),
+            actual: value.type_name().into(),
+        }
+        .into_exception()
+        .with_frame(frame.clone())
+    })?;
 
-    let Value::Float(arg2) = arg else {
-        throw!(VmErrorKind::Type, frame);
-    };
+    let arg2 = arg.float_ref_mut_or_else(|value| {
+        VmExceptionPayload::Type {
+            expected: Value::FLOAT_TYPE_NAME.into(),
+            actual: value.type_name().into(),
+        }
+        .into_exception()
+        .with_frame(frame.clone())
+    })?;
 
     let result = arg1.atan2(*arg2);
     *arg2 = result;
@@ -828,14 +1125,19 @@ fn vmbi_array_new(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 }
 
 fn vmbi_array_with_capacity(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    // Using isize::MAX as a maximum bound ensures that the capac'ity cannot exceed the bounds
+    // Using isize::MAX as a maximum bound ensures that the capacity cannot exceed the bounds
     // of usize, so the `as` casts here are fine. This is also a degenerate case that will
     // likely cause an OOM error in Rust anyway.
-    let capacity: usize = vm
-        .pop_int(frame)?
+    let possible_capacity = vm.pop_int(frame)?;
+
+    let capacity = possible_capacity
         .min(isize::MAX as i64)
         .try_into()
-        .exception_result(VmErrorKind::InvalidSize, frame)?;
+        .with_exception(|| {
+            VmExceptionPayload::InvalidSize(possible_capacity)
+                .into_exception()
+                .with_frame(frame.clone())
+        })?;
     let this_ref = vm.alloc(Array::with_capacity(capacity), frame)?;
 
     vm.push_value(Value::Reference(this_ref), frame)?;
@@ -852,16 +1154,29 @@ fn vmbi_array_length(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
 fn vmbi_array_index(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this_ref = vm.pop_reference(frame)?;
-    let index: usize = vm
-        .pop_int(frame)?
-        .try_into()
-        .exception_result(VmErrorKind::OutOfBounds, frame)?;
+    let index_i64 = vm.pop_int(frame)?;
 
-    let value = vm
-        .heap_object::<Array>(this_ref, frame)?
-        .get(index)
-        .copied()
-        .exception_result(VmErrorKind::OutOfBounds, frame)?;
+    let value = {
+        let array = vm.heap_object::<Array>(this_ref, frame)?;
+
+        let index: usize = index_i64.try_into().with_exception(|| {
+            ArrayExceptionPayload::OutOfBounds {
+                len: array.len(),
+                index: index_i64,
+            }
+            .into_exception()
+            .with_frame(frame.clone())
+        })?;
+
+        array.get(index).copied().with_exception(|| {
+            ArrayExceptionPayload::OutOfBounds {
+                len: array.len(),
+                index: index_i64,
+            }
+            .into_exception()
+            .with_frame(frame.clone())
+        })?
+    };
 
     vm.push_value(value, frame)?;
     Ok(())
@@ -879,13 +1194,18 @@ fn vmbi_array_capacity(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
 fn vmbi_array_reserve(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this = vm.pop_reference(frame)?;
-    let additional: usize = vm
-        .pop_int(frame)?
-        .try_into()
-        .exception_result(VmErrorKind::InvalidSize, frame)?;
+    let additional_i64 = vm.pop_int(frame)?;
+    let array = vm.heap_object_mut::<Array>(this, frame)?;
 
-    vm.heap_object_mut::<Array>(this, frame)?
-        .reserve(additional);
+    let additional: usize = additional_i64.try_into().with_exception(|| {
+        VmExceptionPayload::InvalidSize(additional_i64)
+            .into_exception()
+            .with_frame(frame.clone())
+    })?;
+
+    array.try_reserve(additional).with_exception(|| {
+        VmExceptionPayload::InvalidSize((array.capacity() as isize).checked_add(additional).or(isize::MAX as usize) as isize)
+    });
 
     Ok(())
 }

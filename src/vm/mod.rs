@@ -111,8 +111,10 @@ impl Vm {
     }
 
     pub fn run(&mut self) -> Result<()> {
-        let &main = self.module.functions.get("main::main").with_exception(|| {
-            VmExceptionPayload::FunctionNotFound("main::main".into()).into_exception()
+        const MAIN: &str = "main::main";
+
+        let &main = self.module.functions.get(MAIN).with_exception(|| {
+            VmExceptionPayload::FunctionNotFound(MAIN.into()).into_exception()
         })?;
 
         with_panic_hook(|| self.run_function(main, 0))?;
@@ -584,11 +586,11 @@ pub enum VmExceptionPayload {
     #[error("nonexistent reference {:x}", (.0).0)]
     InvalidReference(Reference),
     #[error(
-        "tried to allocate a structure of {0} bytes, when max allowed size is {} bytes",
+        "tried to allocate a structure of {0} bytes (valid range: [0, {}))",
         isize::MAX
     )]
-    InvalidSize(usize),
-    #[error("attempted to access stack index {index} (valid range: ({min}, {max}])")]
+    InvalidSize(i64),
+    #[error("attempted to access stack index {index} (valid range: [{min}, {max}))")]
     InvalidStackIndex {
         index: usize,
         min: usize,

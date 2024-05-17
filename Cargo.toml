@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+const_format = "0.2.32"
 hashbrown = { version = "0.14", features = ["serde"] }
 indexmap = { version = "2.2.5", features = ["serde"] }
 paste = "1"

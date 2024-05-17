@@ -214,7 +214,7 @@ impl Module {
         // Functions
         other
             .functions
-            .info
+            .indices
             .into_iter()
             .for_each(|(name, func)| match self.functions.info.entry(name) {
                 Entry::Occupied(entry) => panic!("Registered duplicate function {}", entry.key()),

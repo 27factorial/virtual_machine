@@ -34,10 +34,17 @@ macro_rules! variant_methods {
                     #[doc = " default value if `self` is not"]
                     #[doc = " " $article " "]
                     #[doc = "`" $variant "`."]
-                    pub fn [<$variant:lower _or>](self, default: $inner_ty) -> $inner_ty {
+                    pub fn [<unwrap_ $variant:lower _or>](self, default: $inner_ty) -> $inner_ty {
                         match self {
                             Self::$variant(v) => v,
                             _ => default,
+                        }
+                    }
+
+                    pub fn [<unwrap_ $variant:lower _or_else>]<F: FnOnce(Value) -> $inner_ty>(self, f: F) -> $inner_ty {
+                        match self {
+                            Self::$variant(v) => v,
+                            value => f(value),
                         }
                     }
 
@@ -45,10 +52,54 @@ macro_rules! variant_methods {
                     #[doc = " provided error if `self` is not"]
                     #[doc = " " $article " "]
                     #[doc = "`" $variant "`."]
-                    pub fn [<$variant:lower _or_err>]<E>(self, err: E) -> Result<$inner_ty, E> {
+                    pub fn [<$variant:lower _or>]<E>(self, err: E) -> Result<$inner_ty, E> {
                         match self {
                             Self::$variant(v) => Ok(v),
                             _ => Err(err),
+                        }
+                    }
+
+                    pub fn [<$variant:lower _ref_or>]<E>(&self, err: E) -> Result<&$inner_ty, E> {
+                        match self {
+                            Self::$variant(v) => Ok(v),
+                            _ => Err(err),
+                        }
+                    }
+
+                    pub fn [<$variant:lower _ref_mut_or>]<E>(&mut self, err: E) -> Result<&mut $inner_ty, E> {
+                        match self {
+                            Self::$variant(v) => Ok(v),
+                            _ => Err(err),
+                        }
+                    }
+
+                    pub fn [<$variant:lower _or_else>]<F, E>(self, f: F) -> Result<$inner_ty, E>
+                    where
+                        F: FnOnce(Value) -> E
+                    {
+                        match self {
+                            Self::$variant(v) => Ok(v),
+                            value => Err(f(value))
+                        }
+                    }
+
+                    pub fn [<$variant:lower _ref_or_else>]<F, E>(&self, f: F) -> Result<&$inner_ty, E>
+                    where
+                        F: FnOnce(&Value) -> E
+                    {
+                        match self {
+                            Self::$variant(v) => Ok(v),
+                            value => Err(f(value))
+                        }
+                    }
+
+                    pub fn [<$variant:lower _ref_mut_or_else>]<F, E>(&mut self, f: F) -> Result<&mut $inner_ty, E>
+                    where
+                        F: FnOnce(&mut Value) -> E
+                    {
+                        match self {
+                            Self::$variant(v) => Ok(v),
+                            value => Err(f(value))
                         }
                     }
                 )+
@@ -77,7 +128,7 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn type_name(&self) -> &'static str {
+    pub const fn type_name(&self) -> &'static str {
         match self {
             Self::Int(_) => Self::INT_TYPE_NAME,
             Self::Float(_) => Self::FLOAT_TYPE_NAME,
@@ -172,7 +223,7 @@ impl Display for Value {
 
 impl Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // debug_tuple isn't used here because it will cause line breaks when using the alternate 
+        // debug_tuple isn't used here because it will cause line breaks when using the alternate
         // Debug flag, which isn't necessary since each variant only has one field.
         match self {
             Self::Int(v) => write!(f, "Int({})", v),
@@ -229,7 +280,7 @@ impl Display for EqValue {
 
 impl Debug for EqValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // debug_tuple isn't used here because it will cause line breaks when using the alternate 
+        // debug_tuple isn't used here because it will cause line breaks when using the alternate
         // Debug flag, which isn't necessary since each variant only has one primitive field.
         match self {
             Self::Int(v) => write!(f, "Int({})", v),

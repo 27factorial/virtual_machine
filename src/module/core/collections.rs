@@ -1,10 +1,12 @@
 use crate::object::{Type, TypeBuilder, VmObject};
 use crate::value::{EqValue, Value};
 use crate::vm::builtin;
+use crate::vm::exception::ExceptionPayload;
 use crate::vm::ops::OpCode;
 use crate::{module::Module, vm::heap::Collector};
 use hashbrown::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
@@ -312,4 +314,19 @@ impl VmObject for Str {
     }
 
     fn gc(&self, _: Collector<'_>) {}
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Error)]
+pub enum ArrayExceptionPayload {
+    #[error("array index out of bounds: the length is {len} but the index is {index}")]
+    OutOfBounds {
+        len: usize,
+        index: i64,
+    }
+}
+
+impl ExceptionPayload for ArrayExceptionPayload {
+    fn is_fatal(&self) -> bool {
+        false
+    }
 }
