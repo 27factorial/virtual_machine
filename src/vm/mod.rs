@@ -589,7 +589,7 @@ pub enum VmExceptionPayload {
         "tried to allocate a structure of {0} bytes (valid range: [0, {}))",
         isize::MAX
     )]
-    InvalidSize(i64),
+    InvalidSize(i128),
     #[error("attempted to access stack index {index} (valid range: [{min}, {max}))")]
     InvalidStackIndex {
         index: usize,

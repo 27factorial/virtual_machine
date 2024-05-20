@@ -6,9 +6,9 @@ use crate::vm::ops::OpCode;
 use crate::{module::Module, vm::heap::Collector};
 use hashbrown::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
+use thiserror::Error;
 
 #[derive(Clone, PartialEq, PartialOrd, Debug, Default, Serialize, Deserialize)]
 pub struct Array(pub Vec<Value>);
@@ -319,13 +319,30 @@ impl VmObject for Str {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Error)]
 pub enum ArrayExceptionPayload {
     #[error("array index out of bounds: the length is {len} but the index is {index}")]
-    OutOfBounds {
-        len: usize,
-        index: i64,
-    }
+    OutOfBounds { len: usize, index: i64 },
+    #[error("array is empty")]
+    Empty,
 }
 
 impl ExceptionPayload for ArrayExceptionPayload {
+    fn is_fatal(&self) -> bool {
+        false
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Error)]
+pub enum StrExceptionPayload {
+    #[error("string character index out of bounds: the character length is {len} but the index is {index}")]
+    CharOutOfBounds { len: usize, index: i64 },
+    #[error("string byte index out of bounds: this byte length is {len} but the index is {index}")]
+    ByteOutOfBounds { len: usize, index: i64 },
+    #[error("string index {0} is not on a character boundary")]
+    NotCharBoundary(i64),
+    #[error("string is empty")]
+    Empty,
+}
+
+impl ExceptionPayload for StrExceptionPayload {
     fn is_fatal(&self) -> bool {
         false
     }

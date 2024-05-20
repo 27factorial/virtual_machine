@@ -1,7 +1,9 @@
 use std::{hash::Hasher, sync::Arc};
 
 use crate::{
-    module::core::collections::{Array, ArrayExceptionPayload, Dict, Set, Str},
+    module::core::collections::{
+        Array, ArrayExceptionPayload, Dict, Set, Str, StrExceptionPayload,
+    },
     utils::IntoVmResult,
     value::{EqValue, Value},
 };
@@ -1128,13 +1130,13 @@ fn vmbi_array_with_capacity(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     // Using isize::MAX as a maximum bound ensures that the capacity cannot exceed the bounds
     // of usize, so the `as` casts here are fine. This is also a degenerate case that will
     // likely cause an OOM error in Rust anyway.
-    let possible_capacity = vm.pop_int(frame)?;
+    let capacity_i64 = vm.pop_int(frame)?;
 
-    let capacity = possible_capacity
+    let capacity = capacity_i64
         .min(isize::MAX as i64)
         .try_into()
         .with_exception(|| {
-            VmExceptionPayload::InvalidSize(possible_capacity)
+            VmExceptionPayload::InvalidSize(capacity_i64 as i128)
                 .into_exception()
                 .with_frame(frame.clone())
         })?;
@@ -1195,16 +1197,18 @@ fn vmbi_array_capacity(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 fn vmbi_array_reserve(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this = vm.pop_reference(frame)?;
     let additional_i64 = vm.pop_int(frame)?;
-    let array = vm.heap_object_mut::<Array>(this, frame)?;
+    let mut array = vm.heap_object_mut::<Array>(this, frame)?;
 
     let additional: usize = additional_i64.try_into().with_exception(|| {
-        VmExceptionPayload::InvalidSize(additional_i64)
+        VmExceptionPayload::InvalidSize(array.capacity() as i128 + additional_i64 as i128)
             .into_exception()
             .with_frame(frame.clone())
     })?;
 
     array.try_reserve(additional).with_exception(|| {
-        VmExceptionPayload::InvalidSize((array.capacity() as isize).checked_add(additional).or(isize::MAX as usize) as isize)
+        VmExceptionPayload::InvalidSize(array.capacity() as i128 + additional_i64 as i128)
+            .into_exception()
+            .with_frame(frame.clone())
     });
 
     Ok(())
@@ -1219,10 +1223,13 @@ fn vmbi_array_shrink_to_fit(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
 fn vmbi_array_shrink_to(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this = vm.pop_reference(frame)?;
-    let min_capacity = vm
-        .pop_int(frame)?
-        .try_into()
-        .exception_result(VmErrorKind::InvalidSize, frame)?;
+    let min_capacity_i64 = vm.pop_int(frame)?;
+
+    let min_capacity: usize = min_capacity_i64.try_into().with_exception(|| {
+        VmExceptionPayload::InvalidSize(min_capacity_i64 as i128)
+            .into_exception()
+            .with_frame(frame.clone())
+    })?;
 
     vm.heap_object_mut::<Array>(this, frame)?
         .shrink_to(min_capacity);
@@ -1232,24 +1239,34 @@ fn vmbi_array_shrink_to(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
 fn vmbi_array_truncate(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this = vm.pop_reference(frame)?;
-    let len = vm
-        .pop_int(frame)?
-        .try_into()
-        .exception_result(VmErrorKind::InvalidSize, frame)?;
+    let new_len_i64 = vm.pop_int(frame)?;
 
-    vm.heap_object_mut::<Array>(this, frame)?.truncate(len);
+    let new_len = new_len_i64.try_into().with_exception(|| {
+        VmExceptionPayload::InvalidSize(new_len_i64 as i128)
+            .into_exception()
+            .with_frame(frame.clone())
+    })?;
+
+    vm.heap_object_mut::<Array>(this, frame)?.truncate(new_len);
 
     Ok(())
 }
 
 fn vmbi_array_swap_remove(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this_ref = vm.pop_reference(frame)?;
-    let idx: usize = vm
-        .pop_int(frame)?
-        .try_into()
-        .exception_result(VmErrorKind::OutOfBounds, frame)?;
+
+    let idx_i64 = vm.pop_int(frame)?;
 
     let mut this = vm.heap_object_mut::<Array>(this_ref, frame)?;
+
+    let idx = idx_i64.try_into().with_exception(|| {
+        ArrayExceptionPayload::OutOfBounds {
+            len: this.len(),
+            index: idx_i64,
+        }
+        .into_exception()
+        .with_frame(frame.clone())
+    })?;
 
     if idx < this.len() {
         let value = this.swap_remove(idx);
@@ -1258,36 +1275,59 @@ fn vmbi_array_swap_remove(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         vm.push_value(value, frame)?;
         Ok(())
     } else {
-        throw!(VmErrorKind::OutOfBounds, frame);
+        throw!(ArrayExceptionPayload::OutOfBounds {
+            len: this.len(),
+            index: idx_i64,
+        }
+        .into_exception()
+        .with_frame(frame.clone()));
     }
 }
 
 fn vmbi_array_insert(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this_ref = vm.pop_reference(frame)?;
-    let idx: usize = vm
-        .pop_int(frame)?
-        .try_into()
-        .exception_result(VmErrorKind::OutOfBounds, frame)?;
+    let idx_i64 = vm.pop_int(frame)?;
+
     let value = vm.pop_value(frame)?;
 
     let mut this = vm.heap_object_mut::<Array>(this_ref, frame)?;
+
+    let idx: usize = idx_i64.try_into().with_exception(|| {
+        ArrayExceptionPayload::OutOfBounds {
+            len: this.len(),
+            index: idx_i64,
+        }
+        .into_exception()
+        .with_frame(frame.clone())
+    })?;
 
     if idx <= this.len() {
         this.insert(idx, value);
         Ok(())
     } else {
-        throw!(VmErrorKind::OutOfBounds, frame)
+        throw!(ArrayExceptionPayload::OutOfBounds {
+            len: this.len(),
+            index: idx_i64,
+        }
+        .into_exception()
+        .with_frame(frame.clone()))
     }
 }
 
 fn vmbi_array_remove(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this_ref = vm.pop_reference(frame)?;
-    let idx: usize = vm
-        .pop_int(frame)?
-        .try_into()
-        .exception_result(VmErrorKind::OutOfBounds, frame)?;
+    let idx_i64 = vm.pop_int(frame)?;
 
     let mut this = vm.heap_object_mut::<Array>(this_ref, frame)?;
+
+    let idx = idx_i64.try_into().with_exception(|| {
+        ArrayExceptionPayload::OutOfBounds {
+            len: this.len(),
+            index: idx_i64,
+        }
+        .into_exception()
+        .with_frame(frame.clone())
+    })?;
 
     if idx < this.len() {
         let value = this.remove(idx);
@@ -1296,7 +1336,12 @@ fn vmbi_array_remove(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         vm.push_value(value, frame)?;
         Ok(())
     } else {
-        throw!(VmErrorKind::OutOfBounds, frame)
+        throw!(ArrayExceptionPayload::OutOfBounds {
+            len: this.len(),
+            index: idx_i64,
+        }
+        .into_exception()
+        .with_frame(frame.clone()))
     }
 }
 
@@ -1315,7 +1360,11 @@ fn vmbi_array_pop(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let value = vm
         .heap_object_mut::<Array>(this_ref, frame)?
         .pop()
-        .exception_result(VmErrorKind::OutOfBounds, frame)?;
+        .with_exception(|| {
+            ArrayExceptionPayload::Empty
+                .into_exception()
+                .with_frame(frame.clone())
+        })?;
 
     vm.push_value(value, frame)?;
     Ok(())
@@ -1361,10 +1410,17 @@ fn vmbi_str_from(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 }
 
 fn vmbi_str_with_capacity(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
-    let capacity: usize = vm
-        .pop_int(frame)?
+    let capacity_i64 = vm.pop_int(frame)?;
+
+    let capacity = capacity_i64
+        .min(isize::MAX as i64)
         .try_into()
-        .exception_result(VmErrorKind::InvalidSize, frame)?;
+        .with_exception(|| {
+            VmExceptionPayload::InvalidSize(capacity_i64 as i128)
+                .into_exception()
+                .with_frame(frame.clone())
+        })?;
+
     let this_ref = vm.alloc(Str::with_capacity(capacity), frame)?;
 
     vm.push_value(Value::Reference(this_ref), frame)?;
@@ -1381,17 +1437,29 @@ fn vmbi_str_length(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
 fn vmbi_str_index_byte(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this_ref = vm.pop_reference(frame)?;
-    let index: usize = vm
-        .pop_int(frame)?
-        .try_into()
-        .exception_result(VmErrorKind::OutOfBounds, frame)?;
+    let index_i64 = vm.pop_int(frame)?;
 
-    let value = vm
-        .heap_object::<Str>(this_ref, frame)?
-        .as_bytes()
-        .get(index)
-        .copied()
-        .exception_result(VmErrorKind::OutOfBounds, frame)?;
+    let value = {
+        let this = vm.heap_object::<Str>(this_ref, frame)?;
+
+        let index: usize = index_i64.try_into().with_exception(|| {
+            StrExceptionPayload::ByteOutOfBounds {
+                len: this.len(),
+                index: index_i64,
+            }
+            .into_exception()
+            .with_frame(frame.clone())
+        })?;
+
+        this.as_bytes().get(index).copied().with_exception(|| {
+            StrExceptionPayload::ByteOutOfBounds {
+                len: this.len(),
+                index: index_i64,
+            }
+            .into_exception()
+            .with_frame(frame.clone())
+        })?
+    };
 
     vm.push_value(Value::Int(value as i64), frame)?;
     Ok(())
@@ -1399,16 +1467,29 @@ fn vmbi_str_index_byte(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
 fn vmbi_str_index_char(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this_ref = vm.pop_reference(frame)?;
-    let index: usize = vm
-        .pop_int(frame)?
-        .try_into()
-        .exception_result(VmErrorKind::OutOfBounds, frame)?;
+    let index_i64 = vm.pop_int(frame)?;
 
-    let value = vm
-        .heap_object::<Str>(this_ref, frame)?
-        .chars()
-        .nth(index)
-        .exception_result(VmErrorKind::OutOfBounds, frame)?;
+    let value = {
+        let this = vm.heap_object::<Str>(this_ref, frame)?;
+
+        let index: usize = index_i64.try_into().with_exception(|| {
+            StrExceptionPayload::ByteOutOfBounds {
+                len: this.len(),
+                index: index_i64,
+            }
+            .into_exception()
+            .with_frame(frame.clone())
+        })?;
+
+        this.chars().nth(index).with_exception(|| {
+            StrExceptionPayload::ByteOutOfBounds {
+                len: this.len(),
+                index: index_i64,
+            }
+            .into_exception()
+            .with_frame(frame.clone())
+        })?
+    };
 
     vm.push_value(Value::Char(value), frame)?;
     Ok(())
@@ -1418,20 +1499,28 @@ fn vmbi_str_capacity(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this = vm.pop_reference(frame)?;
     let capacity = vm.heap_object::<Str>(this, frame)?.capacity();
 
-    // Casting to i64 is fine here since Rust limits Vecs to a capacity of isize::MAX bytes, which
-    // can never exceed i64::MAX bytes
+    // Casting to i64 is fine here since Rust limits strings to a capacity of isize::MAX bytes,
+    // which can never exceed i64::MAX
     vm.push_value(Value::Int(capacity as i64), frame)?;
     Ok(())
 }
 
 fn vmbi_str_reserve(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this = vm.pop_reference(frame)?;
-    let additional: usize = vm
-        .pop_int(frame)?
-        .try_into()
-        .exception_result(VmErrorKind::InvalidSize, frame)?;
+    let additional_i64 = vm.pop_int(frame)?;
+    let mut string = vm.heap_object_mut::<Str>(this, frame)?;
 
-    vm.heap_object_mut::<Str>(this, frame)?.reserve(additional);
+    let additional: usize = additional_i64.try_into().with_exception(|| {
+        VmExceptionPayload::InvalidSize(string.capacity() as i128 + additional_i64 as i128)
+            .into_exception()
+            .with_frame(frame.clone())
+    })?;
+
+    string.try_reserve(additional).with_exception(|| {
+        VmExceptionPayload::InvalidSize(string.capacity() as i128 + additional_i64 as i128)
+            .into_exception()
+            .with_frame(frame.clone())
+    });
 
     Ok(())
 }
@@ -1445,10 +1534,13 @@ fn vmbi_str_shrink_to_fit(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
 fn vmbi_str_shrink_to(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this = vm.pop_reference(frame)?;
-    let min_capacity = vm
-        .pop_int(frame)?
-        .try_into()
-        .exception_result(VmErrorKind::InvalidSize, frame)?;
+    let min_capacity_i64 = vm.pop_int(frame)?;
+
+    let min_capacity: usize = min_capacity_i64.try_into().with_exception(|| {
+        VmExceptionPayload::InvalidSize(min_capacity_i64 as i128)
+            .into_exception()
+            .with_frame(frame.clone())
+    })?;
 
     vm.heap_object_mut::<Str>(this, frame)?
         .shrink_to(min_capacity);
@@ -1458,51 +1550,89 @@ fn vmbi_str_shrink_to(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
 fn vmbi_str_truncate(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this = vm.pop_reference(frame)?;
-    let len = vm
-        .pop_int(frame)?
-        .try_into()
-        .exception_result(VmErrorKind::InvalidSize, frame)?;
+    let new_len_i64 = vm.pop_int(frame)?;
 
-    vm.heap_object_mut::<Str>(this, frame)?.truncate(len);
+    let new_len = new_len_i64.try_into().with_exception(|| {
+        VmExceptionPayload::InvalidSize(new_len_i64 as i128)
+            .into_exception()
+            .with_frame(frame.clone())
+    })?;
+
+    vm.heap_object_mut::<Str>(this, frame)?.truncate(new_len);
 
     Ok(())
 }
 
 fn vmbi_str_insert(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this_ref = vm.pop_reference(frame)?;
-    let idx: usize = vm
-        .pop_int(frame)?
-        .try_into()
-        .exception_result(VmErrorKind::OutOfBounds, frame)?;
+    let idx_i64 = vm.pop_int(frame)?;
+
     let value = vm.pop_char(frame)?;
 
     let mut this = vm.heap_object_mut::<Str>(this_ref, frame)?;
 
+    let idx: usize = idx_i64.try_into().with_exception(|| {
+        StrExceptionPayload::CharOutOfBounds {
+            len: this.len(),
+            index: idx_i64,
+        }
+        .into_exception()
+        .with_frame(frame.clone())
+    })?;
+
     if idx <= this.len() {
-        this.insert(idx, value);
-        Ok(())
+        if this.is_char_boundary(idx) {
+            this.insert(idx, value);
+            Ok(())
+        } else {
+            throw!(StrExceptionPayload::NotCharBoundary(idx_i64)
+                .into_exception()
+                .with_frame(frame.clone()))
+        }
     } else {
-        throw!(VmErrorKind::OutOfBounds, frame)
+        throw!(StrExceptionPayload::CharOutOfBounds {
+            len: this.len(),
+            index: idx_i64,
+        }
+        .into_exception()
+        .with_frame(frame.clone()))
     }
 }
 
 fn vmbi_str_remove(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this_ref = vm.pop_reference(frame)?;
-    let idx: usize = vm
-        .pop_int(frame)?
-        .try_into()
-        .exception_result(VmErrorKind::OutOfBounds, frame)?;
+    let idx_i64 = vm.pop_int(frame)?;
 
     let mut this = vm.heap_object_mut::<Str>(this_ref, frame)?;
 
-    if idx < this.len() {
-        let value = this.remove(idx);
-        drop(this);
+    let idx = idx_i64.try_into().with_exception(|| {
+        StrExceptionPayload::CharOutOfBounds {
+            len: this.len(),
+            index: idx_i64,
+        }
+        .into_exception()
+        .with_frame(frame.clone())
+    })?;
 
-        vm.push_value(Value::Char(value), frame)?;
-        Ok(())
+    if idx < this.len() {
+        if this.is_char_boundary(idx) {
+            let value = this.remove(idx);
+            drop(this);
+
+            vm.push_value(Value::Char(value), frame)?;
+            Ok(())
+        } else {
+            throw!(StrExceptionPayload::NotCharBoundary(idx_i64)
+                .into_exception()
+                .with_frame(frame.clone()))
+        }
     } else {
-        throw!(VmErrorKind::OutOfBounds, frame)
+        throw!(StrExceptionPayload::CharOutOfBounds {
+            len: this.len(),
+            index: idx_i64,
+        }
+        .into_exception()
+        .with_frame(frame.clone()))
     }
 }
 
@@ -1515,15 +1645,27 @@ fn vmbi_str_push(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     match value {
         Value::Char(v) => this.push(v),
         Value::Symbol(v) => {
-            let s = vm
-                .module
-                .symbols
-                .get(v)
-                .exception_result(VmErrorKind::SymbolNotFound, frame)?;
+            let s = vm.module.symbols.get(v).with_exception(|| {
+                VmExceptionPayload::SymbolNotFound(v)
+                    .into_exception()
+                    .with_frame(frame.clone())
+            })?;
             this.push_str(s);
         }
         Value::Reference(v) => todo!(),
-        _ => throw!(VmErrorKind::Type, frame),
+        value => throw!(VmExceptionPayload::Type {
+            expected: concatcp!(
+                Value::CHAR_TYPE_NAME,
+                " | ",
+                Value::SYMBOL_TYPE_NAME,
+                " | ",
+                Value::REFERENCE_TYPE_NAME
+            )
+            .into(),
+            actual: value.type_name().into()
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     }
 
     Ok(())
@@ -1535,7 +1677,11 @@ fn vmbi_str_pop(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let value = vm
         .heap_object_mut::<Str>(this_ref, frame)?
         .pop()
-        .exception_result(VmErrorKind::OutOfBounds, frame)?;
+        .with_exception(|| {
+            StrExceptionPayload::Empty
+                .into_exception()
+                .with_frame(frame.clone())
+        })?;
 
     vm.push_value(Value::Char(value), frame)?;
     Ok(())
@@ -1551,15 +1697,28 @@ fn vmbi_str_contains(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         match value {
             Value::Char(v) => this.contains(v),
             Value::Symbol(v) => {
-                let s = vm
-                    .module
-                    .symbols
-                    .get(v)
-                    .exception_result(VmErrorKind::SymbolNotFound, frame)?;
+                let s = vm.module.symbols.get(v).with_exception(|| {
+                    VmExceptionPayload::SymbolNotFound(v)
+                        .into_exception()
+                        .with_frame(frame.clone())
+                })?;
+                
                 this.contains(s)
             }
             Value::Reference(v) => todo!(),
-            _ => throw!(VmErrorKind::Type, frame),
+            value => throw!(VmExceptionPayload::Type {
+                expected: concatcp!(
+                    Value::CHAR_TYPE_NAME,
+                    " | ",
+                    Value::SYMBOL_TYPE_NAME,
+                    " | ",
+                    Value::REFERENCE_TYPE_NAME
+                )
+                .into(),
+                actual: value.type_name().into()
+            }
+            .into_exception()
+            .with_frame(frame.clone())),
         }
     };
 

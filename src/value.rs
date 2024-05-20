@@ -15,6 +15,7 @@ macro_rules! variant_methods {
 
                 $(
                     #[doc = "Returns `true` if the `Value` is " $article " `" $variant "`."]
+                    #[inline(always)]
                     pub fn [<is_ $variant:lower>](self) -> bool {
                         matches!(self, Self::$variant(_))
                     }
@@ -23,6 +24,7 @@ macro_rules! variant_methods {
                     #[doc = "the value is `self` is not"]
                     #[doc = " " $article " "]
                     #[doc = "`" $variant "`."]
+                    #[inline(always)]
                     pub fn [<$variant:lower>](self) -> Option<$inner_ty> {
                         match self {
                             Self::$variant(v) => Some(v),
@@ -34,6 +36,7 @@ macro_rules! variant_methods {
                     #[doc = " default value if `self` is not"]
                     #[doc = " " $article " "]
                     #[doc = "`" $variant "`."]
+                    #[inline(always)]
                     pub fn [<unwrap_ $variant:lower _or>](self, default: $inner_ty) -> $inner_ty {
                         match self {
                             Self::$variant(v) => v,
@@ -41,6 +44,7 @@ macro_rules! variant_methods {
                         }
                     }
 
+                    #[inline(always)]
                     pub fn [<unwrap_ $variant:lower _or_else>]<F: FnOnce(Value) -> $inner_ty>(self, f: F) -> $inner_ty {
                         match self {
                             Self::$variant(v) => v,
@@ -52,6 +56,7 @@ macro_rules! variant_methods {
                     #[doc = " provided error if `self` is not"]
                     #[doc = " " $article " "]
                     #[doc = "`" $variant "`."]
+                    #[inline(always)]
                     pub fn [<$variant:lower _or>]<E>(self, err: E) -> Result<$inner_ty, E> {
                         match self {
                             Self::$variant(v) => Ok(v),
@@ -59,6 +64,7 @@ macro_rules! variant_methods {
                         }
                     }
 
+                    #[inline(always)]
                     pub fn [<$variant:lower _ref_or>]<E>(&self, err: E) -> Result<&$inner_ty, E> {
                         match self {
                             Self::$variant(v) => Ok(v),
@@ -66,6 +72,7 @@ macro_rules! variant_methods {
                         }
                     }
 
+                    #[inline(always)]
                     pub fn [<$variant:lower _ref_mut_or>]<E>(&mut self, err: E) -> Result<&mut $inner_ty, E> {
                         match self {
                             Self::$variant(v) => Ok(v),
@@ -73,6 +80,7 @@ macro_rules! variant_methods {
                         }
                     }
 
+                    #[inline(always)]
                     pub fn [<$variant:lower _or_else>]<F, E>(self, f: F) -> Result<$inner_ty, E>
                     where
                         F: FnOnce(Value) -> E
@@ -83,6 +91,7 @@ macro_rules! variant_methods {
                         }
                     }
 
+                    #[inline(always)]
                     pub fn [<$variant:lower _ref_or_else>]<F, E>(&self, f: F) -> Result<&$inner_ty, E>
                     where
                         F: FnOnce(&Value) -> E
@@ -92,7 +101,8 @@ macro_rules! variant_methods {
                             value => Err(f(value))
                         }
                     }
-
+                    
+                    #[inline(always)]
                     pub fn [<$variant:lower _ref_mut_or_else>]<F, E>(&mut self, f: F) -> Result<&mut $inner_ty, E>
                     where
                         F: FnOnce(&mut Value) -> E
