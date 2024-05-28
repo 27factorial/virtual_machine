@@ -1210,7 +1210,7 @@ fn vmbi_array_reserve(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         VmExceptionPayload::InvalidSize(array.capacity() as i128 + additional_i64 as i128)
             .into_exception()
             .with_frame(frame.clone())
-    });
+    })?;
 
     Ok(())
 }
@@ -1521,7 +1521,7 @@ fn vmbi_str_reserve(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         VmExceptionPayload::InvalidSize(string.capacity() as i128 + additional_i64 as i128)
             .into_exception()
             .with_frame(frame.clone())
-    });
+    })?;
 
     Ok(())
 }
@@ -1814,7 +1814,7 @@ fn vmbi_dict_reserve(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         VmExceptionPayload::InvalidSize(dict.capacity() as i128 + additional_i64 as i128)
             .into_exception()
             .with_frame(frame.clone())
-    });
+    })?;
 
     vm.heap_object_mut::<Dict>(this, frame)?.reserve(additional);
 
@@ -2009,7 +2009,7 @@ fn vmbi_set_reserve(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         VmExceptionPayload::InvalidSize(set.capacity() as i128 + additional_i64 as i128)
             .into_exception()
             .with_frame(frame.clone())
-    });
+    })?;
 
     vm.heap_object_mut::<Set>(this, frame)?.reserve(additional);
 

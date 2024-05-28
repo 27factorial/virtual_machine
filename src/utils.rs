@@ -33,7 +33,6 @@ pub trait VmResultExt: sealed::Sealed {
 impl<T> IntoVmResult for Option<T> {
     type Ok = T;
 
-    #[inline]
     fn exception(self, exception: impl Into<Exception>) -> VmResult<T> {
         match self {
             Some(val) => Ok(val),
@@ -41,7 +40,6 @@ impl<T> IntoVmResult for Option<T> {
         }
     }
 
-    #[inline]
     fn with_exception(self, exception: impl FnOnce() -> Exception) -> VmResult<T> {
         match self {
             Some(val) => Ok(val),
@@ -53,7 +51,6 @@ impl<T> IntoVmResult for Option<T> {
 impl<T, E> IntoVmResult for Result<T, E> {
     type Ok = T;
 
-    #[inline]
     fn exception(self, exception: impl Into<Exception>) -> VmResult<T> {
         match self {
             Ok(val) => Ok(val),
@@ -61,7 +58,6 @@ impl<T, E> IntoVmResult for Result<T, E> {
         }
     }
 
-    #[inline]
     fn with_exception(self, exception: impl FnOnce() -> Exception) -> VmResult<T> {
         match self {
             Ok(val) => Ok(val),

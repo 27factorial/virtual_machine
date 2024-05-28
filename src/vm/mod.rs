@@ -580,6 +580,8 @@ pub enum VmExceptionPayload {
     OutOfMemory { requested: usize, available: usize },
     #[error("function `{0}` not found")]
     FunctionNotFound(Arc<str>),
+    #[error("invalid builtin function `{0}`")]
+    InvalidBuiltin(usize),
     #[error("symbol {:x} not found", (.0).0)]
     SymbolNotFound(Symbol),
     #[error("type {0} not found")]
@@ -591,12 +593,24 @@ pub enum VmExceptionPayload {
         isize::MAX
     )]
     InvalidSize(i128),
+    #[error("invalid constant index: `{0}`")]
+    InvalidConstant(usize),
+    #[error("invalid index `{0}` (valid range: [0, {}))", usize::MAX)]
+    InvalidIndex(i64),
     #[error("attempted to access stack index {index} (valid range: [{min}, {max}))")]
     InvalidStackIndex {
         index: usize,
         min: usize,
         max: usize,
     },
+    #[error(
+        "Invalid jump offset `{0}` (valid range: [{}, {}))",
+        isize::MIN,
+        isize::MAX
+    )]
+    InvalidJump(i64),
+    #[error("Invalid jump destination `{dest}` (valid range: [0, {max})")]
+    InvalidDestination { dest: i128, max: usize },
     #[error("attempted to get top of stack when the stack was empty")]
     StackEmpty,
     #[error("module `{0}` not found")]
@@ -620,15 +634,20 @@ impl ExceptionPayload for VmExceptionPayload {
                 available: _,
             } => true,
             Self::FunctionNotFound(_) => false,
+            Self::InvalidBuiltin(_) => true,
             Self::SymbolNotFound(_) => true,
             Self::TypeNotFound(_) => true,
             Self::InvalidReference(_) => true,
             Self::InvalidSize(_) => false,
+            Self::InvalidIndex(_) => false,
+            Self::InvalidConstant(_) => true,
             Self::InvalidStackIndex {
                 index: _,
                 min: _,
                 max: _,
             } => true,
+            Self::InvalidJump(_) => true,
+            Self::InvalidDestination { dest: _, max: _ } => true,
             Self::StackEmpty => true,
             Self::ModuleNotFound(_) => false,
             Self::InvalidPath(_) => false,
