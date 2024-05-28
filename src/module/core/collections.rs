@@ -316,6 +316,7 @@ impl VmObject for Str {
     fn gc(&self, _: Collector<'_>) {}
 }
 
+#[non_exhaustive]
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Error)]
 pub enum ArrayExceptionPayload {
     #[error("array index out of bounds: the length is {len} but the index is {index}")]
@@ -330,6 +331,7 @@ impl ExceptionPayload for ArrayExceptionPayload {
     }
 }
 
+#[non_exhaustive]
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Error)]
 pub enum StrExceptionPayload {
     #[error("string character index out of bounds: the character length is {len} but the index is {index}")]
@@ -343,6 +345,34 @@ pub enum StrExceptionPayload {
 }
 
 impl ExceptionPayload for StrExceptionPayload {
+    fn is_fatal(&self) -> bool {
+        false
+    }
+}
+
+#[non_exhaustive]
+#[derive(Clone, PartialEq, PartialOrd, Debug, Error)]
+pub enum DictExceptionPayload {
+    #[error("key `{0}` not found")]
+    KeyNotFound(Arc<str>),
+}
+
+impl ExceptionPayload for DictExceptionPayload {
+    fn is_fatal(&self) -> bool {
+        false
+    }
+}
+
+#[non_exhaustive]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Error)]
+pub enum SetExceptionPayload {
+    #[error("value `{0}` not found")]
+    ValueNotFound(Value),
+    #[error("attempted to insert NaN into set")]
+    Nan,
+}
+
+impl ExceptionPayload for SetExceptionPayload {
     fn is_fatal(&self) -> bool {
         false
     }

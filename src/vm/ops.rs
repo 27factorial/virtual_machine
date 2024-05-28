@@ -269,9 +269,11 @@ mod imp {
     use crate::utils::IntoVmResult;
     use crate::value::Value;
     use crate::vm::builtin::BUILTINS;
+    use crate::vm::exception::ExceptionPayload;
     use crate::vm::function::Function;
-    use crate::vm::{Vm, VmErrorKind};
+    use crate::vm::{Vm, VmExceptionPayload};
     use crate::{symbol::Symbol, vm::CallFrame};
+    use const_format::concatcp;
     use std::cell::Ref;
     use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Sub};
     use std::ptr;
@@ -286,18 +288,44 @@ mod imp {
             float_op = $float_op:ident, 
             frame = $frame:expr $(,)?
         ) => {{
-            match ($a, $b) {
-                (Value::Int(a), Value::Int(b)) => {
+            match $a {
+                Value::Int(a) => {
+                    let b = $b.int_ref_mut_or_else(|value| {
+                        VmExceptionPayload::Type {
+                            expected: Value::INT_TYPE_NAME.into(),
+                            actual: value.type_name().into(),
+                        }
+                        .into_exception()
+                        .with_frame($frame.clone())
+                    })?;
+
                     let new_value = match i64::$int_op(a, *b) {
                         Some(v) => v,
-                        None => throw!(VmErrorKind::Arithmetic, $frame),
+                        None => throw!(VmExceptionPayload::Arithmetic
+                            .into_exception()
+                            .with_frame($frame.clone())),
                     };
                     *b = new_value;
                 }
-                (Value::Float(a), Value::Float(b)) => {
+                Value::Float(a) => {
+                    let b = $b.float_ref_mut_or_else(|value| {
+                        VmExceptionPayload::Type {
+                            expected: Value::FLOAT_TYPE_NAME.into(),
+                            actual: value.type_name().into(),
+                        }
+                        .into_exception()
+                        .with_frame($frame.clone())
+                    })?;
+
                     *b = f64::$float_op(a, *b);
                 }
-                _ => throw!(VmErrorKind::Type, $frame),
+                value => throw!(VmExceptionPayload::Type {
+                    expected: concatcp!(Value::INT_TYPE_NAME, " | ", Value::FLOAT_TYPE_NAME,)
+                        .into(),
+                    actual: value.type_name().into(),
+                }
+                .into_exception()
+                .with_frame($frame.clone())),
             }
 
             Ok(Transition::Continue)
@@ -312,18 +340,45 @@ mod imp {
             float_op = $float_op:ident,
             frame = $frame:expr $(,)?
         ) => {{
-            match ($a, $b) {
-                (Value::Int(a), Value::Int(b)) => {
+            match $a {
+                Value::Int(a) => {
+                    let b = $b.int_or_else(|value| {
+                        VmExceptionPayload::Type {
+                            expected: Value::INT_TYPE_NAME.into(),
+                            actual: value.type_name().into(),
+                        }
+                        .into_exception()
+                        .with_frame($frame.clone())
+                    })?;
+
                     let new_value = match i64::$int_op(*a, b) {
                         Some(v) => v,
-                        None => throw!(VmErrorKind::Arithmetic, $frame),
+                        None => throw!(VmExceptionPayload::Arithmetic
+                            .into_exception()
+                            .with_frame($frame.clone())),
                     };
+
                     *a = new_value;
                 }
-                (Value::Float(a), Value::Float(b)) => {
+                Value::Float(a) => {
+                    let b = $b.float_or_else(|value| {
+                        VmExceptionPayload::Type {
+                            expected: Value::FLOAT_TYPE_NAME.into(),
+                            actual: value.type_name().into(),
+                        }
+                        .into_exception()
+                        .with_frame($frame.clone())
+                    })?;
+
                     *a = f64::$float_op(*a, b);
                 }
-                _ => throw!(VmErrorKind::Type, $frame),
+                value => throw!(VmExceptionPayload::Type {
+                    expected: concatcp!(Value::INT_TYPE_NAME, " | ", Value::FLOAT_TYPE_NAME,)
+                        .into(),
+                    actual: value.type_name().into(),
+                }
+                .into_exception()
+                .with_frame($frame.clone())),
             }
 
             Ok(Transition::Continue)
@@ -338,16 +393,40 @@ mod imp {
         op = $op:path,
         frame = $frame:expr $(,)?
     ) => {{
-            match ($a, $b) {
-                (Value::Int(a), Value::Int(b)) => {
+            match $a {
+                Value::Int(a) => {
+                    let b = $b.int_ref_mut_or_else(|value| {
+                        VmExceptionPayload::Type {
+                            expected: Value::INT_TYPE_NAME.into(),
+                            actual: value.type_name().into(),
+                        }
+                        .into_exception()
+                        .with_frame($frame.clone())
+                    })?;
+
                     let new_value = $op(a, *b);
                     *b = new_value;
                 }
-                (Value::Bool(a), Value::Bool(b)) => {
+                Value::Bool(a) => {
+                    let b = $b.bool_ref_mut_or_else(|value| {
+                        VmExceptionPayload::Type {
+                            expected: Value::BOOL_TYPE_NAME.into(),
+                            actual: value.type_name().into(),
+                        }
+                        .into_exception()
+                        .with_frame($frame.clone())
+                    })?;
+
                     let new_value = $op(a, *b);
                     *b = new_value;
                 }
-                _ => throw!(VmErrorKind::Type, $frame),
+                value => throw!(VmExceptionPayload::Type {
+                    expected: concatcp!(Value::INT_TYPE_NAME, " | ", Value::FLOAT_TYPE_NAME,)
+                        .into(),
+                    actual: value.type_name().into(),
+                }
+                .into_exception()
+                .with_frame($frame.clone())),
             }
 
             Ok(Transition::Continue)
@@ -359,16 +438,39 @@ mod imp {
             op = $op:path,
             frame = $frame:expr $(,)?
         ) => {{
-            match ($a, $b) {
-                (Value::Int(a), Value::Int(b)) => {
+            match $a {
+                Value::Int(a) => {
+                    let b = $b.int_or_else(|value| {
+                        VmExceptionPayload::Type {
+                            expected: Value::INT_TYPE_NAME.into(),
+                            actual: value.type_name().into(),
+                        }
+                        .into_exception()
+                        .with_frame($frame.clone())
+                    })?;
+
                     let new_value = $op(*a, b);
                     *a = new_value;
                 }
-                (Value::Bool(a), Value::Bool(b)) => {
+                Value::Bool(a) => {
+                    let b = $b.bool_or_else(|value| {
+                        VmExceptionPayload::Type {
+                            expected: Value::BOOL_TYPE_NAME.into(),
+                            actual: value.type_name().into(),
+                        }
+                        .into_exception()
+                        .with_frame($frame.clone())
+                    })?;
+
                     let new_value = $op(*a, b);
                     *a = new_value;
                 }
-                _ => throw!(VmErrorKind::Type, $frame),
+                value => throw!(VmExceptionPayload::Type {
+                    expected: concatcp!(Value::INT_TYPE_NAME, " | ", Value::BOOL_TYPE_NAME,).into(),
+                    actual: value.type_name().into(),
+                }
+                .into_exception()
+                .with_frame($frame.clone())),
             }
 
             Ok(Transition::Continue)
@@ -383,27 +485,37 @@ mod imp {
         op = $op:ident,
         frame = $frame:expr $(,)?
     ) => {{
+            let top = $b;
             // This one has to be different, since `top` might be a different variant than `$a`, so
             // the variant has to be changed out when reassigning to it.
-            match ($a, $b) {
-                (Value::Int(a), top) => {
-                    let operand_res: Result<u32, _> = match top {
-                        Value::Int(v) => (*v).try_into(),
-                        _ => throw!(VmErrorKind::Type, $frame),
-                    };
-
-                    let Ok(b) = operand_res else {
-                        throw!(VmErrorKind::Arithmetic, $frame);
-                    };
+            match $a {
+                Value::Int(a) => {
+                    let b: u32 = top
+                        .int_or_else(|value| {
+                            VmExceptionPayload::Type {
+                                expected: Value::INT_TYPE_NAME.into(),
+                                actual: value.type_name().into(),
+                            }
+                            .into_exception()
+                            .with_frame($frame.clone())
+                        })?
+                        .try_into()
+                        .with_exception(|| {
+                            VmExceptionPayload::Arithmetic
+                                .into_exception()
+                                .with_frame($frame.clone())
+                        })?;
 
                     let new_value = match i64::$op(a, b) {
                         Some(v) => v,
-                        None => throw!(VmErrorKind::Arithmetic, $frame),
+                        None => throw!(VmExceptionPayload::Arithmetic
+                            .into_exception()
+                            .with_frame($frame.clone())),
                     };
 
                     *top = Value::Int(new_value);
                 }
-                _ => throw!(VmErrorKind::Type, $frame),
+                value => throw!(VmExceptionPayload::Type, $frame),
             }
 
             Ok(Transition::Continue)
@@ -419,17 +531,17 @@ mod imp {
                 (Value::Int(a), Value::Int(b)) => {
                     let b = match u32::try_from(b) {
                         Ok(v) => v,
-                        Err(_) => throw!(VmErrorKind::Arithmetic, $frame),
+                        Err(_) => throw!(VmExceptionPayload::Arithmetic, $frame),
                     };
 
                     let new_value = match i64::$op(*a, b) {
                         Some(v) => v,
-                        None => throw!(VmErrorKind::Arithmetic, $frame),
+                        None => throw!(VmExceptionPayload::Arithmetic, $frame),
                     };
 
                     *a = new_value;
                 }
-                _ => throw!(VmErrorKind::Type, $frame),
+                _ => throw!(VmExceptionPayload::Type, $frame),
             }
 
             Ok(Transition::Continue)
@@ -487,12 +599,12 @@ mod imp {
         // pushc
         pub(super) fn op_push_const(&mut self, index: usize, frame: &CallFrame) -> OpResult {
             let Some(constant) = self.module.constants.get(index) else {
-                throw!(VmErrorKind::OutOfBounds, frame);
+                throw!(VmExceptionPayload::OutOfBounds, frame);
             };
-    
+
             self.data_stack
                 .push_from_ref(constant)
-                .exception_result(VmErrorKind::StackOverflow, frame)?;
+                .exception_result(VmExceptionPayload::StackOverflow, frame)?;
 
             Ok(Transition::Continue)
         }
@@ -514,7 +626,7 @@ mod imp {
                 self.data_stack.copy_to_top(index);
                 Ok(Transition::Continue)
             } else {
-                throw!(VmErrorKind::OutOfBounds, frame);
+                throw!(VmExceptionPayload::OutOfBounds, frame);
             }
         }
 
@@ -528,13 +640,13 @@ mod imp {
                 self.data_stack.replace_from_top(index);
                 Ok(Transition::Continue)
             } else {
-                throw!(VmErrorKind::OutOfBounds, frame);
+                throw!(VmExceptionPayload::OutOfBounds, frame);
             }
         }
 
         pub(super) fn op_dup(&mut self, frame: &CallFrame) -> OpResult {
             if self.data_stack.is_empty() {
-                throw!(VmErrorKind::StackOverflow, frame);
+                throw!(VmExceptionPayload::StackOverflow, frame);
             }
 
             self.data_stack.copy_to_top(self.data_stack.len() - 1);
@@ -545,8 +657,10 @@ mod imp {
         // rsrv
         pub(super) fn op_reserve(&mut self, frame: &mut CallFrame) -> OpResult {
             let n: usize = match self.pop_value(frame)? {
-                Value::Int(n) => n.try_into().exception_result(VmErrorKind::OutOfBounds, &*frame)?,
-                _ => throw!(VmErrorKind::Type, &*frame),
+                Value::Int(n) => n
+                    .try_into()
+                    .exception_result(VmExceptionPayload::OutOfBounds, &*frame)?,
+                _ => throw!(VmExceptionPayload::Type, &*frame),
             };
 
             self.op_reserve_imm(n, frame)
@@ -756,7 +870,7 @@ mod imp {
                 Value::Bool(val) => {
                     *val = !*val;
                 }
-                _ => throw!(VmErrorKind::Type, frame),
+                _ => throw!(VmExceptionPayload::Type, frame),
             }
 
             Ok(Transition::Continue)
@@ -931,7 +1045,7 @@ mod imp {
             let address = self
                 .pop_int(frame)?
                 .try_into()
-                .exception_result(VmErrorKind::OutOfBounds, &*frame)?;
+                .exception_result(VmExceptionPayload::OutOfBounds, &*frame)?;
 
             self.op_jump_imm(address, frame)
         }
@@ -941,20 +1055,20 @@ mod imp {
             let positive = offset.is_positive();
             let offset: usize = offset
                 .checked_abs()
-                .exception_result(VmErrorKind::OutOfBounds, &*frame)?
+                .exception_result(VmExceptionPayload::OutOfBounds, &*frame)?
                 .try_into()
-                .exception_result(VmErrorKind::OutOfBounds, &*frame)?;
+                .exception_result(VmExceptionPayload::OutOfBounds, &*frame)?;
 
             frame.ip = if positive {
                 frame
                     .ip
                     .checked_add(offset)
-                    .exception_result(VmErrorKind::OutOfBounds, &*frame)?
+                    .exception_result(VmExceptionPayload::OutOfBounds, &*frame)?
             } else {
                 frame
                     .ip
                     .checked_sub(offset)
-                    .exception_result(VmErrorKind::OutOfBounds, &*frame)?
+                    .exception_result(VmExceptionPayload::OutOfBounds, &*frame)?
             };
 
             Ok(Transition::Jump)
@@ -972,7 +1086,7 @@ mod imp {
             // match self.get_value(0)? {
             //     Value::Bool(true) => self.op_jump(),
             //     Value::Bool(false) => Ok(Transition::Continue),
-            //     _ => throw!(VmErrorKind::Type)),
+            //     _ => throw!(VmExceptionPayload::Type)),
             // }
         }
 
@@ -1024,7 +1138,7 @@ mod imp {
         pub(super) fn op_call_builtin(&mut self, index: usize, frame: &CallFrame) -> OpResult {
             let func = BUILTINS
                 .get(index)
-                .exception_result(VmErrorKind::FunctionNotFound, frame)?;
+                .exception_result(VmExceptionPayload::FunctionNotFound, frame)?;
 
             func(self, frame)?;
             Ok(Transition::Continue)
@@ -1056,7 +1170,7 @@ mod imp {
                 Value::Float(v) => Value::Int(v as i64),
                 Value::Bool(v) => Value::Int(v as i64),
                 Value::Char(v) => Value::Int(v as i64),
-                _ => throw!(VmErrorKind::Type, frame),
+                _ => throw!(VmExceptionPayload::Type, frame),
             };
 
             self.push_value(cast, frame)?;
@@ -1071,7 +1185,7 @@ mod imp {
                 Value::Float(v) => Value::Float(v),
                 Value::Bool(v) => Value::Float(v as u64 as f64),
                 Value::Char(v) => Value::Float(v as u64 as f64),
-                _ => throw!(VmErrorKind::Type, frame),
+                _ => throw!(VmExceptionPayload::Type, frame),
             };
 
             self.push_value(cast, frame)?;
@@ -1086,7 +1200,7 @@ mod imp {
                 Value::Float(v) => Value::Bool(v != 0.0),
                 Value::Bool(v) => Value::Bool(v),
                 Value::Char(v) => Value::Bool(v != '\0'),
-                _ => throw!(VmErrorKind::Type, frame),
+                _ => throw!(VmExceptionPayload::Type, frame),
             };
 
             self.push_value(cast, frame)?;

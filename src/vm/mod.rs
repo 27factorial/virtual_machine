@@ -532,8 +532,9 @@ impl Vm {
                     }
                 }
             }
-            None => throw!(VmExceptionPayload::SymbolNotFound(symbol).into_exception()
-            .with_frame(frame.clone())),
+            None => throw!(VmExceptionPayload::SymbolNotFound(symbol)
+                .into_exception()
+                .with_frame(frame.clone())),
         }
     }
 

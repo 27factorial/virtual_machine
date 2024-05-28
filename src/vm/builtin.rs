@@ -2,7 +2,8 @@ use std::{hash::Hasher, sync::Arc};
 
 use crate::{
     module::core::collections::{
-        Array, ArrayExceptionPayload, Dict, Set, Str, StrExceptionPayload,
+        Array, ArrayExceptionPayload, Dict, DictExceptionPayload, Set, SetExceptionPayload, Str,
+        StrExceptionPayload,
     },
     utils::IntoVmResult,
     value::{EqValue, Value},
@@ -1702,7 +1703,7 @@ fn vmbi_str_contains(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
                         .into_exception()
                         .with_frame(frame.clone())
                 })?;
-                
+
                 this.contains(s)
             }
             Value::Reference(v) => todo!(),
@@ -1742,11 +1743,17 @@ fn vmbi_dict_with_capacity(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     // Using isize::MAX as a maximum bound ensures that the capac'ity cannot exceed the bounds
     // of usize, so the `as` casts here are fine. This is also a degenerate case that will
     // likely cause an OOM error in Rust anyway.
-    let capacity: usize = vm
-        .pop_int(frame)?
-        .max(isize::MAX as i64)
+    let capacity_i64 = vm.pop_int(frame)?;
+
+    let capacity = capacity_i64
+        .min(isize::MAX as i64)
         .try_into()
-        .exception_result(VmErrorKind::InvalidSize, frame)?;
+        .with_exception(|| {
+            VmExceptionPayload::InvalidSize(capacity_i64 as i128)
+                .into_exception()
+                .with_frame(frame.clone())
+        })?;
+
     let this_ref = vm.alloc(Dict::with_capacity(capacity), frame)?;
 
     vm.push_value(Value::Reference(this_ref), frame)?;
@@ -1771,7 +1778,11 @@ fn vmbi_dict_index(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         vm.heap_object::<Dict>(this_ref, frame)?
             .get(key.as_str())
             .copied()
-            .exception_result(VmErrorKind::OutOfBounds, frame)?
+            .with_exception(|| {
+                DictExceptionPayload::KeyNotFound(Arc::from(key.as_str()))
+                    .into_exception()
+                    .with_frame(frame.clone())
+            })?
     };
 
     vm.push_value(value, frame)?;
@@ -1790,10 +1801,20 @@ fn vmbi_dict_capacity(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
 fn vmbi_dict_reserve(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this = vm.pop_reference(frame)?;
-    let additional: usize = vm
-        .pop_int(frame)?
-        .try_into()
-        .exception_result(VmErrorKind::InvalidSize, frame)?;
+    let additional_i64 = vm.pop_int(frame)?;
+    let mut dict = vm.heap_object_mut::<Dict>(this, frame)?;
+
+    let additional: usize = additional_i64.try_into().with_exception(|| {
+        VmExceptionPayload::InvalidSize(dict.capacity() as i128 + additional_i64 as i128)
+            .into_exception()
+            .with_frame(frame.clone())
+    })?;
+
+    dict.try_reserve(additional).with_exception(|| {
+        VmExceptionPayload::InvalidSize(dict.capacity() as i128 + additional_i64 as i128)
+            .into_exception()
+            .with_frame(frame.clone())
+    });
 
     vm.heap_object_mut::<Dict>(this, frame)?.reserve(additional);
 
@@ -1809,10 +1830,13 @@ fn vmbi_dict_shrink_to_fit(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
 fn vmbi_dict_shrink_to(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this = vm.pop_reference(frame)?;
-    let min_capacity = vm
-        .pop_int(frame)?
-        .try_into()
-        .exception_result(VmErrorKind::InvalidSize, frame)?;
+    let min_capacity_i64 = vm.pop_int(frame)?;
+
+    let min_capacity: usize = min_capacity_i64.try_into().with_exception(|| {
+        VmExceptionPayload::InvalidSize(min_capacity_i64 as i128)
+            .into_exception()
+            .with_frame(frame.clone())
+    })?;
 
     vm.heap_object_mut::<Dict>(this, frame)?
         .shrink_to(min_capacity);
@@ -1832,11 +1856,11 @@ fn vmbi_dict_insert(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
             Arc::from(s)
         }
         Value::Symbol(symbol) => {
-            let s = vm
-                .module
-                .symbols
-                .get(symbol)
-                .exception_result(VmErrorKind::SymbolNotFound, frame)?;
+            let s = vm.module.symbols.get(symbol).with_exception(|| {
+                VmExceptionPayload::SymbolNotFound(symbol)
+                    .into_exception()
+                    .with_frame(frame.clone())
+            })?;
 
             Arc::from(s)
         }
@@ -1845,7 +1869,19 @@ fn vmbi_dict_insert(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
             Arc::from(s.as_str())
         }
-        _ => throw!(VmErrorKind::Type, frame),
+        value => throw!(VmExceptionPayload::Type {
+            expected: concatcp!(
+                Value::CHAR_TYPE_NAME,
+                " | ",
+                Value::SYMBOL_TYPE_NAME,
+                " | ",
+                Value::REFERENCE_TYPE_NAME,
+            )
+            .into(),
+            actual: value.type_name().into()
+        }
+        .into_exception()
+        .with_frame(frame.clone())),
     };
     let value = vm.pop_value(frame)?;
 
@@ -1863,8 +1899,11 @@ fn vmbi_dict_remove(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         let mut this = vm.heap_object_mut::<Dict>(this_ref, frame)?;
         let key = vm.heap_object::<Str>(key_ref, frame)?;
 
-        this.remove(key.as_str())
-            .exception_result(VmErrorKind::OutOfBounds, frame)?
+        this.remove(key.as_str()).with_exception(|| {
+            DictExceptionPayload::KeyNotFound(Arc::from(key.as_str()))
+                .into_exception()
+                .with_frame(frame.clone())
+        })?
     };
 
     vm.push_value(value, frame)?;
@@ -1903,11 +1942,16 @@ fn vmbi_set_with_capacity(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     // Using isize::MAX as a maximum bound ensures that the capac'ity cannot exceed the bounds
     // of usize, so the `as` casts here are fine. This is also a degenerate case that will
     // likely cause an OOM error in Rust anyway.
-    let capacity: usize = vm
-        .pop_int(frame)?
-        .max(isize::MAX as i64)
+    let capacity_i64 = vm.pop_int(frame)?;
+
+    let capacity = capacity_i64
+        .min(isize::MAX as i64)
         .try_into()
-        .exception_result(VmErrorKind::InvalidSize, frame)?;
+        .with_exception(|| {
+            VmExceptionPayload::InvalidSize(capacity_i64 as i128)
+                .into_exception()
+                .with_frame(frame.clone())
+        })?;
     let this_ref = vm.alloc(Set::with_capacity(capacity), frame)?;
 
     vm.push_value(Value::Reference(this_ref), frame)?;
@@ -1930,7 +1974,11 @@ fn vmbi_set_index(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
         .heap_object::<Set>(this_ref, frame)?
         .get(&EqValue::from(key))
         .copied()
-        .exception_result(VmErrorKind::OutOfBounds, frame)?;
+        .with_exception(|| {
+            SetExceptionPayload::ValueNotFound(key)
+                .into_exception()
+                .with_frame(frame.clone())
+        })?;
 
     vm.push_value(value.into(), frame)?;
     Ok(())
@@ -1948,10 +1996,20 @@ fn vmbi_set_capacity(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
 fn vmbi_set_reserve(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this = vm.pop_reference(frame)?;
-    let additional: usize = vm
-        .pop_int(frame)?
-        .try_into()
-        .exception_result(VmErrorKind::InvalidSize, frame)?;
+    let additional_i64 = vm.pop_int(frame)?;
+    let mut set = vm.heap_object_mut::<Set>(this, frame)?;
+
+    let additional: usize = additional_i64.try_into().with_exception(|| {
+        VmExceptionPayload::InvalidSize(set.capacity() as i128 + additional_i64 as i128)
+            .into_exception()
+            .with_frame(frame.clone())
+    })?;
+
+    set.try_reserve(additional).with_exception(|| {
+        VmExceptionPayload::InvalidSize(set.capacity() as i128 + additional_i64 as i128)
+            .into_exception()
+            .with_frame(frame.clone())
+    });
 
     vm.heap_object_mut::<Set>(this, frame)?.reserve(additional);
 
@@ -1967,10 +2025,13 @@ fn vmbi_set_shrink_to_fit(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
 
 fn vmbi_set_shrink_to(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let this = vm.pop_reference(frame)?;
-    let min_capacity = vm
-        .pop_int(frame)?
-        .try_into()
-        .exception_result(VmErrorKind::InvalidSize, frame)?;
+    let min_capacity_i64 = vm.pop_int(frame)?;
+
+    let min_capacity: usize = min_capacity_i64.try_into().with_exception(|| {
+        VmExceptionPayload::InvalidSize(min_capacity_i64 as i128)
+            .into_exception()
+            .with_frame(frame.clone())
+    })?;
 
     vm.heap_object_mut::<Set>(this, frame)?
         .shrink_to(min_capacity);
@@ -1983,7 +2044,9 @@ fn vmbi_set_insert(vm: &mut Vm, frame: &CallFrame) -> Result<()> {
     let key = vm.pop_value(frame)?;
 
     if matches!(key, Value::Float(v) if v.is_nan()) {
-        throw!(VmErrorKind::InvalidReference, frame)
+        throw!(SetExceptionPayload::Nan
+            .into_exception()
+            .with_frame(frame.clone()))
     }
 
     let inserted = vm

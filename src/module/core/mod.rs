@@ -4,9 +4,9 @@ use self::collections::{Array, Dict, Set, Str};
 
 use super::{Module, ToModule};
 
+pub mod closure;
 pub mod collections;
 pub mod io;
-pub mod closure;
 
 /// The core library of the PFVM.
 pub struct CoreLib;

@@ -101,7 +101,7 @@ macro_rules! variant_methods {
                             value => Err(f(value))
                         }
                     }
-                    
+
                     #[inline(always)]
                     pub fn [<$variant:lower _ref_mut_or_else>]<F, E>(&mut self, f: F) -> Result<&mut $inner_ty, E>
                     where

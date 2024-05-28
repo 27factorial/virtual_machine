@@ -59,7 +59,3 @@ impl Functions {
         self.code.get(index)
     }
 }
-
-
-
-

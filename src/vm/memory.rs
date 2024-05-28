@@ -1,5 +1,4 @@
 use std::alloc::{self, Layout};
-use std::{cmp, mem};
 use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 use std::iter::FusedIterator;
@@ -7,6 +6,7 @@ use std::mem::MaybeUninit;
 use std::ops::{Index, IndexMut};
 use std::ptr::{self, NonNull};
 use std::slice;
+use std::{cmp, mem};
 
 #[cold]
 #[inline(never)]
@@ -23,7 +23,7 @@ fn capacity_overflow() -> ! {
 }
 
 // Converts an index starting at the end of a slice to the index starting at the beginning of a
-// slice. This means that the first item in a stack will always be the item at the end of the 
+// slice. This means that the first item in a stack will always be the item at the end of the
 // internal slice. Use this to be less error prone when calculating indices from the end of a slice.
 #[inline(always)]
 fn stack_index(len: usize, index: usize) -> usize {
@@ -292,7 +292,7 @@ impl<T: Copy> VmStack<T> {
 
     pub(crate) fn push_from_ref(&mut self, elem: &T) -> Result<(), T> {
         if self.len() == self.capacity() {
-            // Returning the value on the stack here is fine, because it's an error state and is, 
+            // Returning the value on the stack here is fine, because it's an error state and is,
             // presumably, somewhat rare if this function is being called.
             return Err(*elem);
         }
@@ -304,7 +304,7 @@ impl<T: Copy> VmStack<T> {
         // mutably borrowed.
         // 3. self.len is always less than the capacity, so it can never overflow the capacity of
         // the stack.
-        // TODO: Think about whether or not this can be implemented with safe code without losing 
+        // TODO: Think about whether or not this can be implemented with safe code without losing
         // copying to a temporary. This function is intended to (essentially) memcpy from the element into
         // self, without first copying to the stack.
         unsafe {

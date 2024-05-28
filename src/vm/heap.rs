@@ -61,9 +61,8 @@ impl Heap {
                 }
             }
             None => {
-                let required_space = self.size
-                    + mem::size_of::<Option<GcBox<dyn VmObject>>>()
-                    + mem::size_of::<T>();
+                let required_space =
+                    self.size + mem::size_of::<Option<GcBox<dyn VmObject>>>() + mem::size_of::<T>();
 
                 if required_space <= self.capacity {
                     let idx = self.memory.len();
