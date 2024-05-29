@@ -223,6 +223,7 @@ impl Module {
                 }
             });
         self.functions.code.extend(other.functions.code);
+        self.functions.code.push(OpCode::Halt);
 
         // Native functions
         other.native_functions.into_iter().for_each(|(name, func)| {

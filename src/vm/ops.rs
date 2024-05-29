@@ -13,7 +13,7 @@ pub type OpResult = VmResult<Transition>;
 /// For operations which move values into and out of memory or registers, the operands are in the
 /// order (src, dst). For binary operations, the operands are ordered `opcode.0 <operation>
 /// opcode.1`.
-#[repr(u8)]
+#[repr(u8, align(32))]
 #[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
 pub enum OpCode {
     /// No operation; do nothing.
@@ -169,12 +169,6 @@ pub enum OpCode {
     /// Set the VM's current frame to the call frame popped from the call stack.
     Ret,
 
-    Throw(Symbol),
-
-    SetHandler(Function),
-
-    DelHandler,
-
     CastInt,
     CastFloat,
     CastBool,
@@ -243,9 +237,6 @@ impl OpCode {
             Op::CallBuiltin(idx) => vm.op_call_builtin(idx, frame),
             Op::CallNative(index) => vm.op_call_native(index, frame),
             Op::Ret => vm.op_ret(frame),
-            Op::Throw(_) => todo!(),
-            Op::SetHandler(_) => todo!(),
-            Op::DelHandler => todo!(),
             Op::CastInt => vm.op_cast_int(frame),
             Op::CastFloat => vm.op_cast_float(frame),
             Op::CastBool => vm.op_cast_bool(frame),
