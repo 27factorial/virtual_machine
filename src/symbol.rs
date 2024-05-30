@@ -170,4 +170,5 @@ pub struct SymbolSpan {
 #[derive(
     Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize, Deserialize,
 )]
+#[repr(transparent)]
 pub struct Symbol(pub(crate) usize);

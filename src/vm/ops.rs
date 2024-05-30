@@ -13,7 +13,7 @@ pub type OpResult = VmResult<Transition>;
 /// For operations which move values into and out of memory or registers, the operands are in the
 /// order (src, dst). For binary operations, the operands are ordered `opcode.0 <operation>
 /// opcode.1`.
-#[repr(u8, align(32))]
+#[repr(usize, align(32))]
 #[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Serialize, Deserialize)]
 pub enum OpCode {
     /// No operation; do nothing.
@@ -290,13 +290,12 @@ mod imp {
                         .with_frame($frame.clone())
                     })?;
 
-                    let new_value = match i64::$int_op(a, *b) {
+                    *b = match i64::$int_op(a, *b) {
                         Some(v) => v,
                         None => throw!(VmExceptionPayload::Arithmetic
                             .into_exception()
                             .with_frame($frame.clone())),
                     };
-                    *b = new_value;
                 }
                 Value::Float(a) => {
                     let b = $b.float_ref_mut_or_else(|value| {

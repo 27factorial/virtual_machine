@@ -8,6 +8,7 @@ use thiserror::Error;
 #[derive(
     Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Serialize, Deserialize,
 )]
+#[repr(transparent)]
 pub struct Function(pub(crate) usize);
 
 impl Function {
